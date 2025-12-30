@@ -1,0 +1,236 @@
+// use super::AdminNavBar;
+// use crate::components::navbar::NavBar;
+use leptos::prelude::*;
+
+use crate::server::{Challenge, get_all_challenges_with_attachments};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Actions {
+    Create,
+    Delete,
+    Edit
+}
+
+/// Default Home Page
+#[component]
+pub fn Challenges() -> impl IntoView {
+    let section = RwSignal::new(Actions::Create);
+    let challenge_action = ServerAction::<Challenge>::new();
+
+    // load once on mount
+    let cwa = Resource::new(move || (), move |_| async move {
+        match get_all_challenges_with_attachments().await {
+            Ok(cwa) => Ok(cwa),
+            Err(e) => Err(e)
+        }
+    });
+
+    view! {
+        <button class="border-2 border-black p-2 text-black rounded" on:click=move |_| section.set(Actions::Create)>"Create"</button>
+        <button class="border-2 border-black p-2 text-black rounded" on:click=move |_| section.set(Actions::Delete)>"Delete"</button>
+        <button class="border-2 border-black p-2 text-black rounded" on:click=move |_| section.set(Actions::Edit)>"Edit"</button>
+
+        <section class="main-panel">
+            <Show when=move || section.get() == Actions::Create>
+                <ActionForm action=challenge_action>
+                    <label>
+                        <b>"Event ID"</b>
+                        <input class="bg-white border" type="number" name="action[Create][event_id]" />
+                    </label>
+                    <label>
+                        <b>"Name"</b>
+                        <input class="bg-white border" name="action[Create][name]" />
+                    </label>
+                    <label>
+                        <b>"Description"</b>
+                        <input class="bg-white border" name="action[Create][description]" />
+                    </label>
+                    <label>
+                        <b>"Difficulty"</b>
+                        <input class="bg-white border" type="number" name="action[Create][difficulty]" />
+                    </label>
+                    <label>
+                        <b>"Points"</b>
+                        <input class="bg-white border" type="number" name="action[Create][points]" />
+                    </label>
+                    <label>
+                        <b>"Flag"</b>
+                        <input class="bg-white border" name="action[Create][flag]" />
+                    </label>
+                    <label>
+                        <b>"Attachment"</b>
+                        <input class="bg-white border" type="file" name="attachment" />
+                    </label>
+                    //<button loading=loading on_click=move |_| { loading.set(true) }>
+                    <input
+                        type="submit"
+                        class=r#"flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                               leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                        value="Create"
+                    />
+                </ActionForm>
+            </Show>
+
+            <Show when=move || section.get() == Actions::Delete>
+                "Delete"
+                <ActionForm action=challenge_action>
+                    <label>
+                        <b>"Challenge ID"</b>
+                        <input class="bg-white border" type="number" name="action[Delete][id]" />
+                    </label>
+                    //<button loading=loading on_click=move |_| { loading.set(true) }>
+                    <input
+                        type="submit"
+                        class=r#"flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                            leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                        value="Delete"
+                    />
+                </ActionForm>
+                // <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+                //     {move || {
+                //         let challenges = cwa.get().map(move |result| match result {
+                //             Ok(challenges) => {
+                //                 view! {
+                //                     <For
+                //                         // returns an owned Vec for For to iterate
+                //                         // each=move || bar.get().unwrap().clone()
+                //                         each=move || challenges.clone()
+                //                         key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id
+                //                         let(challenge)
+                //                         // key=|foobar: &String| foobar.clone()
+                //                         // let(foobar)
+                //                     >
+                //                         <div class="challenge p-2">
+                //                             // <p>{foobar}</p>
+                //                             <Challenge
+                //                                 title=challenge.challenge.name
+                //                                 description=challenge.challenge.description
+                //                                 difficulty=challenge.challenge.difficulty
+                //                                 points=challenge.challenge.points
+                //                                 attachments=challenge.attachments
+                //                             />
+                //                             <ActionForm action=challenge_action>
+                //                                 <label>
+                //                                     <b>"Challenge ID"</b>
+                //                                     <input class="bg-white border" type="number" name="action[Delete][id]" />
+                //                                 </label>
+                //                                 //<button loading=loading on_click=move |_| { loading.set(true) }>
+                //                                 <input
+                //                                     type="submit"
+                //                                     class=r#"flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                //                                         leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                //                                         focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                //                                     value="Delete"
+                //                                 />
+                //                             </ActionForm>
+                //                         </div>
+                //                     </For>
+                //                 }.into_any()
+                //             }
+                //             Err(e) => {
+                //                 view! {
+                //                     <div class="challenge p-2">
+                //                         <p>"Bruh" {e.to_string()}</p>
+                //                     </div>
+                //                 }.into_any()
+                //             }
+                //         })
+                //         .collect_view()
+                //         .into_any();
+                //
+                //         view! {
+                //             {challenges}
+                //         }
+                //     }}
+                // </Suspense>
+            </Show>
+
+            <Show when=move || section.get() == Actions::Edit>
+                "Edit"
+                <ActionForm action=challenge_action>
+                    <label>
+                        <b>"Challenge ID"</b>
+                        <input class="bg-white border" type="number" name="action[Edit][id]" />
+                    </label>
+                    <label>
+                        <b>"Event ID"</b>
+                        <input class="bg-white border" type="number" name="action[Edit][event_id]" />
+                    </label>
+                    <label>
+                        <b>"Name"</b>
+                        <input class="bg-white border" name="action[Edit][name]" />
+                    </label>
+                    <label>
+                        <b>"Description"</b>
+                        <input class="bg-white border" name="action[Edit][description]" />
+                    </label>
+                    <label>
+                        <b>"Difficulty"</b>
+                        <input class="bg-white border" type="number" name="action[Edit][difficulty]" />
+                    </label>
+                    <label>
+                        <b>"Points"</b>
+                        <input class="bg-white border" type="number" name="action[Edit][points]" />
+                    </label>
+                    <label>
+                        <b>"Flag"</b>
+                        <input class="bg-white border" name="action[Edit][flag]" />
+                    </label>
+                    <label>
+                        <b>"Attachment"</b>
+                        <input class="bg-white border" type="file" name="attachment" />
+                    </label>
+                    //<button loading=loading on_click=move |_| { loading.set(true) }>
+                    <input
+                        type="submit"
+                        class=r#"flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                            leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                        value="Edit"
+                    />
+                </ActionForm>
+                // <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+                //     {move || {
+                //         let challenges = cwa.get().map(move |result| match result {
+                //             Ok(challenges) => {
+                //                 view! {
+                //                     <For
+                //                         each=move || challenges.clone()
+                //                         key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id
+                //                         let(challenge)
+                //                     >
+                //                         <div class="challenge p-2">
+                //                             // <p>{foobar}</p>
+                //                             <Challenge
+                //                                 title=challenge.challenge.name
+                //                                 description=challenge.challenge.description
+                //                                 difficulty=challenge.challenge.difficulty
+                //                                 points=challenge.challenge.points
+                //                                 attachments=challenge.attachments
+                //                             />
+                //                         </div>
+                //                     </For>
+                //                 }.into_any()
+                //             }
+                //             Err(e) => {
+                //                 view! {
+                //                     <div class="challenge p-2">
+                //                         <p>"Bruh" {e.to_string()}</p>
+                //                     </div>
+                //                 }.into_any()
+                //             }
+                //         })
+                //         .collect_view()
+                //         .into_any();
+                // 
+                //         view! {
+                //             {challenges}
+                //         }
+                //     }}
+                // </Suspense>
+            </Show>
+        </section>
+    }
+}

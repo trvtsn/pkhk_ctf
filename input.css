@@ -1,0 +1,96 @@
+/* @import url('https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap'); */
+@import "tailwindcss";
+/*@import "tailwindcss/preflight";*/
+@import "tailwindcss/utilities";
+
+@font-face {
+    font-family: "Funnel Display";
+    font-weight: 300 800;
+    font-style: normal;
+    font-display: swap;
+    font-variation-settings: "wght" 400;
+    src: url("fonts/FunnelDisplay-VariableFont_wght.ttf") format("truetype");
+}
+
+@theme {
+    --default-font-family: "Funnel Display", var(--font-sans);
+
+    --color-yale-blue-50: #e8f6fd;
+    --color-yale-blue-100: #d0edfb;
+    --color-yale-blue-200: #a1dcf7;
+    --color-yale-blue-300: #72caf3;
+    --color-yale-blue-400: #43b8ef;
+    --color-yale-blue-500: #14a7eb;
+    --color-yale-blue-600: #1085bc;
+    --color-yale-blue-700: #0c648d;
+    --color-yale-blue-800: #08435e;
+    --color-yale-blue-900: #04212f;
+    --color-yale-blue-950: #031721;
+
+    --color-tomato-jam-50: #fbeaeb;
+    --color-tomato-jam-100: #f7d4d7;
+    --color-tomato-jam-200: #eeaab0;
+    --color-tomato-jam-300: #e67f88;
+    --color-tomato-jam-400: #dd5560;
+    --color-tomato-jam-500: #d52a38;
+    --color-tomato-jam-600: #aa222d;
+    --color-tomato-jam-700: #801922;
+    --color-tomato-jam-800: #551117;
+    --color-tomato-jam-900: #2b080b;
+    --color-tomato-jam-950: #1e0608;
+
+    --color-slate-grey-50: #f1f3f4;
+    --color-slate-grey-100: #e2e7e9;
+    --color-slate-grey-200: #c5ced3;
+    --color-slate-grey-300: #a9b6bc;
+    --color-slate-grey-400: #8c9da6;
+    --color-slate-grey-500: #6f8590;
+    --color-slate-grey-600: #596a73;
+    --color-slate-grey-700: #435056;
+    --color-slate-grey-800: #2c353a;
+    --color-slate-grey-900: #161b1d;
+    --color-slate-grey-950: #101314;
+
+    --color-peach-glow-50: #fcf1e9;
+    --color-peach-glow-100: #f9e3d2;
+    --color-peach-glow-200: #f3c7a5;
+    --color-peach-glow-300: #edab78;
+    --color-peach-glow-400: #e78f4b;
+    --color-peach-glow-500: #e0731f;
+    --color-peach-glow-600: #b45c18;
+    --color-peach-glow-700: #874512;
+    --color-peach-glow-800: #5a2e0c;
+    --color-peach-glow-900: #2d1706;
+    --color-peach-glow-950: #1f1004;
+
+    --color-lavender-blush-50: #f5f0f2;
+    --color-lavender-blush-100: #ebe0e5;
+    --color-lavender-blush-200: #d7c1cb;
+    --color-lavender-blush-300: #c3a2b1;
+    --color-lavender-blush-400: #ae8497;
+    --color-lavender-blush-500: #9a657d;
+    --color-lavender-blush-600: #7b5164;
+    --color-lavender-blush-700: #5d3c4b;
+    --color-lavender-blush-800: #3e2832;
+    --color-lavender-blush-900: #1f1419;
+    --color-lavender-blush-950: #160e11;
+}
+
+.animated-background {
+    background-size: 400%;
+
+    -webkit-animation: animation 8s ease infinite;
+    -moz-animation: animation 8s ease infinite;
+    animation: animation 8s ease infinite;
+}
+
+@keyframes animation {
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+    
+    50% {
+        background-position: 100% 50%;
+    }
+}
