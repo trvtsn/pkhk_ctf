@@ -79,6 +79,7 @@ pub mod structs {
         pub event_id: u32,
         pub name: String,
         pub description: Option<String>,
+        pub category: Option<String>,
         pub difficulty: i8,
         pub points: u32
     }
@@ -370,6 +371,7 @@ cfg_if! {
                 event_id: &u32, 
                 name: &String, 
                 description: &String, 
+                category: &String,
                 difficulty: &i8, 
                 points: &u32, 
                 flag_hash: &String, 
@@ -378,13 +380,14 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     INSERT INTO challenges
-                    (event_id, name, description, difficulty, points, flag_hash)
+                    (event_id, name, description, category, difficulty, points, flag_hash)
                     VALUES 
-                    (?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?)
                     ", 
                     event_id,
                     name,
                     description,
+                    category,
                     difficulty,
                     points,
                     flag_hash
@@ -424,6 +427,7 @@ cfg_if! {
                 event_id: &u32, 
                 name: &String, 
                 description: &String, 
+                category: &String,
                 difficulty: &i8, 
                 points: &u32, 
                 flag_hash: &String, 
@@ -433,13 +437,14 @@ cfg_if! {
                     "
                     UPDATE challenges
                     SET
-                    event_id = ?, name = ?, description = ?, difficulty = ?, points = ?, flag_hash = ?
+                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?
                     WHERE 
                     id = ?
                     ", 
                     event_id,
                     name,
                     description,
+                    category,
                     difficulty,
                     points,
                     flag_hash,
@@ -459,7 +464,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, difficulty, points
+                    SELECT id, event_id, name, description, category, difficulty, points
                     FROM challenges 
                     WHERE id = ?
                     ", 
@@ -479,7 +484,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, difficulty, points
+                    SELECT id, event_id, name, description, category, difficulty, points
                     FROM challenges
                     "
                 )
@@ -772,6 +777,25 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => Ok(rows),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_user_points(user_id: &u32, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT CAST(COALESCE(SUM(points), 0) AS UNSIGNED) as points
+                    FROM submissions
+                    WHERE user_id = ?
+                    ",
+                    user_id
+                )
+                    .fetch_one(executor)
+                    .await {
+                        Ok(row) => Ok(row.points as u32),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

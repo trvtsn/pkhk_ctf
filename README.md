@@ -3,7 +3,7 @@
 # PKHK CTF Platform
 
 Very early prototype of the CTF platform for [Pärnumaa Kutsehariduskeskus](https://hariduskeskus.ee/).
-Full-stack project using Leptos SSR & Axum.
+Full-stack project using Leptos SSR, Axum and Tailwind v4.
 
 Focus lies on functionality first, then styling and visual acuity.
 
@@ -22,12 +22,18 @@ cargo leptos watch
 - [ ] Replace SQLx crate and MySQL DB with SurrealDB
 - [ ] Mitigate any unnecessary hydration/data-processing loops or cycles (to save resources)
 - [ ] Server-side flag checking
-- [ ] Format log messages in Admin "Log" section
+- [x] Create challenge categories
+- [ ] Clean up code for better readability, get rid of placeholder code
 
 ### Security
 - [ ] Restrict access to admin endpoints and API
 - [ ] Hashing of flags
-- [ ] A lot, will fill this in later
+- [ ] Increase session cookie length and complexity
+- [ ] Generalize/structurize API endpoint names (e.g. **GET /api/build_leaderboard_data** -> **POST /api/leaderboard** and **GET /api/get_db_user** -> **POST /api/user**)
 
 ### Styling
-- [ ] A lot, will fill this in later
+- [x] Display challenges and users in uniform boxes
+- [x] Add custom site favicon
+- [ ] Add icons
+- [x] Add "Points" indicator to user on navbar and profile
+- [x] Format log messages in Admin "Log" section

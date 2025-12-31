@@ -277,6 +277,21 @@ pub async fn get_user() -> Result<Option<User>,ServerFnError> {
     }
 }
 
+#[server(name=GetUserPoints, prefix="/api", endpoint="get_user_points")]
+pub async fn get_user_points() -> Result<Option<u32>, ServerFnError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let session: AuthSession = use_context().expect("session not provided");
+            match db::structs::Submission::get_user_points(&session.user.unwrap_or_default().id, &session.backend.pool).await {
+                Ok(points) => Ok(Some(points)),
+                Err(e) => Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 #[server(name=GetDbUser, prefix="/api", endpoint="get_db_user")]
 pub async fn get_db_user(username: String) -> Result<Option<DbUser>, ServerFnError> {
     cfg_if::cfg_if! {
@@ -330,6 +345,7 @@ pub enum ChallengeAction {
         event_id: u32, 
         name: String, 
         description: String, 
+        category: String,
         difficulty: i8, 
         points: u32, 
         flag: String
@@ -342,6 +358,7 @@ pub enum ChallengeAction {
         event_id: u32, 
         name: String, 
         description: String, 
+        category: String,
         difficulty: i8, 
         points: u32, 
         flag: String
@@ -363,14 +380,14 @@ pub async fn challenge(action: ChallengeAction) -> Result<(), ServerFnError> {
             // hash flag
 
             match action {
-                ChallengeAction::Create { event_id, name, description, difficulty, points, flag } => {
-                    _ = db::structs::Challenge::add(&event_id, &name, &description, &difficulty, &points, &flag, &auth.backend.pool).await;
+                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag } => {
+                    _ = db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await;
                 }
                 ChallengeAction::Delete { id } => {
                     _ = db::structs::Challenge::delete(&id, &auth.backend.pool).await;
                 }
-                ChallengeAction::Edit { id, event_id, name, description, difficulty, points, flag } => {
-                    _ = db::structs::Challenge::edit(&id, &event_id, &name, &description, &difficulty, &points, &flag, &auth.backend.pool).await;
+                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag } => {
+                    _ = db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await;
                 }
                 ChallengeAction::Check { id, flag } => {
                     let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&id, &auth.backend.pool).await {

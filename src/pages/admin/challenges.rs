@@ -16,6 +16,7 @@ pub enum Actions {
 pub fn Challenges() -> impl IntoView {
     let section = RwSignal::new(Actions::Create);
     let challenge_action = ServerAction::<Challenge>::new();
+    let category_add_new_selected = RwSignal::new(false);
 
     // load once on mount
     let cwa = Resource::new(move || (), move |_| async move {
@@ -44,6 +45,27 @@ pub fn Challenges() -> impl IntoView {
                     <label>
                         <b>"Description"</b>
                         <input class="bg-white border" name="action[Create][description]" />
+                    </label>
+                    <label>
+                        <b>"Category"</b>
+                        // <select>
+                        //     <For
+                        //         each=move || {
+                        //             cwa.get().map(|cat| match cat {
+                        //                 Ok(cat) => {},
+                        //                 Err(e) => {}
+                        //             })
+                        //         }
+                        //         key=|ch_cat: &String| ch_cat
+                        //         let(ch_cat)
+                        //     >
+                        //         <option name="action[Create][category]">{cwa}</option>
+                        //     </For>
+                        //     <option>"+ Add New"</option>
+                        // </select>
+                        // <Show when=move || category_add_new_selected.get()>
+                            <input class="bg-white border" name="action[Create][category]" />
+                        // </Show>
                     </label>
                     <label>
                         <b>"Difficulty"</b>
@@ -165,6 +187,10 @@ pub fn Challenges() -> impl IntoView {
                     <label>
                         <b>"Description"</b>
                         <input class="bg-white border" name="action[Edit][description]" />
+                    </label>
+                    <label>
+                        <b>"Category"</b>
+                        <input class="bg-white border" name="action[Edit][category]" />
                     </label>
                     <label>
                         <b>"Difficulty"</b>

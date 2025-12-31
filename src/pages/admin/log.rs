@@ -17,13 +17,13 @@ pub fn Log() -> impl IntoView {
 
     Effect::new(move |_| {
         if let Some(msg) = message.get() {
-            let text = format!("[{}] {}", msg.event_type, msg.data);
+            let text = format!("[{}] {}\n", msg.event_type, msg.data);
             logs.update(|v| v.push(text));
         }
     });
 
     view! {
-        <textarea id="server-logs" readonly rows="20" style="width:100%">
+        <textarea class="server-logs w-full border-1 border-black" readonly rows="20">
         {move || {
             logs.get()
         }}

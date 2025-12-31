@@ -1,4 +1,4 @@
-use crate::server::{get_user, structs::User};
+use crate::server::{get_user, get_user_points, structs::User};
 //use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 //use leptos_icons::Icon;
@@ -9,6 +9,9 @@ pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
     let user = Resource::new(move || (), async move |_| {
         get_user().await.unwrap_or_default()
+    });
+    let user_points = Resource::new(move || (), async move |_| {
+        get_user_points().await.unwrap_or_default()
     });
     let username = RwSignal::new("".to_string());
     let user_profile_path = RwSignal::new("".to_string());
@@ -46,6 +49,7 @@ pub fn NavBar() -> impl IntoView {
                                 >
                                 {username.get()}
                                 </a>
+                                <b>"Points: "{move || user_points.get().map(|hh| hh.unwrap_or_default())}</b>
                             }.into_any()
                         },
                         None => {

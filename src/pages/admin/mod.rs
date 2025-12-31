@@ -29,34 +29,36 @@ pub fn Admin() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="container p-8 inline justify-center">
+        <div class="container p-8 inline justify-center align-center">
             <h3 class="text-4xl text-center">"Admin"</h3>
-            <AdminNavBar />
-            <section class="main-panel">
-                {move || {
-                    view! {
-                        <Show when=move || selected.get() == AdminSections::SiteSettings>
-                            <SiteSettings />
-                        </Show>
+            <div class="grid grid-cols-5 gap-2 m-4">
+                <AdminNavBar />
+                <section class="main-panel col-start-2 col-end-6 gap-8">
+                    {move || {
+                        view! {
+                            <Show when=move || selected.get() == AdminSections::SiteSettings>
+                                <SiteSettings />
+                            </Show>
 
-                        <Show when=move || selected.get() == AdminSections::Events>
-                            <Events />
-                        </Show>
+                            <Show when=move || selected.get() == AdminSections::Events>
+                                <Events />
+                            </Show>
 
-                        <Show when=move || selected.get() == AdminSections::Challenges>
-                            <Challenges />
-                        </Show>
+                            <Show when=move || selected.get() == AdminSections::Challenges>
+                                <Challenges />
+                            </Show>
 
-                        <Show when=move || selected.get() == AdminSections::Users>
-                            <Users />
-                        </Show>
+                            <Show when=move || selected.get() == AdminSections::Users>
+                                <Users />
+                            </Show>
 
-                        <Show when=move || selected.get() == AdminSections::Log>
-                            <Log />
-                        </Show>
-                    }
-                }}
-            </section>
+                            <Show when=move || selected.get() == AdminSections::Log>
+                                <Log />
+                            </Show>
+                        }
+                    }}
+                </section>
+            </div>
         </div>
     }
 }
@@ -66,34 +68,32 @@ pub fn AdminNavBar() -> impl IntoView {
     let selected = use_context::<RwSignal<AdminSections>>().expect("to have found the setter provided");
 
     view! {
-        <div class="container">
-            <nav class="flex-col p-2">
-                <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::SiteSettings)>"Site Settings"</p>
-                <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Events)>"Events"</p>
-                <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Challenges)>"Challenges"</p>
-                <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Users)>"Users"</p>
-                <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Log)>"Log"</p>
-            </nav>
-            // <NavDrawer>
-            //     <NavItem
-            //         value="Site Settings"
-            //         on:click=move |_| selected.set("Site Settings".to_string())
-            //     >
-            //         <p>"Site Settings"</p>
-            //     </NavItem>
-            //     <NavItem value="Events" on:click=move |_| selected.set("Events".to_string())>
-            //         <p>"Events"</p>
-            //     </NavItem>
-            //     <NavItem
-            //         value="Challenges"
-            //         on:click=move |_| selected.set("Challenges".to_string())
-            //     >
-            //         <p>"Challenges"</p>
-            //     </NavItem>
-            //     <NavItem value="Log" on:click=move |_| selected.set("Log".to_string())>
-            //         <p>"Log"</p>
-            //     </NavItem>
-            // </NavDrawer>
-        </div>
+        <nav class="col-start-1 col-end-1 gap-2 rounded-1xl">
+            <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::SiteSettings)>"Site Settings"</p>
+            <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Events)>"Events"</p>
+            <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Challenges)>"Challenges"</p>
+            <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Users)>"Users"</p>
+            <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Log)>"Log"</p>
+        </nav>
+        // <NavDrawer>
+        //     <NavItem
+        //         value="Site Settings"
+        //         on:click=move |_| selected.set("Site Settings".to_string())
+        //     >
+        //         <p>"Site Settings"</p>
+        //     </NavItem>
+        //     <NavItem value="Events" on:click=move |_| selected.set("Events".to_string())>
+        //         <p>"Events"</p>
+        //     </NavItem>
+        //     <NavItem
+        //         value="Challenges"
+        //         on:click=move |_| selected.set("Challenges".to_string())
+        //     >
+        //         <p>"Challenges"</p>
+        //     </NavItem>
+        //     <NavItem value="Log" on:click=move |_| selected.set("Log".to_string())>
+        //         <p>"Log"</p>
+        //     </NavItem>
+        // </NavDrawer>
     }
 }

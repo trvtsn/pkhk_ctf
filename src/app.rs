@@ -80,7 +80,7 @@ pub fn App() -> impl IntoView {
                         condition=move || {
                             Some(true)
                         }
-                        view=Admin
+                        view=user::User
                         ssr=leptos_router::SsrMode::InOrder
                     >
                         <Route path=path!(":username") view=user::User ssr=leptos_router::SsrMode::InOrder/>

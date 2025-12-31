@@ -31,7 +31,7 @@ pub fn Challenge(
 
     view! {
         <div
-            class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 text-center content-center"
+            class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 content-center"
             on:click=move |_| {
                 open.set(true);
             }

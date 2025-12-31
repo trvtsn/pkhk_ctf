@@ -36,9 +36,13 @@ pub fn Register() -> impl IntoView {
                     <input class="bg-white border" type="password" name="password" bind:value=password />
                 </label>
                 //<button loading=loading on_click=move |_| { loading.set(true) }>
-                <button class=move || button_classes on:click=move |_| { loading.set(true) } >
-                    "Register"
-                </button>
+                <input
+                    type="submit"
+                    class=r#"flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                            leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                    value="Register"
+                />
             </ActionForm>
         </div>
     }

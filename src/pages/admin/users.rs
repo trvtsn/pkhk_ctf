@@ -2,7 +2,7 @@
 // use crate::components::navbar::NavBar;
 use leptos::prelude::*;
 
-use crate::server::{db::structs::DbUser, get_all_users};
+use crate::{components::admin::user::User, server::{db::structs::DbUser, get_all_users}};
 
 /// Default Home Page
 #[component]
@@ -15,39 +15,37 @@ pub fn Users() -> impl IntoView {
     });
 
     view! {
-        <Suspense fallback=move || view! { <div>"Loading..."</div> }>
-            {move || {
-                let users = users.get().map(move |result| match result {
-                    Ok(users) => {
-                        view! {
-                            <For
-                                each=move || users.clone()
-                                key=|user: &DbUser| user.id
-                                let(user)
-                            >
+        <div class="grid-cols-4 p-4 m-4 flex">
+            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+                {move || {
+                    let users = users.get().map(move |result| match result {
+                        Ok(users) => {
+                            view! {
+                                <For
+                                    each=move || users.clone()
+                                    key=|user: &DbUser| user.id
+                                    let(user)
+                                >
+                                    <User user/>
+                                </For>
+                            }.into_any()
+                        }
+                        Err(e) => {
+                            view! {
                                 <div class="challenge p-2">
-                                    <p>{user.username}</p>
-                                    <p>{user.email}</p>
-                                    <p>{user.created_at.to_string()}</p>
+                                    <p>"Bruh" {e.to_string()}</p>
                                 </div>
-                            </For>
-                        }.into_any()
+                            }.into_any()
+                        }
+                    })
+                    .collect_view()
+                    .into_any();
+            
+                    view! {
+                        {users}
                     }
-                    Err(e) => {
-                        view! {
-                            <div class="challenge p-2">
-                                <p>"Bruh" {e.to_string()}</p>
-                            </div>
-                        }.into_any()
-                    }
-                })
-                .collect_view()
-                .into_any();
-        
-                view! {
-                    {users}
-                }
-            }}
-        </Suspense>
+                }}
+            </Suspense>
+        </div>
     }
 }
