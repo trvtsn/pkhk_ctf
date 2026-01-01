@@ -26,10 +26,10 @@ cargo leptos watch
 - [ ] Clean up code for better readability, get rid of placeholder code
 
 ### Security
-- [ ] Restrict access to admin endpoints and API
+- [x] Restrict access to admin endpoints and API
 - [ ] Hashing of flags
 - [ ] Increase session cookie length and complexity
-- [ ] Generalize/structurize API endpoint names (e.g. **GET /api/build_leaderboard_data** -> **POST /api/leaderboard** and **GET /api/get_db_user** -> **POST /api/user**)
+- [x] Generalize/structurize API endpoint names (e.g. **GET /api/build_leaderboard_data** -> **POST /api/leaderboard** and **GET /api/get_db_user** -> **POST /api/user**)
 
 ### Styling
 - [x] Display challenges and users in uniform boxes

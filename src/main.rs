@@ -108,7 +108,7 @@ async fn main() {
             get(logout_user)
         )
         .route(
-            "/logs", 
+            "/admin/logs", 
             get(logs_sse)
         )
         .leptos_routes_with_handler(

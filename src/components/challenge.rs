@@ -1,4 +1,4 @@
-use crate::server::db::structs::Attachment;
+use crate::server::{admin::AdminChallengeApi, db::structs::Attachment};
 use leptos::prelude::*;
 // use thaw::*;
 
@@ -10,7 +10,7 @@ pub fn Challenge(
     points: u32,
     #[prop(optional)] attachments: Vec<Attachment>,
 ) -> impl IntoView {
-    let challenge_action = ServerAction::<crate::server::Challenge>::new();
+    let challenge_action = ServerAction::<AdminChallengeApi>::new();
     // let input_flag = RwSignal::new("".to_string());
     // let solved = RwSignal::new(false);
     // let loading = RwSignal::new(false);

@@ -7,6 +7,8 @@ use password_hash::SaltString;
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
 use std::collections::HashSet;
+#[cfg(feature = "ssr")]
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use time::OffsetDateTime;
 
 #[cfg(feature = "ssr")]
@@ -73,7 +75,24 @@ cfg_if! {
                 // a let-binding outside of the macro or the compiler complains.
                 let pw_hash_str = pw_hash.to_string();
 
-                let username = email.split_once("@").map(|(l, _)| l.to_string()).unwrap_or(email.clone());
+                let mut rng = SmallRng::from_os_rng();
+                let username_prefix = email.split_once("@").map(|(l, _)| l.to_string()).unwrap_or(email.clone());
+                // let username = username_prefix;
+                let mut username = "".to_string();
+                while username.is_empty() {
+                    let username_suffix = rng.random_range(1000..9999);
+                    let possible_username = format!("{username_prefix}{username_suffix}");
+                    match DbUser::is_username_available(&possible_username, &self.pool).await {
+                        Ok(result) => {
+                            if result {
+                                username = possible_username;
+                            } else {
+                                continue;
+                            }
+                        },
+                        Err(e) => continue,
+                    }
+                }
                 let new_user = DbUser { 
                     id: 0, 
                     username: username.clone(), 

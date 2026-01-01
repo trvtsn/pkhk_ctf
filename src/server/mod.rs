@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}}};
-use crate::{server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Submission, SubmissionWithData}}, structs::{LeaderboardData, PivotRow, User}}};
+use crate::server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Submission, SubmissionWithData}}, structs::{LeaderboardData, PivotRow, User}};
 #[cfg(feature = "ssr")]
 use argon2::{Argon2, PasswordVerifier};
 // #[cfg(feature = "ssr")]
@@ -24,6 +24,7 @@ use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
 
+pub mod admin;
 #[cfg(feature = "ssr")]
 pub mod auth;
 pub mod backend;
@@ -83,6 +84,39 @@ pub mod structs {
         pub rows: Vec<PivotRow>,
     }
 }
+// pub mod enums {
+//     use serde::{Deserialize, Serialize};
+
+//     pub enum ApiActions {
+//         Challenge {
+//             action: ChallengeAction
+//         },
+//         Leaderboard {
+//             action: LeaderboardAction
+//         },
+//         User {
+//             action: UserAction
+//         }
+//     }
+
+//     // #[serde(rename_all = "lowercase")]
+//     #[derive(Debug, Clone, Deserialize, Serialize)]
+//     pub enum LeaderboardAction {
+//         Build
+//     }
+
+//     // #[serde(rename_all = "lowercase")]
+//     #[derive(Debug, Clone, Deserialize, Serialize)]
+//     pub enum UserAction {
+//         Build,
+//         IsAdmin,
+//         Get,
+//         Login,
+//         Register,
+//         GetAll,
+//         GetPoints
+//     }
+// }
 
 #[cfg(feature = "ssr")]
 pub fn pool() -> Result<MySqlPool, ServerFnError> {
@@ -98,7 +132,7 @@ pub fn init_env() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[server]
+#[server(name=Challenges, prefix="/api", endpoint="challenges")]
 pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAttachments>, ServerFnError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -116,7 +150,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
     }
 }
 
-#[server]
+#[server(name=Leaderboard, prefix="/api", endpoint="leaderboard")]
 pub async fn build_leaderboard_data() -> Result<Option<LeaderboardData>, ServerFnError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -265,8 +299,8 @@ pub async fn login_user(email: String, password: String) -> Result<Option<User>,
     }
 }
 
-#[server(name=GetUser, prefix="/api", endpoint="get_user")]
-pub async fn get_user() -> Result<Option<User>,ServerFnError> {
+#[server(name=GetUser, prefix="/api", endpoint="user")]
+pub async fn get_user() -> Result<Option<User>, ServerFnError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let session: AuthSession = use_context().expect("session not provided");
@@ -277,7 +311,7 @@ pub async fn get_user() -> Result<Option<User>,ServerFnError> {
     }
 }
 
-#[server(name=GetUserPoints, prefix="/api", endpoint="get_user_points")]
+#[server(name=GetUserPoints, prefix="/api/user", endpoint="points")]
 pub async fn get_user_points() -> Result<Option<u32>, ServerFnError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -292,7 +326,7 @@ pub async fn get_user_points() -> Result<Option<u32>, ServerFnError> {
     }
 }
 
-#[server(name=GetDbUser, prefix="/api", endpoint="get_db_user")]
+#[server(name=GetDbUser, prefix="/api/user", endpoint="info")]
 pub async fn get_db_user(username: String) -> Result<Option<DbUser>, ServerFnError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -334,145 +368,6 @@ pub async fn register_user(email: String, password: String) -> Result<Option<Use
             }
         } else {
             Ok(Some(User::default()))
-        }
-    }
-}
-
-// #[serde(rename_all = "lowercase")]
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum ChallengeAction {
-    Create {
-        event_id: u32, 
-        name: String, 
-        description: String, 
-        category: String,
-        difficulty: i8, 
-        points: u32, 
-        flag: String
-    },
-    Delete {
-        id: u32
-    },
-    Edit {
-        id: u32,
-        event_id: u32, 
-        name: String, 
-        description: String, 
-        category: String,
-        difficulty: i8, 
-        points: u32, 
-        flag: String
-    },
-    Check {
-        id: u32,
-        flag: String
-    }
-}
-
-#[server(name=Challenge, prefix="/api", endpoint="challenge")]
-pub async fn challenge(action: ChallengeAction) -> Result<(), ServerFnError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "ssr")] {
-            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
-            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
-            // and it feels faster. Get the AuthSession.
-            let auth = use_context::<AuthSession>().unwrap();
-            // hash flag
-
-            match action {
-                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag } => {
-                    _ = db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await;
-                }
-                ChallengeAction::Delete { id } => {
-                    _ = db::structs::Challenge::delete(&id, &auth.backend.pool).await;
-                }
-                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag } => {
-                    _ = db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await;
-                }
-                ChallengeAction::Check { id, flag } => {
-                    let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&id, &auth.backend.pool).await {
-                        Ok(flag_hash) => flag_hash,
-                        Err(e) => "".to_string()
-                    };
-
-                    // let hasher = Argon2::default();
-                    // let hash = PasswordHash::parse(flag.as_ref(), password_hash::Encoding::B64)
-                    //     .map_err(|e| Self::Error::InternalError(format!("Corrupted password hash: {e}")))?;
-                    // // Use the existing implementation to verify the password. I was doing this myself until
-                    // // I noticed that there is a PasswordVerifier trait, so this is better in every way.
-                    // if let Ok(()) = hasher.verify_password(challenge_flag_hash.as_bytes(), &hash) {
-
-                    // } else {
-
-                    // }
-                }
-            }
-
-            Ok(())
-        } else {
-            Ok(())
-        }
-    }
-}
-
-// #[serde(rename_all = "lowercase")]
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum EventAction {
-    Create {
-        name: String,  
-        description: String, 
-        start_date: NaiveDateTime, 
-        end_date: NaiveDateTime
-    },
-    Delete {
-        id: u32
-    },
-    Edit {
-        id: u32,
-        name: String,  
-        description: String, 
-        start_date: NaiveDateTime, 
-        end_date: NaiveDateTime
-    }
-}
-
-#[server(name=EventApi, prefix="/api", endpoint="event")]
-pub async fn event(action: EventAction) -> Result<(), ServerFnError> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "ssr")] {
-            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
-            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
-            // and it feels faster. Get the AuthSession.
-            let auth = use_context::<AuthSession>().unwrap();
-
-            match action {
-                EventAction::Create { name, description, start_date, end_date } => {
-                    _ = db::structs::Event::add(&name, &description, &start_date, &end_date, &auth.backend.pool).await;
-                }
-                EventAction::Delete { id } => {
-                    _ = db::structs::Event::delete(&id, &auth.backend.pool).await;
-                }
-                EventAction::Edit { id, name, description, start_date, end_date } => {
-                    _ = db::structs::Event::edit(&id, &name, &description, &start_date, &end_date, &auth.backend.pool).await;
-                }
-            }
-
-            Ok(())
-        } else {
-            Ok(())
-        }
-    }
-}
-
-#[server]
-pub async fn get_all_users() -> Result<Vec<DbUser>, ServerFnError> {
-    cfg_if! {
-        if #[cfg(feature = "ssr")] {
-            let pool = pool()?;
-            let users = DbUser::get_all(&pool).await.unwrap();
-            Ok(users)
-        } else {
-            Ok(vec![db::structs::ChallengeWithAttachments::default()])
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::server::{get_user, get_user_points, structs::User};
+use crate::server::{db::enums::UserRole, get_user, get_user_points, structs::User};
 //use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 //use leptos_icons::Icon;
@@ -31,16 +31,18 @@ pub fn NavBar() -> impl IntoView {
                     // <Icon icon=i::IoPodium />
                     "Leaderboard"
                 </a>
-                <a href="/admin" class="m-1">
-                    //<Icon icon=i::IoSettings />
-                    "Admin"
-                </a>
                 <Suspense fallback=move || view! { <p>"Loading..."</p> }>
                     {move || user.get().map(|j| match j {
                         Some(user) => {
                             username.set(user.username);
                             user_profile_path.set(format!("/user/{}", username.get()));
                             view! {
+                                <Show when=move || user.role == UserRole::Admin >
+                                    <a href="/admin" class="m-1">
+                                        //<Icon icon=i::IoSettings />
+                                        "Admin"
+                                    </a>
+                                </Show>
                                 <a
                                     class="m-1"
                                     on:click=move |_| {
