@@ -342,6 +342,30 @@ cfg_if! {
                     }
             }
 
+            pub async fn is_username_available(username: &String, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT username
+                    FROM users
+                    WHERE username = ?
+                    ",
+                    username
+                )
+                    .fetch_optional(executor)
+                    .await {
+                        Ok(row) => {
+                            match row {
+                                Some(_) => Ok(false),
+                                None => Ok(true)
+                            }
+                        },
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn add(&self, executor: impl MySqlExecutor<'_>) -> anyhow::Result<u32> {
                 match sqlx::query!(
                     "

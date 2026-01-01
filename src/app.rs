@@ -1,4 +1,4 @@
-use leptos::prelude::*;
+use leptos::{prelude::*, task::spawn_local};
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::{
     components::*,
@@ -10,7 +10,7 @@ use crate::{
     pages::{
         admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login::Login,
         not_found::NotFound, register::Register, user,
-    }
+    }, server::{db::enums::UserRole, get_user}
 };
 
 
@@ -37,6 +37,15 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
+
+    let is_admin = Resource::new(move|| (), |_| async move {
+        match get_user().await {
+            Ok(user) => {
+                user.map(|u| u.role == UserRole::Admin).unwrap_or(false)
+            }
+            Err(_) => false,
+        }
+    });
 
     view! {
         <ErrorBoundary fallback=|errors| {
@@ -66,9 +75,7 @@ pub fn App() -> impl IntoView {
                     <ProtectedRoute
                         path=path!("/admin")
                         redirect_path=|| "/login"
-                        condition=move || {
-                            Some(true)
-                        }
+                        condition=move || is_admin.get()
                         view=Admin
                         ssr=leptos_router::SsrMode::InOrder
                     ></ProtectedRoute>

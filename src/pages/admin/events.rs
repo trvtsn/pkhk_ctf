@@ -3,7 +3,7 @@
 use chrono::NaiveTime;
 use leptos::prelude::*;
 
-use crate::server::EventApi;
+use crate::server::admin::AdminEventApi;
 
 pub struct Event {
     pub title: String,
@@ -23,7 +23,7 @@ pub enum Actions {
 #[component]
 pub fn Events() -> impl IntoView {
     let section = RwSignal::new(Actions::Create);
-    let event_action = ServerAction::<EventApi>::new();
+    let event_action = ServerAction::<AdminEventApi>::new();
 
     view! {
         <div class="container p-8 inline justify-center">

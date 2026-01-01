@@ -11,7 +11,7 @@ pub fn Log() -> impl IntoView {
     let logs = RwSignal::new(Vec::<String>::new());
     let UseEventSourceReturn { message, .. } = 
         use_event_source_with_options::<String, FromToStringCodec>(
-            "/logs".to_string(), 
+            "/admin/logs".to_string(), 
             UseEventSourceOptions::default().immediate(true)
         );
 

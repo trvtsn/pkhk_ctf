@@ -2,7 +2,7 @@
 // use crate::components::navbar::NavBar;
 use leptos::prelude::*;
 
-use crate::server::{Challenge, get_all_challenges_with_attachments};
+use crate::server::{admin::AdminChallengeApi, get_all_challenges_with_attachments};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Actions {
@@ -15,7 +15,7 @@ pub enum Actions {
 #[component]
 pub fn Challenges() -> impl IntoView {
     let section = RwSignal::new(Actions::Create);
-    let challenge_action = ServerAction::<Challenge>::new();
+    let challenge_action = ServerAction::<AdminChallengeApi>::new();
     let category_add_new_selected = RwSignal::new(false);
 
     // load once on mount

@@ -2,7 +2,7 @@
 // use crate::components::navbar::NavBar;
 use leptos::prelude::*;
 
-use crate::{components::admin::user::User, server::{db::structs::DbUser, get_all_users}};
+use crate::{components::admin::user::User, server::{admin::{ApiResult, get_all_users}, db::structs::DbUser}};
 
 /// Default Home Page
 #[component]

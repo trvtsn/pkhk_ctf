@@ -48,6 +48,7 @@ dotenvy = "0.15.7"
 tracing-subscriber = { version = "0.3.22", features = ["fmt"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 leptos-use = "0.17.0"
+rand = { version = "0.9.2", optional = true }
 # thaw = "0.5.0-beta"
 
 [features]
@@ -73,7 +74,8 @@ ssr = [
     "dep:axum_session_sqlx",
     "dep:tower-sessions",
     "dep:tower-sessions-sqlx-store",
-    "leptos-chartistry/ssr"
+    "leptos-chartistry/ssr",
+    "dep:rand"
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
