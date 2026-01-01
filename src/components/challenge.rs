@@ -1,31 +1,35 @@
-use crate::server::{admin::AdminChallengeApi, db::structs::Attachment};
-use leptos::prelude::*;
+use crate::server::{CheckFlag, check_flag, db::structs::{Attachment, Challenge}, enums::ResultStatus, structs::ApiResult};
+use leptos::{prelude::*, task::spawn_local};
 // use thaw::*;
 
 #[component]
 pub fn Challenge(
-    title: String,
+    id: u32,
+    name: String,
     description: Option<String>,
+    event_id: u32,
+    category: Option<String>,
     #[prop(default = 3)] difficulty: i8,
     points: u32,
     #[prop(optional)] attachments: Vec<Attachment>,
 ) -> impl IntoView {
-    let challenge_action = ServerAction::<AdminChallengeApi>::new();
+    let flag = RwSignal::new("".to_string());
+    // let check_flag: ServerAction<CheckFlag> = ServerAction::<CheckFlag>::new();
     // let input_flag = RwSignal::new("".to_string());
-    // let solved = RwSignal::new(false);
+    let solved = RwSignal::new(false);
     // let loading = RwSignal::new(false);
     //
-    // let button_classes = Memo::new(move |_| {
-    //     let base = "border-2 border-black p-2 text-black rounded";
-    //     if solved.get() {
-    //         format!("{base} {}", "bg-green-500")
-    //     } else {
-    //         format!(
-    //             "{base} {}",
-    //             "bg-lavender-blush-100 hover:bg-lavender-blush-200"
-    //         )
-    //     }
-    // });
+    let button_classes = Memo::new(move |_| {
+        let base = "border-2 border-black p-2 text-black rounded";
+        if solved.get() {
+            format!("{base} {}", "bg-green-500")
+        } else {
+            format!(
+                "{base} {}",
+                "bg-lavender-blush-100 hover:bg-lavender-blush-200"
+            )
+        }
+    });
 
     let open = RwSignal::new(false);
 
@@ -36,26 +40,42 @@ pub fn Challenge(
                 open.set(true);
             }
         >
-            <h3 class="text-3xl/8">{title}</h3>
-            <p class="text-lg/8">{description}</p>
+            <h3 class="text-3xl/8">{name.clone()}</h3>
+            <p class="text-lg/8">{description.clone()}</p>
             <Difficulty rating=difficulty />
             <b>{format!("Points: {points}")}</b>
             <br />
             <label for="flag">
                 <b>"Flag: "</b>
+                <input
+                    class="border-black border-1 m-1"
+                    on:input=move |ev| {
+                        let val = event_target_value(&ev);
+                        flag.set(val);
+                    }
+                />
             </label>
-            <ActionForm action=challenge_action>
-                <input
-                    name="action[Check][flag]"
-                    class="bg-white border"
-                />
+            <button
+                class=move || button_classes.get()
+                on:click=move |_| {
+                    let flag = flag.get().clone();
+                    let name = name.clone();
+                    let description = description.clone();
+                    let category = category.clone();
+                    spawn_local(async move {
+                        if let Ok(ApiResult { result, details }) = check_flag(flag, Challenge { id, event_id, name, description, category, difficulty, points }).await {
+                            // change button appearance to red, incorrect
+                            if result == ResultStatus::Fail {
 
-                <input
-                    type="submit"
-                    class="bg-white border"
-                    value="Submit"
-                />
-            </ActionForm>
+                            } else if result == ResultStatus::Success {
+                                solved.set(true);
+                            }
+                        }
+                    });
+                }
+            >
+                "Submit"
+            </button>
             // <button
             //     class=button_classes
             //     //loading=loading

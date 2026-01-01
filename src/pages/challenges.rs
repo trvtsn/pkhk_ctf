@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     components::{challenge::Challenge, navbar::NavBar},
-    server::{db, get_all_challenges_with_attachments}
+    server::{db, get_all_challenges_with_attachments, structs::ApiResult}
 };
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -52,6 +52,8 @@ pub fn Challenges() -> impl IntoView {
                     {move || {
                         let challenges = cwa.get().map(move |result| match result {
                             Ok(challenges) => {
+                                let ApiResult { result, details } = challenges;
+                                let challenges = details;
                                 let mut map = HashMap::<Option<String>, Vec<db::structs::ChallengeWithAttachments>>::new();
                                 for ch in challenges.into_iter() {
                                     map.entry(ch.challenge.category.clone()).or_default().push(ch);
@@ -81,8 +83,11 @@ pub fn Challenges() -> impl IntoView {
                                                 >
                                                     <div class="challenge p-2">
                                                         <Challenge
-                                                            title=challenge.challenge.name.clone()
+                                                            id=challenge.challenge.id
+                                                            name=challenge.challenge.name.clone()
                                                             description=challenge.challenge.description.clone()
+                                                            event_id=challenge.challenge.event_id
+                                                            category=challenge.challenge.category.clone()
                                                             difficulty=challenge.challenge.difficulty
                                                             points=challenge.challenge.points
                                                             attachments=challenge.attachments.clone()

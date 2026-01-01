@@ -10,7 +10,7 @@ use crate::{
     pages::{
         admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login::Login,
         not_found::NotFound, register::Register, user,
-    }, server::{db::enums::UserRole, get_user}
+    }, server::{db::enums::UserRole, get_user, structs::ApiResult}
 };
 
 
@@ -41,6 +41,8 @@ pub fn App() -> impl IntoView {
     let is_admin = Resource::new(move|| (), |_| async move {
         match get_user().await {
             Ok(user) => {
+                let ApiResult { result, details } = user;
+                let user = details;
                 user.map(|u| u.role == UserRole::Admin).unwrap_or(false)
             }
             Err(_) => false,

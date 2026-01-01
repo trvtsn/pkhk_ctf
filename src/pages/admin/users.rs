@@ -2,7 +2,7 @@
 // use crate::components::navbar::NavBar;
 use leptos::prelude::*;
 
-use crate::{components::admin::user::User, server::{admin::{ApiResult, get_all_users}, db::structs::DbUser}};
+use crate::{components::admin::user::User, server::{structs::ApiResult, admin::{get_all_users}, db::structs::DbUser}};
 
 /// Default Home Page
 #[component]
@@ -20,9 +20,10 @@ pub fn Users() -> impl IntoView {
                 {move || {
                     let users = users.get().map(move |result| match result {
                         Ok(users) => {
+                            let ApiResult { result, details } = users;
                             view! {
                                 <For
-                                    each=move || users.clone()
+                                    each=move || details.clone()
                                     key=|user: &DbUser| user.id
                                     let(user)
                                 >

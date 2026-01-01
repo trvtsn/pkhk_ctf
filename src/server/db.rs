@@ -73,7 +73,7 @@ pub mod structs {
         pub file_blob: Vec<u8>,
     }
 
-    #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
     pub struct Challenge {
         pub id: u32,
         pub event_id: u32,
@@ -790,6 +790,36 @@ cfg_if! {
         }
 
         impl Submission {
+            pub async fn add(
+                challenge_id: &u32, 
+                event_id: &u32, 
+                user_id: &u32, 
+                points: &u32, 
+                solved_at: &time::OffsetDateTime, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    INSERT INTO submissions
+                    (challenge_id, event_id, user_id, points, solved_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ",
+                    challenge_id,
+                    event_id,
+                    user_id,
+                    points,
+                    solved_at
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,

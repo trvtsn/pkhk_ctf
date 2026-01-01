@@ -5,7 +5,12 @@ use leptos::{prelude::*, server_fn::error::NoCustomError};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use crate::server::AuthSession;
-use crate::server::{db::{self, structs::DbUser}, UserRole, structs::User};
+use crate::{error_template::AppError, server::{UserRole, db::{self, structs::DbUser}, enums::ResultStatus, structs::{ApiResult, User}}};
+#[cfg(feature = "ssr")]
+use password_hash::rand_core::OsRng;
+use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash};
+use argon2::PasswordHasher;
+use password_hash::SaltString;
 
 // pub enum UserArgs {
 //     Create {
@@ -35,18 +40,7 @@ use crate::server::{db::{self, structs::DbUser}, UserRole, structs::User};
 // }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum ApiResult<T> {
-    Success {
-        result: T,
-        message: Option<String>
-    },
-    Fail {
-        message: Option<String>
-    }
-}
-
-// #[serde(rename_all = "lowercase")]
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ChallengeAction {
     Create {
         event_id: u32, 
@@ -69,15 +63,11 @@ pub enum ChallengeAction {
         difficulty: i8, 
         points: u32, 
         flag: String
-    },
-    Check {
-        id: u32,
-        flag: String
     }
 }
 
 #[server(name=AdminChallengeApi, prefix="/api/admin", endpoint="challenge")]
-pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<()>, ServerFnError> {
+pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<Option<String>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
@@ -86,50 +76,51 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<()>, ServerF
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             if user.role != UserRole::Admin {
-                return Ok(ApiResult::Fail { message: Some("unauthorized".to_string()) });
+                return Err(AppError::Unauthorized);
             }
-            // hash flag
 
             match action {
                 ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag } => {
-                    _ = db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await;
-                    Ok(ApiResult::Success { result: (), message: Some("created event".to_string()) })
+                    let argon2 = Argon2::default();
+                    // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
+                    let salt = SaltString::generate(&mut OsRng);
+                    // This gives back a data structure with various parts, which can be encoded using
+                    // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
+                    // recommended hashing algorithm at the time of this code being published (2024)
+                    let flag_hash: PasswordHash = argon2.hash_password(flag.as_bytes(), &salt)
+                        .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
+                    // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
+                    // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
+                    // a let-binding outside of the macro or the compiler complains.
+                    let flag_hash_string = flag_hash.to_string();
+
+                    match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash_string, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created challenge".to_string()) }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    }
                 }
                 ChallengeAction::Delete { id } => {
-                    _ = db::structs::Challenge::delete(&id, &auth.backend.pool).await;
-                    Ok(ApiResult::Success { result: (), message: Some("deleted challenge".to_string()) })
+                    match db::structs::Challenge::delete(&id, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted challenge".to_string()) }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    }
                 }
                 ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag } => {
-                    _ = db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await;
-                    Ok(ApiResult::Success { result: (), message: Some("edited challenge".to_string()) })
-                }
-                ChallengeAction::Check { id, flag } => {
-                    let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&id, &auth.backend.pool).await {
-                        Ok(flag_hash) => flag_hash,
-                        Err(e) => "".to_string()
-                    };
-                    Ok(ApiResult::Success { result: (), message: Some("correct flag".to_string()) })
-
-                    // let hasher = Argon2::default();
-                    // let hash = PasswordHash::parse(flag.as_ref(), password_hash::Encoding::B64)
-                    //     .map_err(|e| Self::Error::InternalError(format!("Corrupted password hash: {e}")))?;
-                    // // Use the existing implementation to verify the password. I was doing this myself until
-                    // // I noticed that there is a PasswordVerifier trait, so this is better in every way.
-                    // if let Ok(()) = hasher.verify_password(challenge_flag_hash.as_bytes(), &hash) {
-
-                    // } else {
-
-                    // }
+                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited challenge".to_string()) }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    }
                 }
             }
         } else {
-            Ok(())
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 // #[serde(rename_all = "lowercase")]
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum EventAction {
     Create {
         name: String,  
@@ -150,7 +141,7 @@ pub enum EventAction {
 }
 
 #[server(name=AdminEventApi, prefix="/api/admin", endpoint="event")]
-pub async fn event(action: EventAction) -> Result<ApiResult<()>, ServerFnError> {
+pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
@@ -159,44 +150,52 @@ pub async fn event(action: EventAction) -> Result<ApiResult<()>, ServerFnError> 
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             if user.role != UserRole::Admin {
-                return Ok(ApiResult::Fail { message: Some("unauthorized".to_string()) });
+                return Err(AppError::Unauthorized);
             }
 
             match action {
                 EventAction::Create { name, description, start_date, end_date } => {
-                    _ = db::structs::Event::add(&name, &description, &start_date, &end_date, &auth.backend.pool).await;
-                    Ok(ApiResult::Success { result: (), message: Some("created event".to_string()) })
+                    match db::structs::Event::add(&name, &description, &start_date, &end_date, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created event".to_string()) }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    }
                 }
                 EventAction::Delete { id } => {
-                    _ = db::structs::Event::delete(&id, &auth.backend.pool).await;
-                    Ok(ApiResult::Success { result: (), message: Some("deleted event".to_string()) })
+                    match db::structs::Event::delete(&id, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    }
                 }
                 EventAction::Edit { id, name, description, start_date, end_date } => {
-                    _ = db::structs::Event::edit(&id, &name, &description, &start_date, &end_date, &auth.backend.pool).await;
-                    Ok(ApiResult::Success { result: (), message: Some("edited event".to_string()) })
+                    match db::structs::Event::edit(&id, &name, &description, &start_date, &end_date, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string()) }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    }
                 }
             }
         } else {
-            Ok(ApiResult::Fail { message: None })
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 #[server(name=AdminUsersGetAll, prefix="/api/admin", endpoint="users")]
-pub async fn get_all_users() -> Result<Vec<DbUser>, ServerFnError> {
+pub async fn get_all_users() -> Result<ApiResult<Vec<DbUser>>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
 
             if user.role != UserRole::Admin {
-                return Err(ServerFnError::Args("unauthorized".to_string()));
+                return Err(AppError::Unauthorized);
             }
 
-            let users = DbUser::get_all(&auth.backend.pool).await.unwrap();
-            Ok(users)
+            match DbUser::get_all(&auth.backend.pool).await {
+                Ok(users) => Ok(ApiResult { result: ResultStatus::Success, details: users }),
+                Err(e) => Err(AppError::InternalError(e.to_string()))
+            }
         } else {
-            Ok(vec![db::structs::User::default()])
+            Err(AppError::NoServerConnection)
         }
     }
 }

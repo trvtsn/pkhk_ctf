@@ -1,13 +1,17 @@
+use cfg_if::cfg_if;
 use http::status::StatusCode;
-use leptos::prelude::*;
+use leptos::{prelude::*, server_fn::codec::JsonEncoding};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Clone, Debug, Error)]
+#[derive(Clone, Debug, Error, Serialize, Deserialize)]
 pub enum AppError {
     #[error("Not Found")]
     NotFound,
     #[error("Invalid Session ID: {0}")]
     InvalidSessionId(String),
+    #[error("Unauthorized")]
+    Unauthorized,
     #[error("Invalid data provided: {0}")]
     InvalidData(String),
     #[error("Internal Error: {0}")]
@@ -16,6 +20,12 @@ pub enum AppError {
     DatabaseError(String),
     #[error("Anyhow Error: {0}")]
     Anyhow(String),
+    #[error("ServerFnErrorErr: {0}")]
+    ServerFnErrorErr(ServerFnErrorErr),
+    #[error("ServerFnError: {0}")]
+    ServerFnError(ServerFnError),
+    #[error("No connection with server")]
+    NoServerConnection,
 }
 
 impl AppError {
@@ -23,10 +33,14 @@ impl AppError {
         match self {
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::InvalidSessionId(_) => StatusCode::UNAUTHORIZED,
+            AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::InvalidData(_) => StatusCode::NOT_ACCEPTABLE,
             AppError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR
+            AppError::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::ServerFnErrorErr(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::ServerFnError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::NoServerConnection => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
@@ -34,6 +48,38 @@ impl AppError {
 impl From<anyhow::Error> for AppError {
     fn from(value: anyhow::Error) -> Self {
         AppError::Anyhow(value.to_string())
+    }
+}
+
+impl FromServerFnError for AppError {
+    type Encoder = JsonEncoding;
+
+    fn from_server_fn_error(value: ServerFnErrorErr) -> Self {
+        Self::ServerFnErrorErr(value)
+    }
+}
+
+cfg_if! {
+    if #[cfg(feature = "ssr")] {
+        use crate::server::backend::structs::Backend;
+        
+        impl From<sqlx::Error> for AppError {
+            fn from(value: sqlx::Error) -> Self {
+                Self::DatabaseError(value.to_string())
+            }
+        }
+
+        impl From<argon2::password_hash::Error> for AppError {
+            fn from(error: argon2::password_hash::Error) -> Self {
+                Self::InternalError(error.to_string())
+            }
+        }
+
+        impl From<axum_login::Error<Backend>> for AppError {
+            fn from(value: axum_login::Error<Backend>) -> Self {
+                Self::InternalError(value.to_string())
+            }
+        }
     }
 }
 

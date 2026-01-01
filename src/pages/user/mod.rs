@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::navbar::NavBar, server::{self, db::{self, enums::UserRole, structs::DbUser}, get_db_user}};
+use crate::{components::navbar::NavBar, server::{self, db::{self, enums::UserRole, structs::DbUser}, get_db_user, structs::ApiResult}};
 #[cfg(feature = "ssr")]
 use axum::Router;
 use leptos::prelude::*;
@@ -20,8 +20,11 @@ pub fn User() -> impl IntoView {
     
     let user_res = Resource::new(move || (), move |_| async move {
         match get_db_user(username()).await {
-            Ok(Some(user)) => Ok(user),
-            Ok(None) => Ok(DbUser {
+            Ok(user) => {
+                let ApiResult { result, details } = user;
+                details
+            },
+            Err(e) => Some(DbUser {
                 id: 0,
                 username: "".to_string(),
                 email: "".to_string(),
@@ -29,22 +32,21 @@ pub fn User() -> impl IntoView {
                 created_at: OffsetDateTime::now_utc(),
                 last_active_at: OffsetDateTime::now_utc(),
                 role: UserRole::Competitor
-            }),
-            Err(e) => Err(e)
+            })
         }
     });
 
     view! {
         <NavBar />
         <div class="container">
-            <Suspense fallback=move || view! { <div>"Loading... bruh"</div> }>
+            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
                 <p>
                 {move || {
                     let view_result = user_res.get().map(|j| match j {
-                        Ok(user) => { 
+                        Some(user) => { 
                             view! { {user.username} }.into_any()
                         },
-                        Err(e) => view! { {e.to_string()} }.into_any()
+                        None => view! { "" }.into_any()
                     });
 
                     view! {

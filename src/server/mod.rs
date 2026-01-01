@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}}};
-use crate::server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Submission, SubmissionWithData}}, structs::{LeaderboardData, PivotRow, User}};
+use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Submission, SubmissionWithData}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
 #[cfg(feature = "ssr")]
 use argon2::{Argon2, PasswordVerifier};
 // #[cfg(feature = "ssr")]
@@ -12,14 +12,12 @@ use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use leptos::{
-    prelude::{
-        ServerFnError, 
-        use_context
-    }, 
-    server, 
-    logging::log
+    logging::log, prelude::{
+        ServerFnError, ServerFnErrorErr, use_context
+    }, server
 };
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
@@ -30,7 +28,7 @@ pub mod auth;
 pub mod backend;
 pub mod db;
 pub mod structs {
-    use crate::server::UserRole;
+    use crate::server::{UserRole, enums::ResultStatus};
     use chrono::{DateTime, Utc};
     use leptos::prelude::LeptosOptions;
     use serde::{Deserialize, Serialize};
@@ -68,6 +66,12 @@ pub mod structs {
         pub role: UserRole
     }
 
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub struct ApiResult<T> {
+        pub result: ResultStatus,
+        pub details: T
+    }
+
     #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
     pub struct PivotRow {
         pub ts: DateTime<Utc>,
@@ -84,7 +88,16 @@ pub mod structs {
         pub rows: Vec<PivotRow>,
     }
 }
-// pub mod enums {
+pub mod enums {
+    use serde::{Deserialize, Serialize};
+    
+    #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+    #[serde(rename_all = "lowercase")]
+    pub enum ResultStatus {
+        Success,
+        Fail
+    }
+}
 //     use serde::{Deserialize, Serialize};
 
 //     pub enum ApiActions {
@@ -119,9 +132,9 @@ pub mod structs {
 // }
 
 #[cfg(feature = "ssr")]
-pub fn pool() -> Result<MySqlPool, ServerFnError> {
+pub fn pool() -> Result<MySqlPool, AppError> {
     use_context::<MySqlPool>().ok_or_else(|| {
-        ServerFnError::ServerError("Pool missing.".into())
+        AppError::DatabaseError("Pool missing.".to_string())
     })
 }
 
@@ -133,33 +146,39 @@ pub fn init_env() -> anyhow::Result<()> {
 }
 
 #[server(name=Challenges, prefix="/api", endpoint="challenges")]
-pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAttachments>, ServerFnError> {
+pub async fn get_all_challenges_with_attachments() -> Result<ApiResult<Vec<ChallengeWithAttachments>>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let pool = pool()?;
-            let challenges = db::structs::Challenge::get_all(&pool).await.unwrap();
+            let challenges = match db::structs::Challenge::get_all(&pool).await {
+                Ok(challenges) => challenges,
+                Err(e) => Err(e)?
+            };
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
                 let attachments = challenge.get_attachments(&pool).await?;
                 cwa.push(ChallengeWithAttachments { challenge, attachments });
             }
-            Ok(cwa)
+            Ok(ApiResult { result: ResultStatus::Success, details: cwa })
         } else {
-            Ok(vec![db::structs::ChallengeWithAttachments::default()])
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 #[server(name=Leaderboard, prefix="/api", endpoint="leaderboard")]
-pub async fn build_leaderboard_data() -> Result<Option<LeaderboardData>, ServerFnError> {
+pub async fn build_leaderboard_data() -> Result<ApiResult<LeaderboardData>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let event_id: &u32 = &1;
             let pool = &pool()?;
 
-            let meta = db::structs::Event::get_metadata(event_id, pool).await.unwrap();
+            let meta = match db::structs::Event::get_metadata(event_id, pool).await {
+                Ok(meta) => meta,
+                Err(e) => Err(e)?
+            };
 
-            let event_name = meta.name.unwrap();
+            let event_name = meta.name.unwrap_or("".to_string());
             let x_min = DateTime::from_timestamp(meta.first_submission.unwrap().unix_timestamp(), meta.first_submission.unwrap().nanosecond()).unwrap();
             let x_max = DateTime::from_timestamp(meta.last_submission.unwrap().unix_timestamp(), meta.last_submission.unwrap().nanosecond()).unwrap();
 
@@ -193,7 +212,20 @@ pub async fn build_leaderboard_data() -> Result<Option<LeaderboardData>, ServerF
 
             let mut solves_parsed: Vec<Solve> = Vec::new();
             for r in solves {
-                let ts = DateTime::from_timestamp(r.solved_at.unwrap().unix_timestamp(), r.solved_at.unwrap().nanosecond()).unwrap();
+                let unix_timestamp = match r.solved_at {
+                    Some(timestamp) => timestamp.unix_timestamp(),
+                    None => 0 as i64
+                };
+
+                let nanoseconds = match r.solved_at {
+                    Some(timestamp) => timestamp.nanosecond(),
+                    None => 0 as u32
+                };
+
+                let ts = match DateTime::from_timestamp(unix_timestamp, nanoseconds) {
+                    Some(ts) => ts,
+                    None => chrono::Local::now().to_utc()
+                };
                 timestamps.insert(ts);
                 solves_parsed.push(Solve {
                     username: r.username,
@@ -210,7 +242,6 @@ pub async fn build_leaderboard_data() -> Result<Option<LeaderboardData>, ServerF
             for s in &solves_parsed {
                 solves_by_ts.entry(s.ts).or_default().push(s);
             }
-            log!("solves_by_ts: {:?}", solves_by_ts);
 
             let mut rows: Vec<PivotRow> = Vec::new();
             for ts in times {
@@ -230,29 +261,15 @@ pub async fn build_leaderboard_data() -> Result<Option<LeaderboardData>, ServerF
                 rows.push(PivotRow { ts, values });
             }
 
-            Ok(Some(LeaderboardData {
-                event_name,
-                x_min,
-                x_max,
-                y_max: y_max as f64,
-                users,
-                rows
-            }))
+            Ok(ApiResult { result: ResultStatus::Success, details: LeaderboardData { event_name, x_min, x_max, y_max: y_max as f64, users, rows } })
         } else {
-            Ok(Some(LeaderboardData {
-                event_name: "Bruh".to_string(),
-                x_min: DateTime::from_timestamp_nanos(1000),
-                x_max: DateTime::from_timestamp_nanos(1000),
-                y_max: 1000 as f64,
-                users: vec!["bruh_user".to_string()],
-                rows: vec![PivotRow::default()]
-            }))
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 #[server]
-pub async fn is_user_admin() -> Result<bool, ServerFnError> {
+pub async fn is_user_admin() -> Result<bool, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let session = use_context::<AuthSession>().unwrap();
@@ -262,13 +279,13 @@ pub async fn is_user_admin() -> Result<bool, ServerFnError> {
                 Ok(false)
             }
         } else {
-            Ok(false)
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 #[server(name=LoginUser, prefix="/api", endpoint="login")]
-pub async fn login_user(email: String, password: String) -> Result<Option<User>, ServerFnError> {
+pub async fn login_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
@@ -288,54 +305,59 @@ pub async fn login_user(email: String, password: String) -> Result<Option<User>,
             // place where you actually get a session id sent back to the browser unless you've done other stuff
             // with your sessions elsewhere.
             if let Some(user) = user.as_ref() {
-                auth.login(user).await?;
-                Ok(Some(user.clone()))
+                match auth.login(user).await {
+                    Ok(_) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(user.clone()) }),
+                    Err(e) => Err(AppError::InternalError(e.to_string()))
+                }
             } else {
-                Ok(None)
+                Ok(ApiResult { result: ResultStatus::Fail, details: None })
             }
         } else {
-            Ok(Some(User::default()))
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 #[server(name=GetUser, prefix="/api", endpoint="user")]
-pub async fn get_user() -> Result<Option<User>, ServerFnError> {
+pub async fn get_user() -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let session: AuthSession = use_context().expect("session not provided");
-            Ok(session.user.clone())
+            match use_context::<AuthSession>() {
+                Some(session) => Ok(ApiResult { result: ResultStatus::Success, details: session.user.clone() }),
+                None => Ok(ApiResult { result: ResultStatus::Fail, details: None })
+            }
         } else {
-            Ok(None)
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 #[server(name=GetUserPoints, prefix="/api/user", endpoint="points")]
-pub async fn get_user_points() -> Result<Option<u32>, ServerFnError> {
+pub async fn get_user_points() -> Result<ApiResult<u32>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let session: AuthSession = use_context().expect("session not provided");
             match db::structs::Submission::get_user_points(&session.user.unwrap_or_default().id, &session.backend.pool).await {
-                Ok(points) => Ok(Some(points)),
-                Err(e) => Ok(None)
+                Ok(points) => Ok(ApiResult { result: ResultStatus::Success, details: points } ),
+                Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {
-            Ok(None)
+            Err(AppError::NoServerConnection)
         }
     }
 }
 
 #[server(name=GetDbUser, prefix="/api/user", endpoint="info")]
-pub async fn get_db_user(username: String) -> Result<Option<DbUser>, ServerFnError> {
+pub async fn get_db_user(username: String) -> Result<ApiResult<Option<DbUser>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let pool = use_context::<MySqlPool>().expect("pool not provided");
-            let db_user = DbUser::get(&UserIdentifier::Username(username), &pool).await.unwrap();
-
-            Ok(db_user)
+            match DbUser::get(&UserIdentifier::Username(username), &pool).await {
+                Ok(user) => Ok(ApiResult { result: ResultStatus::Success, details: user }),
+                Err(e) => Err(AppError::InternalError(e.to_string()))
+            }
         } else {
-            Ok(None)
+            Err(AppError::NoServerConnection)
         }
     }
 }
@@ -344,7 +366,7 @@ pub async fn get_db_user(username: String) -> Result<Option<DbUser>, ServerFnErr
 /// make me log in separately after that. Give me a break! This function is called from the Register component
 /// which is in pages/register.rs.
 #[server(name=Register, prefix="/api", endpoint="register")]
-pub async fn register_user(email: String, password: String) -> Result<Option<User>, ServerFnError> {
+pub async fn register_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             // Extract the auth_session and session. You could also use `leptos_axum::extract().await` here,
@@ -361,13 +383,46 @@ pub async fn register_user(email: String, password: String) -> Result<Option<Use
                 // session id and send it to the browser as a side-effect (before now you likely had no session id in the browser).
                 auth_session.login(&user).await?;
                 log!("AuthSession user after register: {}", auth_session.user.as_ref().unwrap().username);
-                Ok(Some(user))
+                Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
             } else {
-                // Something went wrong? Fail silently!
-                Ok(None)
+                Err(AppError::InternalError("".to_string()))
             }
         } else {
-            Ok(Some(User::default()))
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=CheckFlag, prefix="/api", endpoint="check_flag")]
+pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Challenge) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
+            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
+            // and it feels faster. Get the AuthSession.
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&challenge.id, &auth.backend.pool).await {
+                Ok(flag_hash) => flag_hash,
+                Err(e) => return Err(AppError::InternalError("Failed to get flag hash".to_string())),
+            };
+
+            let hasher = Argon2::default();
+            let hash = argon2::PasswordHash::parse(challenge_flag_hash.as_ref(), argon2::password_hash::Encoding::B64)
+                .map_err(|e| AppError::InternalError("Failed to parse flag hash".to_string()))?;
+            // Use the existing implementation to verify the password. I was doing this myself until
+            // I noticed that there is a PasswordVerifier trait, so this is better in every way.
+            if let Ok(()) = hasher.verify_password(flag.as_bytes(), &hash) {
+                match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &OffsetDateTime::now_utc(), &auth.backend.pool).await {
+                    Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "Correct solution".to_string() }),
+                    Err(e) => Err(AppError::DatabaseError(e.to_string()))
+                }
+                
+            } else {
+                Ok(ApiResult { result: ResultStatus::Fail, details: "Incorrect solution".to_string() })
+            }
+        } else {
+            Err(AppError::NoServerConnection)
         }
     }
 }

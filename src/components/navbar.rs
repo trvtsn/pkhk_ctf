@@ -1,4 +1,4 @@
-use crate::server::{db::enums::UserRole, get_user, get_user_points, structs::User};
+use crate::server::{db::enums::UserRole, get_user, get_user_points, structs::{ApiResult, User}};
 //use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 //use leptos_icons::Icon;
@@ -8,10 +8,10 @@ use leptos::{prelude::*, task::spawn_local};
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
     let user = Resource::new(move || (), async move |_| {
-        get_user().await.unwrap_or_default()
+        get_user().await
     });
     let user_points = Resource::new(move || (), async move |_| {
-        get_user_points().await.unwrap_or_default()
+        get_user_points().await
     });
     let username = RwSignal::new("".to_string());
     let user_profile_path = RwSignal::new("".to_string());
@@ -33,28 +33,51 @@ pub fn NavBar() -> impl IntoView {
                 </a>
                 <Suspense fallback=move || view! { <p>"Loading..."</p> }>
                     {move || user.get().map(|j| match j {
-                        Some(user) => {
-                            username.set(user.username);
-                            user_profile_path.set(format!("/user/{}", username.get()));
-                            view! {
-                                <Show when=move || user.role == UserRole::Admin >
-                                    <a href="/admin" class="m-1">
-                                        //<Icon icon=i::IoSettings />
-                                        "Admin"
-                                    </a>
-                                </Show>
-                                <a
-                                    class="m-1"
-                                    on:click=move |_| {
-                                        open.set(!open.get());
-                                    }
-                                >
-                                {username.get()}
-                                </a>
-                                <b>"Points: "{move || user_points.get().map(|hh| hh.unwrap_or_default())}</b>
-                            }.into_any()
+                        Ok(user) => {
+                            let ApiResult { result, details } = user;
+                            match details {
+                                Some(user) => {
+                                    username.set(user.username);
+                                    user_profile_path.set(format!("/user/{}", username.get()));
+                                    view! {
+                                        <Show when=move || user.role == UserRole::Admin >
+                                            <a href="/admin" class="m-1">
+                                                //<Icon icon=i::IoSettings />
+                                                "Admin"
+                                            </a>
+                                        </Show>
+                                        <a
+                                            class="m-1"
+                                            on:click=move |_| {
+                                                open.set(!open.get());
+                                            }
+                                        >
+                                        {username.get()}
+                                        </a>
+                                        <b>"Points: "{move || user_points.get().map(|user_points| match user_points {
+                                            Ok(user_points) => {
+                                                let ApiResult { result, details } = user_points;
+                                                details
+                                            },
+                                            Err(e) => 0 as u32
+                                        })}</b>
+                                    }.into_any()
+                                },
+                                None => {
+                                    view! {
+                                        <a href="/login" class="m-1">
+                                            //<Icon icon=i::IoSettings />
+                                            "Login"
+                                        </a>
+                                        <a href="/register" class="m-1">
+                                            //<Icon icon=i::IoSettings />
+                                            "Register"
+                                        </a>
+                                    }.into_any()
+                                }
+                            }
                         },
-                        None => {
+                        Err(e) => {
                             view! {
                                 <a href="/login" class="m-1">
                                     //<Icon icon=i::IoSettings />
