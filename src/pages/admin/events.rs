@@ -36,19 +36,19 @@ pub fn Events() -> impl IntoView {
                     <ActionForm action=event_action>
                         <label>
                             <b>"Name"</b>
-                            <input class="bg-white border" name="action[Create][name]" />
+                            <input class="bg-white border" name="action[create][name]" />
                         </label>
                         <label>
                             <b>"Description"</b>
-                            <input class="bg-white border" name="action[Create][description]" />
+                            <input class="bg-white border" name="action[create][description]" />
                         </label>
                         <label>
                             <b>"Start Date"</b>
-                            <input class="bg-white border" type="date" name="action[Create][start_date]" />
+                            <input class="bg-white border" type="date" name="action[create][start_date]" />
                         </label>
                         <label>
                             <b>"End Date"</b>
-                            <input class="bg-white border" type="date" name="action[Create][end_date]" />
+                            <input class="bg-white border" type="date" name="action[create][end_date]" />
                         </label>
                         //<button loading=loading on_click=move |_| { loading.set(true) }>
                         <input
@@ -66,7 +66,7 @@ pub fn Events() -> impl IntoView {
                     <ActionForm action=event_action>
                         <label>
                             <b>"Event ID"</b>
-                            <input class="bg-white border" type="number" name="action[Delete][id]" />
+                            <input class="bg-white border" type="number" name="action[delete][id]" />
                         </label>
                         //<button loading=loading on_click=move |_| { loading.set(true) }>
                         <input
@@ -84,23 +84,23 @@ pub fn Events() -> impl IntoView {
                     <ActionForm action=event_action>
                         <label>
                             <b>"ID"</b>
-                            <input class="bg-white border" type="number" name="action[Edit][id]" />
+                            <input class="bg-white border" type="number" name="action[edit][id]" />
                         </label>
                         <label>
                             <b>"Name"</b>
-                            <input class="bg-white border" name="action[Edit][name]" />
+                            <input class="bg-white border" name="action[edit][name]" />
                         </label>
                         <label>
                             <b>"Description"</b>
-                            <input class="bg-white border" name="action[Edit][description]" />
+                            <input class="bg-white border" name="action[edit][description]" />
                         </label>
                         <label>
                             <b>"Start Date"</b>
-                            <input class="bg-white border" type="date" name="action[Edit][start_date]" />
+                            <input class="bg-white border" type="date" name="action[edit][start_date]" />
                         </label>
                         <label>
                             <b>"End Date"</b>
-                            <input class="bg-white border" type="date" name="action[Edit][end_date]" />
+                            <input class="bg-white border" type="date" name="action[edit][end_date]" />
                         </label>
                         //<button loading=loading on_click=move |_| { loading.set(true) }>
                         <input

@@ -2,25 +2,11 @@ use std::collections::HashMap;
 
 use crate::{
     components::{challenge::Challenge, navbar::NavBar},
-    server::{db, get_all_challenges_with_attachments, structs::ApiResult}
+    server::{db, get_all_challenges_with_attachments, get_user_solved_challenges, structs::ApiResult}
 };
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use server_fn::codec::JsonEncoding;
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum AppError {
-    ServerFnError(ServerFnErrorErr),
-    DbError(String),
-}
-
-impl FromServerFnError for AppError {
-    type Encoder = JsonEncoding;
-
-    fn from_server_fn_error(value: ServerFnErrorErr) -> Self {
-        AppError::ServerFnError(value)
-    }
-}
 
 /// Default Home Page
 #[component]
@@ -29,6 +15,15 @@ pub fn Challenges() -> impl IntoView {
     let cwa = Resource::new(move || (), move |_| async move {
         match get_all_challenges_with_attachments().await {
             Ok(cwa) => Ok(cwa),
+            Err(e) => Err(e)
+        }
+    });
+
+    let solved_challenge_ids = RwSignal::new(Vec::<u32>::default());
+
+    Resource::new(move || (), move |_| async move {
+        match get_user_solved_challenges().await {
+            Ok(solved) => Ok(solved_challenge_ids.set(solved)),
             Err(e) => Err(e)
         }
     });
@@ -89,6 +84,7 @@ pub fn Challenges() -> impl IntoView {
                                                             difficulty=challenge.challenge.difficulty
                                                             points=challenge.challenge.points
                                                             attachments=challenge.attachments.clone()
+                                                            solved_challenges=solved_challenge_ids
                                                         />
                                                     </div>
                                                 </For>

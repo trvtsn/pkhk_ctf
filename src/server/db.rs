@@ -88,6 +88,7 @@ pub mod structs {
     pub struct ChallengeWithAttachments {
         pub challenge: Challenge,
         pub attachments: Vec<Attachment>,
+        // pub solved: bool
     }
 
      #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -173,6 +174,46 @@ pub mod enums {
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         impl DbUser {
+            pub async fn edit_avatar(id: &u32, avatar: &Vec<u8>, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET avatar = ?
+                    WHERE id = ?
+                    ",
+                    avatar,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn edit_username(id: &u32, username: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET username = ?
+                    WHERE id = ?
+                    ",
+                    username,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
@@ -247,6 +288,25 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(users) => Ok(users),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_avatar(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<Option<Vec<u8>>, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT avatar
+                    FROM users 
+                    WHERE id = ?
+                    ",
+                    id
+                )
+                    .fetch_one(executor)
+                    .await {
+                        Ok(row) => Ok(row.avatar),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -850,6 +910,31 @@ cfg_if! {
                     .fetch_one(executor)
                     .await {
                         Ok(row) => Ok(row.points as u32),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_user_solved_challenges(user_id: &u32, executor: impl MySqlExecutor<'_>) -> Result<Vec<u32>, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT challenge_id
+                    FROM submissions
+                    WHERE user_id = ?
+                    ",
+                    user_id
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(rows) => {
+                            let mut solved_challenge_ids = Vec::<u32>::new();
+                            for record in rows {
+                                solved_challenge_ids.push(record.challenge_id)
+                            }
+                            Ok(solved_challenge_ids)
+                        },
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

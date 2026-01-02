@@ -26,6 +26,8 @@ pub enum AppError {
     ServerFnError(ServerFnError),
     #[error("No connection with server")]
     NoServerConnection,
+    #[error("Bad Request: {0}")]
+    BadRequest(String),
 }
 
 impl AppError {
@@ -40,7 +42,8 @@ impl AppError {
             AppError::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::ServerFnErrorErr(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::ServerFnError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::NoServerConnection => StatusCode::INTERNAL_SERVER_ERROR
+            AppError::NoServerConnection => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::BadRequest(_) => StatusCode::BAD_REQUEST
         }
     }
 }

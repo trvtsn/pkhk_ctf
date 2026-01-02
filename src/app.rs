@@ -38,13 +38,8 @@ pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
 
-    let is_admin = Resource::new(move|| (), |_| async move {
-        match get_user().await {
-            Ok(user) => {
-                user.map(|u| u.role == UserRole::Admin).unwrap_or(false)
-            }
-            Err(_) => false,
-        }
+    let user = Resource::new(move|| (), |_| async move {
+        get_user().await.unwrap_or(None)
     });
 
     view! {
@@ -75,24 +70,30 @@ pub fn App() -> impl IntoView {
                     <ProtectedRoute
                         path=path!("/admin")
                         redirect_path=|| "/login"
-                        condition=move || is_admin.get()
+                        condition=move || user.get().map(|u| match u {
+                            Some(user) => user.role == UserRole::Admin,
+                            None => false
+                        })
                         view=Admin
                         ssr=leptos_router::SsrMode::InOrder
                     ></ProtectedRoute>
                     <Route path=path!("/challenges") view=Challenges ssr=leptos_router::SsrMode::InOrder/>
                     <Route path=path!("/leaderboard") view=Leaderboard ssr=leptos_router::SsrMode::InOrder/>
-                    <ProtectedParentRoute
-                        path=path!("/user")
+                    <ProtectedRoute
+                        path=path!("/settings")
                         redirect_path=|| "/login"
-                        condition=move || {
-                            Some(true)
-                        }
+                        condition=move || user.get().map(|u| u.is_some())
+                        view=user::settings::Settings
+                        ssr=leptos_router::SsrMode::InOrder
+                    >
+                    </ProtectedRoute>
+                    <ParentRoute
+                        path=path!("/profile")
                         view=user::User
                         ssr=leptos_router::SsrMode::InOrder
                     >
                         <Route path=path!(":username") view=user::User ssr=leptos_router::SsrMode::InOrder/>
-                        <Route path=path!("settings") view=user::settings::Settings ssr=leptos_router::SsrMode::InOrder/>
-                    </ProtectedParentRoute>
+                    </ParentRoute>
                 </Routes>
             </Router>
         </ErrorBoundary>

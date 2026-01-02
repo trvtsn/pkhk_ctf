@@ -402,6 +402,17 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
             // and it feels faster. Get the AuthSession.
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+
+            // check if the challenge is already solved, and if so, return Error
+            match db::structs::Submission::get_user_solved_challenges(&user.id, &auth.backend.pool).await {
+                Ok(solved) => {
+                    if solved.contains(&challenge.id) {
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: "challenge already solved".to_string() });
+                    }
+                },
+                Err(e) => return Err(AppError::InternalError("failed to check flag".to_string()))
+            }
+
             let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&challenge.id, &auth.backend.pool).await {
                 Ok(flag_hash) => flag_hash,
                 Err(e) => return Err(AppError::InternalError("Failed to get flag hash".to_string())),
@@ -414,12 +425,60 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
             // I noticed that there is a PasswordVerifier trait, so this is better in every way.
             if let Ok(()) = hasher.verify_password(flag.as_bytes(), &hash) {
                 match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &OffsetDateTime::now_utc(), &auth.backend.pool).await {
-                    Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "Correct solution".to_string() }),
-                    Err(e) => Err(AppError::DatabaseError(e.to_string()))
+                    Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() }),
+                    Err(e) => Err(e.into())
                 }
                 
             } else {
-                Ok(ApiResult { result: ResultStatus::Fail, details: "Incorrect solution".to_string() })
+                Ok(ApiResult { result: ResultStatus::Fail, details: "incorrect solution".to_string() })
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=EditUsername, prefix="/api/user", endpoint="username")]
+pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            match DbUser::edit_username(&user.id, &username, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed username".to_string() }),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=EditAvatar, prefix="/api/user", endpoint="avatar")]
+pub async fn edit_avatar(avatar: Vec<u8>) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            match DbUser::edit_avatar(&user.id, &avatar, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed avatar".to_string() }),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=SolvedChallenges, prefix="/api/challenges", endpoint="solved")]
+pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            match db::structs::Submission::get_user_solved_challenges(&user.id, &auth.backend.pool).await {
+                Ok(solved) => Ok(solved),
+                Err(e) => Err(e.into())
             }
         } else {
             Err(AppError::NoServerConnection)

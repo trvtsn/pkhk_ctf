@@ -36,15 +36,15 @@ pub fn Challenges() -> impl IntoView {
                 <ActionForm action=challenge_action>
                     <label>
                         <b>"Event ID"</b>
-                        <input class="bg-white border" type="number" name="action[Create][event_id]" />
+                        <input class="bg-white border" type="number" name="action[create][event_id]" />
                     </label>
                     <label>
                         <b>"Name"</b>
-                        <input class="bg-white border" name="action[Create][name]" />
+                        <input class="bg-white border" name="action[create][name]" />
                     </label>
                     <label>
                         <b>"Description"</b>
-                        <input class="bg-white border" name="action[Create][description]" />
+                        <input class="bg-white border" name="action[create][description]" />
                     </label>
                     <label>
                         <b>"Category"</b>
@@ -64,20 +64,20 @@ pub fn Challenges() -> impl IntoView {
                         //     <option>"+ Add New"</option>
                         // </select>
                         // <Show when=move || category_add_new_selected.get()>
-                            <input class="bg-white border" name="action[Create][category]" />
+                            <input class="bg-white border" name="action[create][category]" />
                         // </Show>
                     </label>
                     <label>
                         <b>"Difficulty"</b>
-                        <input class="bg-white border" type="number" name="action[Create][difficulty]" />
+                        <input class="bg-white border" type="number" name="action[create][difficulty]" />
                     </label>
                     <label>
                         <b>"Points"</b>
-                        <input class="bg-white border" type="number" name="action[Create][points]" />
+                        <input class="bg-white border" type="number" name="action[create][points]" />
                     </label>
                     <label>
                         <b>"Flag"</b>
-                        <input class="bg-white border" name="action[Create][flag]" />
+                        <input class="bg-white border" name="action[create][flag]" />
                     </label>
                     <label>
                         <b>"Attachment"</b>
@@ -99,7 +99,7 @@ pub fn Challenges() -> impl IntoView {
                 <ActionForm action=challenge_action>
                     <label>
                         <b>"Challenge ID"</b>
-                        <input class="bg-white border" type="number" name="action[Delete][id]" />
+                        <input class="bg-white border" type="number" name="action[delete][id]" />
                     </label>
                     //<button loading=loading on_click=move |_| { loading.set(true) }>
                     <input
@@ -174,35 +174,35 @@ pub fn Challenges() -> impl IntoView {
                 <ActionForm action=challenge_action>
                     <label>
                         <b>"Challenge ID"</b>
-                        <input class="bg-white border" type="number" name="action[Edit][id]" />
+                        <input class="bg-white border" type="number" name="action[edit][id]" />
                     </label>
                     <label>
                         <b>"Event ID"</b>
-                        <input class="bg-white border" type="number" name="action[Edit][event_id]" />
+                        <input class="bg-white border" type="number" name="action[edit][event_id]" />
                     </label>
                     <label>
                         <b>"Name"</b>
-                        <input class="bg-white border" name="action[Edit][name]" />
+                        <input class="bg-white border" name="action[edit][name]" />
                     </label>
                     <label>
                         <b>"Description"</b>
-                        <input class="bg-white border" name="action[Edit][description]" />
+                        <input class="bg-white border" name="action[edit][description]" />
                     </label>
                     <label>
                         <b>"Category"</b>
-                        <input class="bg-white border" name="action[Edit][category]" />
+                        <input class="bg-white border" name="action[edit][category]" />
                     </label>
                     <label>
                         <b>"Difficulty"</b>
-                        <input class="bg-white border" type="number" name="action[Edit][difficulty]" />
+                        <input class="bg-white border" type="number" name="action[edit][difficulty]" />
                     </label>
                     <label>
                         <b>"Points"</b>
-                        <input class="bg-white border" type="number" name="action[Edit][points]" />
+                        <input class="bg-white border" type="number" name="action[edit][points]" />
                     </label>
                     <label>
                         <b>"Flag"</b>
-                        <input class="bg-white border" name="action[Edit][flag]" />
+                        <input class="bg-white border" name="action[edit][flag]" />
                     </label>
                     <label>
                         <b>"Attachment"</b>

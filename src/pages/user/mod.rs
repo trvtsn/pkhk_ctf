@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::navbar::NavBar, server::{self, db::{self, enums::UserRole, structs::DbUser}, get_db_user, structs::ApiResult}};
+use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{self, db::{self, enums::UserRole, structs::DbUser}, get_db_user, structs::ApiResult}};
 #[cfg(feature = "ssr")]
 use axum::Router;
 use leptos::prelude::*;
@@ -19,18 +19,7 @@ pub fn User() -> impl IntoView {
     let username = move || params.read().get("username").unwrap_or_default();
     
     let user_res = Resource::new(move || (), move |_| async move {
-        match get_db_user(username()).await {
-            Ok(user) => user,
-            Err(e) => Some(DbUser {
-                id: 0,
-                username: "".to_string(),
-                email: "".to_string(),
-                pw_hash: "".to_string(),
-                created_at: OffsetDateTime::now_utc(),
-                last_active_at: OffsetDateTime::now_utc(),
-                role: UserRole::Competitor
-            })
-        }
+        get_db_user(username()).await.unwrap_or_default()
     });
 
     view! {
@@ -43,7 +32,7 @@ pub fn User() -> impl IntoView {
                         Some(user) => { 
                             view! { {user.username} }.into_any()
                         },
-                        None => view! { "" }.into_any()
+                        None => view! { <NotFound /> }.into_any()
                     });
 
                     view! {

@@ -24,16 +24,19 @@ cargo leptos watch
 - [x] Server-side flag checking
 - [x] Create challenge categories
 - [ ] Clean up code for better readability, get rid of placeholder code
-- [ ] Add "Change Username" function for user
+- [x] Add "Change Username" function for user
 - [ ] Add "Change Avatar" function for user
 - [x] Actually make challenge solves work on "submit" button press
-- [ ] Persist challenge solves, progress after reloads (Make sure users can't solve one challenge many times)
+- [ ] Fit correct HTTP status codes to matching API responses
+- [ ] Add dark mode toggle in user settings
+- [ ] Add attachments download button to challenges
 
 ### Security
 - [x] Restrict access to admin endpoints and API
 - [x] Hashing of flags
 - [ ] Increase session cookie length and complexity
 - [x] Generalize/structurize API endpoint names (e.g. **GET /api/build_leaderboard_data** -> **POST /api/leaderboard** and **GET /api/get_db_user** -> **POST /api/user**)
+- [x] Persist challenge solves, progress after reloads (Make sure users can't solve one challenge many times)
 
 ### Styling
 - [x] Display challenges and users in uniform boxes

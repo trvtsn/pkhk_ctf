@@ -1,5 +1,7 @@
 use crate::server::{CheckFlag, check_flag, db::structs::{Attachment, Challenge}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
+use leptos_use::UseTimeoutFnReturn;
+use leptos_use::use_timeout_fn;
 // use thaw::*;
 
 #[component]
@@ -12,17 +14,22 @@ pub fn Challenge(
     #[prop(default = 3)] difficulty: i8,
     points: u32,
     #[prop(optional)] attachments: Vec<Attachment>,
+    solved_challenges: RwSignal<Vec<u32>>
 ) -> impl IntoView {
     let flag = RwSignal::new("".to_string());
     // let check_flag: ServerAction<CheckFlag> = ServerAction::<CheckFlag>::new();
     // let input_flag = RwSignal::new("".to_string());
     let solved = RwSignal::new(false);
+    let incorrect = RwSignal::new(false);
     // let loading = RwSignal::new(false);
     //
+    let solved_challenges = solved_challenges.get();
     let button_classes = Memo::new(move |_| {
         let base = "border-2 border-black p-2 text-black rounded";
         if solved.get() {
             format!("{base} {}", "bg-green-500")
+        } else if incorrect.get() {
+            format!("{base} {}", "bg-red-500")
         } else {
             format!(
                 "{base} {}",
@@ -31,7 +38,17 @@ pub fn Challenge(
         }
     });
 
+    let UseTimeoutFnReturn { start, stop, .. } =
+        use_timeout_fn(move |_: ()| {
+            // runs after the delay on the client — hide the error state
+            incorrect.set(false);
+        }, 3000.0); // delay in milliseconds (float)
+
     let open = RwSignal::new(false);
+
+    if solved_challenges.contains(&id) {
+        solved.set(true);
+    } 
 
     view! {
         <div
@@ -57,16 +74,22 @@ pub fn Challenge(
             </label>
             <button
                 class=move || button_classes.get()
+                disabled=move || solved.get() || incorrect.get()
                 on:click=move |_| {
                     let flag = flag.get().clone();
                     let name = name.clone();
                     let description = description.clone();
                     let category = category.clone();
+                    let start = start.clone();
+                    let stop = stop.clone();
                     spawn_local(async move {
                         if let Ok(ApiResult { result, details }) = check_flag(flag, Challenge { id, event_id, name, description, category, difficulty, points }).await {
                             // change button appearance to red, incorrect
-                            if result == ResultStatus::Fail {
-
+                            if result == ResultStatus::Fail && details == "incorrect solution" {
+                                incorrect.set(true);
+                                // cancel previous pending timeout (if any)
+                                stop();
+                                start(());
                             } else if result == ResultStatus::Success {
                                 solved.set(true);
                             }

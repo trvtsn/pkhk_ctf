@@ -37,7 +37,7 @@ pub fn NavBar() -> impl IntoView {
                             match user {
                                 Some(user) => {
                                     username.set(user.username);
-                                    user_profile_path.set(format!("/user/{}", username.get()));
+                                    user_profile_path.set(format!("/profile/{}", username.get()));
                                     view! {
                                         <Show when=move || user.role == UserRole::Admin >
                                             <a href="/admin" class="m-1">
@@ -55,7 +55,7 @@ pub fn NavBar() -> impl IntoView {
                                         </a>
                                         <b>"Points: "{move || user_points.get().map(|user_points| match user_points {
                                             Ok(user_points) => user_points,
-                                            Err(e) => 0 as u32
+                                            Err(e) => 0_u32
                                         })}</b>
                                     }.into_any()
                                 },
@@ -90,7 +90,7 @@ pub fn NavBar() -> impl IntoView {
                 <Show when=move || open.get() fallback=|| ()>
                     <nav class="flex-col p-2 w-inherit">
                         <a href=user_profile_path.get()>"Profile"</a>
-                        <a href="/user/settings">"Settings"</a>
+                        <a href="/settings">"Settings"</a>
                         <a href="/logout">"Logout"</a>
                     </nav>
                     // <NavDrawer class="flex-col">
