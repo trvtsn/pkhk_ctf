@@ -20,10 +20,7 @@ pub fn User() -> impl IntoView {
     
     let user_res = Resource::new(move || (), move |_| async move {
         match get_db_user(username()).await {
-            Ok(user) => {
-                let ApiResult { result, details } = user;
-                details
-            },
+            Ok(user) => user,
             Err(e) => Some(DbUser {
                 id: 0,
                 username: "".to_string(),

@@ -23,8 +23,7 @@ pub fn Leaderboard() -> impl IntoView {
                     {move || {
                         let result_view = leaderboard_data.get().map(|ld| match ld {
                             Ok(data) => { 
-                                let ApiResult { result, details } = data;
-                                let usernames = details.users.clone();
+                                let usernames = data.users.clone();
                                 log!("let usernames");
 
                                 let base = Series::new(|r: &PivotRow| r.ts);
@@ -43,7 +42,7 @@ pub fn Leaderboard() -> impl IntoView {
                                 view! {
                                     <LeaderboardChart
                                         series=RwSignal::new(series)
-                                        data=RwSignal::new(details)
+                                        data=RwSignal::new(data)
                                     />
                                 }.into_any()
                             }

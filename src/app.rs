@@ -41,8 +41,6 @@ pub fn App() -> impl IntoView {
     let is_admin = Resource::new(move|| (), |_| async move {
         match get_user().await {
             Ok(user) => {
-                let ApiResult { result, details } = user;
-                let user = details;
                 user.map(|u| u.role == UserRole::Admin).unwrap_or(false)
             }
             Err(_) => false,

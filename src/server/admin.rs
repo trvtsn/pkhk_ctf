@@ -180,7 +180,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
 }
 
 #[server(name=AdminUsersGetAll, prefix="/api/admin", endpoint="users")]
-pub async fn get_all_users() -> Result<ApiResult<Vec<DbUser>>, AppError> {
+pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -191,7 +191,7 @@ pub async fn get_all_users() -> Result<ApiResult<Vec<DbUser>>, AppError> {
             }
 
             match DbUser::get_all(&auth.backend.pool).await {
-                Ok(users) => Ok(ApiResult { result: ResultStatus::Success, details: users }),
+                Ok(users) => Ok(users),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {

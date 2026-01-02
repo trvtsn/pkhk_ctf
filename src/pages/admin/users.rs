@@ -20,10 +20,9 @@ pub fn Users() -> impl IntoView {
                 {move || {
                     let users = users.get().map(move |result| match result {
                         Ok(users) => {
-                            let ApiResult { result, details } = users;
                             view! {
                                 <For
-                                    each=move || details.clone()
+                                    each=move || users.clone()
                                     key=|user: &DbUser| user.id
                                     let(user)
                                 >

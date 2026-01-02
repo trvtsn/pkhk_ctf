@@ -52,8 +52,6 @@ pub fn Challenges() -> impl IntoView {
                     {move || {
                         let challenges = cwa.get().map(move |result| match result {
                             Ok(challenges) => {
-                                let ApiResult { result, details } = challenges;
-                                let challenges = details;
                                 let mut map = HashMap::<Option<String>, Vec<db::structs::ChallengeWithAttachments>>::new();
                                 for ch in challenges.into_iter() {
                                     map.entry(ch.challenge.category.clone()).or_default().push(ch);

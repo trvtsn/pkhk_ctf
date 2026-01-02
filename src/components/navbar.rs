@@ -34,8 +34,7 @@ pub fn NavBar() -> impl IntoView {
                 <Suspense fallback=move || view! { <p>"Loading..."</p> }>
                     {move || user.get().map(|j| match j {
                         Ok(user) => {
-                            let ApiResult { result, details } = user;
-                            match details {
+                            match user {
                                 Some(user) => {
                                     username.set(user.username);
                                     user_profile_path.set(format!("/user/{}", username.get()));
@@ -55,10 +54,7 @@ pub fn NavBar() -> impl IntoView {
                                         {username.get()}
                                         </a>
                                         <b>"Points: "{move || user_points.get().map(|user_points| match user_points {
-                                            Ok(user_points) => {
-                                                let ApiResult { result, details } = user_points;
-                                                details
-                                            },
+                                            Ok(user_points) => user_points,
                                             Err(e) => 0 as u32
                                         })}</b>
                                     }.into_any()

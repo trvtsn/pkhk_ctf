@@ -146,7 +146,7 @@ pub fn init_env() -> anyhow::Result<()> {
 }
 
 #[server(name=Challenges, prefix="/api", endpoint="challenges")]
-pub async fn get_all_challenges_with_attachments() -> Result<ApiResult<Vec<ChallengeWithAttachments>>, AppError> {
+pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAttachments>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let pool = pool()?;
@@ -159,7 +159,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<ApiResult<Vec<Chall
                 let attachments = challenge.get_attachments(&pool).await?;
                 cwa.push(ChallengeWithAttachments { challenge, attachments });
             }
-            Ok(ApiResult { result: ResultStatus::Success, details: cwa })
+            Ok(cwa)
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -167,7 +167,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<ApiResult<Vec<Chall
 }
 
 #[server(name=Leaderboard, prefix="/api", endpoint="leaderboard")]
-pub async fn build_leaderboard_data() -> Result<ApiResult<LeaderboardData>, AppError> {
+pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let event_id: &u32 = &1;
@@ -261,7 +261,7 @@ pub async fn build_leaderboard_data() -> Result<ApiResult<LeaderboardData>, AppE
                 rows.push(PivotRow { ts, values });
             }
 
-            Ok(ApiResult { result: ResultStatus::Success, details: LeaderboardData { event_name, x_min, x_max, y_max: y_max as f64, users, rows } })
+            Ok(LeaderboardData { event_name, x_min, x_max, y_max: y_max as f64, users, rows })
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -319,12 +319,12 @@ pub async fn login_user(email: String, password: String) -> Result<ApiResult<Opt
 }
 
 #[server(name=GetUser, prefix="/api", endpoint="user")]
-pub async fn get_user() -> Result<ApiResult<Option<User>>, AppError> {
+pub async fn get_user() -> Result<Option<User>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             match use_context::<AuthSession>() {
-                Some(session) => Ok(ApiResult { result: ResultStatus::Success, details: session.user.clone() }),
-                None => Ok(ApiResult { result: ResultStatus::Fail, details: None })
+                Some(session) => Ok(session.user.clone()),
+                None => Ok(None)
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -333,12 +333,12 @@ pub async fn get_user() -> Result<ApiResult<Option<User>>, AppError> {
 }
 
 #[server(name=GetUserPoints, prefix="/api/user", endpoint="points")]
-pub async fn get_user_points() -> Result<ApiResult<u32>, AppError> {
+pub async fn get_user_points() -> Result<u32, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let session: AuthSession = use_context().expect("session not provided");
             match db::structs::Submission::get_user_points(&session.user.unwrap_or_default().id, &session.backend.pool).await {
-                Ok(points) => Ok(ApiResult { result: ResultStatus::Success, details: points } ),
+                Ok(points) => Ok(points),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {
@@ -348,12 +348,12 @@ pub async fn get_user_points() -> Result<ApiResult<u32>, AppError> {
 }
 
 #[server(name=GetDbUser, prefix="/api/user", endpoint="info")]
-pub async fn get_db_user(username: String) -> Result<ApiResult<Option<DbUser>>, AppError> {
+pub async fn get_db_user(username: String) -> Result<Option<DbUser>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let pool = use_context::<MySqlPool>().expect("pool not provided");
             match DbUser::get(&UserIdentifier::Username(username), &pool).await {
-                Ok(user) => Ok(ApiResult { result: ResultStatus::Success, details: user }),
+                Ok(user) => Ok(user),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {
