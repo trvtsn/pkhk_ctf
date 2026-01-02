@@ -812,6 +812,24 @@ cfg_if! {
                     }
             }
 
+            pub async fn get_all(executor: impl MySqlExecutor<'_>) -> anyhow::Result<Vec<Self>> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, name, description, start_date, end_date
+                    FROM events 
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(events) => Ok(events),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get_metadata(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<EventMetadata, sqlx::Error> {
                 match sqlx::query_as!(
                     EventMetadata,

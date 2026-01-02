@@ -5,7 +5,7 @@ use leptos::{prelude::*, server_fn::error::NoCustomError};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use crate::server::AuthSession;
-use crate::{error_template::AppError, server::{UserRole, db::{self, structs::DbUser}, enums::ResultStatus, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, User}}};
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
 use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash};
@@ -192,6 +192,27 @@ pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
 
             match DbUser::get_all(&auth.backend.pool).await {
                 Ok(users) => Ok(users),
+                Err(e) => Err(AppError::InternalError(e.to_string()))
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AdminEventsGetAll, prefix="/api/admin", endpoint="events")]
+pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+
+            if user.role != UserRole::Admin {
+                return Err(AppError::Unauthorized);
+            }
+
+            match db::structs::Event::get_all(&auth.backend.pool).await {
+                Ok(events) => Ok(events),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {

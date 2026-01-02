@@ -16,6 +16,15 @@ pub fn Challenge(
     #[prop(optional)] attachments: Vec<Attachment>,
     solved_challenges: RwSignal<Vec<u32>>
 ) -> impl IntoView {
+    let full_desc = description.clone().unwrap_or_default();
+    let desc_max_len = 200usize;
+    let desc_expanded = RwSignal::new(false);
+    let needs_truncate = full_desc.chars().count() > desc_max_len;
+    let truncated_desc = if needs_truncate {
+        full_desc.chars().take(desc_max_len).collect::<String>()
+    } else {
+        full_desc.clone()
+    };
     let flag = RwSignal::new("".to_string());
     // let check_flag: ServerAction<CheckFlag> = ServerAction::<CheckFlag>::new();
     // let input_flag = RwSignal::new("".to_string());
@@ -40,9 +49,9 @@ pub fn Challenge(
 
     let UseTimeoutFnReturn { start, stop, .. } =
         use_timeout_fn(move |_: ()| {
-            // runs after the delay on the client — hide the error state
+            // runs after the delay on the client
             incorrect.set(false);
-        }, 3000.0); // delay in milliseconds (float)
+        }, 3000.0);
 
     let open = RwSignal::new(false);
 
@@ -58,7 +67,31 @@ pub fn Challenge(
             }
         >
             <h3 class="text-3xl/8">{name.clone()}</h3>
-            <p class="text-lg/8">{description.clone()}</p>
+            <p class="text-lg/8">{
+                move || {
+                    if desc_expanded.get() || !needs_truncate {
+                        full_desc.clone()
+                    } else {
+                        format!("{}...", truncated_desc)
+                    }
+                }
+            }</p>
+            {
+                if needs_truncate {
+                    view! {
+                        <button
+                            class="ml-2 text-sm underline text-blue-600"
+                            on:click=move |_| {
+                                desc_expanded.set(!desc_expanded.get());
+                            }
+                        >
+                            { move || if desc_expanded.get() { "Show Less" } else { "Show More" } }
+                        </button>
+                    }.into_any()
+                } else {
+                    view! { <></> }.into_any()
+                }
+            }
             <Difficulty rating=difficulty />
             <b>{format!("Points: {points}")}</b>
             <br />

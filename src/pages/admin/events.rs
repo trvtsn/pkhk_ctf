@@ -3,14 +3,7 @@
 use chrono::NaiveTime;
 use leptos::prelude::*;
 
-use crate::server::admin::AdminEventApi;
-
-pub struct Event {
-    pub title: String,
-    pub description: String,
-    pub start_date: NaiveTime,
-    pub end_date: NaiveTime,
-}
+use crate::{components::admin::event::Event, server::{admin::{AdminEventApi, get_all_events}, db}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Actions {
@@ -24,6 +17,13 @@ pub enum Actions {
 pub fn Events() -> impl IntoView {
     let section = RwSignal::new(Actions::Create);
     let event_action = ServerAction::<AdminEventApi>::new();
+
+    let events = Resource::new(move || (), move |_| async move {
+        match get_all_events().await {
+            Ok(events) => Ok(events),
+            Err(e) => Err(e)
+        }
+    });
 
     view! {
         <div class="container p-8 inline justify-center">
@@ -113,6 +113,43 @@ pub fn Events() -> impl IntoView {
                     </ActionForm>
                 </Show>
             </section>
+
+            <div class="events">
+                <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+                    {move || {
+                        let events = events.get().map(move |result| match result {
+                            Ok(events) => {
+                                view! {
+                                    <div class="m-4 grid grid-cols-4 content-stretch">
+                                        <For
+                                            each=move || events.clone()
+                                            key=|event: &db::structs::Event| event.id
+                                            let(event)
+                                        >
+                                            <div class="event p-2">
+                                                <Event event/>
+                                            </div>
+                                        </For>
+                                    </div>
+                                }.into_any()
+                            }
+                            Err(e) => {
+                                view! {
+                                    <div class="challenge p-2">
+                                        <p>"Bruh" {e.to_string()}</p>
+                                    </div>
+                                }.into_any()
+                            }
+                        })
+                        .collect_view()
+                        .into_any();
+
+                        view! {
+                            {events}
+                        }
+                    }}
+                </Suspense>
+            </div>
         </div>
     }
 }
