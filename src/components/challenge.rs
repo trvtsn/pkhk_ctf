@@ -1,7 +1,7 @@
+use cfg_if::cfg_if;
 use crate::server::{CheckFlag, check_flag, db::structs::{Attachment, Challenge}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
-use leptos_use::UseTimeoutFnReturn;
-use leptos_use::use_timeout_fn;
+use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 // use thaw::*;
 
 #[component]
@@ -46,6 +46,7 @@ pub fn Challenge(
             )
         }
     });
+    let attachment_filename = RwSignal::<String>::new("".to_string());
 
     let UseTimeoutFnReturn { start, stop, .. } =
         use_timeout_fn(move |_: ()| {
@@ -105,33 +106,43 @@ pub fn Challenge(
                     }
                 />
             </label>
-            <button
-                class=move || button_classes.get()
-                disabled=move || solved.get() || incorrect.get()
-                on:click=move |_| {
-                    let flag = flag.get().clone();
-                    let name = name.clone();
-                    let description = description.clone();
-                    let category = category.clone();
-                    let start = start.clone();
-                    let stop = stop.clone();
-                    spawn_local(async move {
-                        if let Ok(ApiResult { result, details }) = check_flag(flag, Challenge { id, event_id, name, description, category, difficulty, points }).await {
-                            // change button appearance to red, incorrect
-                            if result == ResultStatus::Fail && details == "incorrect solution" {
-                                incorrect.set(true);
-                                // cancel previous pending timeout (if any)
-                                stop();
-                                start(());
-                            } else if result == ResultStatus::Success {
-                                solved.set(true);
+            // <Show when=move || !solved.get()>
+                <button
+                    class=move || button_classes.get()
+                    disabled=move || solved.get() || incorrect.get()
+                    on:click=move |_| {
+                        let flag = flag.get().clone();
+                        let name = name.clone();
+                        let description = description.clone();
+                        let category = category.clone();
+                        let start = start.clone();
+                        let stop = stop.clone();
+                        spawn_local(async move {
+                            if let Ok(ApiResult { result, details }) = check_flag(flag, Challenge { id, event_id, name, description, category, difficulty, points }).await {
+                                // change button appearance to red, incorrect
+                                if result == ResultStatus::Fail && details == "incorrect solution" {
+                                    incorrect.set(true);
+                                    // cancel previous pending timeout (if any)
+                                    stop();
+                                    start(());
+                                } else if result == ResultStatus::Success {
+                                    solved.set(true);
+                                }
                             }
-                        }
-                    });
-                }
-            >
-                "Submit"
-            </button>
+                        });
+                    }
+                >
+                    "Submit"
+                </button>
+            // </Show>
+            // <Show when=move || solved.get()>
+                // <button
+                //     class=move || button_classes.get()
+                //     disabled=move || solved.get()
+                // >
+                //     "Solved"
+                // </button>
+            // </Show>
             // <button
             //     class=button_classes
             //     //loading=loading
@@ -153,7 +164,8 @@ pub fn Challenge(
                 key=|a: &Attachment| a.file_name.clone()
                 let(a)
             >
-                <div>{a.file_name}</div>
+                {attachment_filename.set(format!("/file/{}", a.file_name))}
+                <a href=move || attachment_filename.get()>{a.file_name}</a>
             </For>
         </div>
     }

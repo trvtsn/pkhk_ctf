@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use cfg_if::cfg_if;
 use chrono::NaiveDateTime;
-use leptos::{prelude::*, server_fn::error::NoCustomError};
+use leptos::{prelude::*, server::codee::string::FromToStringCodec, server_fn::codec::{MultipartData, MultipartFormData}, web_sys::FormData};
+#[cfg(feature = "ssr")]
+use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use crate::server::AuthSession;
@@ -49,7 +51,8 @@ pub enum ChallengeAction {
         category: String,
         difficulty: i8, 
         points: u32, 
-        flag: String
+        flag: String,
+        attachment: String
     },
     Delete {
         id: u32
@@ -62,12 +65,13 @@ pub enum ChallengeAction {
         category: String,
         difficulty: i8, 
         points: u32, 
-        flag: String
+        flag: String,
+        attachment: String
     }
 }
 
 #[server(name=AdminChallengeApi, prefix="/api/admin", endpoint="challenge")]
-pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
@@ -80,7 +84,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<Option<Strin
             }
 
             match action {
-                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag } => {
+                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, attachment } => {
                     let argon2 = Argon2::default();
                     // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
                     let salt = SaltString::generate(&mut OsRng);
@@ -94,21 +98,53 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<Option<Strin
                     // a let-binding outside of the macro or the compiler complains.
                     let flag_hash_string = flag_hash.to_string();
 
-                    match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash_string, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created challenge".to_string()) }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    let mut tx = auth.backend.pool.begin().await?;
+                    let attachment = match db::structs::Attachment::get(db::enums::AttachmentIdentifier::FileName(attachment), &mut *tx).await {
+                        Ok(attachment) => attachment,
+                        Err(e) => {
+                            tx.rollback().await?;
+                            return Err(AppError::InternalError(e.to_string()))
+                        }
+                    };
+
+                    let mut new_challenge_id = 0;
+                    match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash_string, &mut *tx).await {
+                        Ok(result) => new_challenge_id = result,
+                        Err(e) => {
+                            tx.rollback().await?;
+                            return Err(AppError::InternalError(e.to_string()))
+                        }
+                    }
+
+                    match attachment {
+                        Some(attachment) => {
+                            match db::structs::Attachment::edit_challenge(&attachment.id, &new_challenge_id, &mut *tx).await {
+                                Ok(_) => {
+                                    tx.commit().await?;
+                                    Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
+                                },
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    Err(AppError::InternalError(e.to_string()))
+                                }
+                            }
+                        }
+                        None => {
+                            tx.commit().await?;
+                            Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
+                        }
                     }
                 }
                 ChallengeAction::Delete { id } => {
                     match db::structs::Challenge::delete(&id, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted challenge".to_string()) }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted challenge".to_string() }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                     }
                 }
-                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag } => {
+                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, attachment } => {
                     match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited challenge".to_string()) }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                     }
                 }
             }
@@ -213,6 +249,64 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
 
             match db::structs::Event::get_all(&auth.backend.pool).await {
                 Ok(events) => Ok(events),
+                Err(e) => Err(AppError::InternalError(e.to_string()))
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(input=MultipartFormData, name=AdminUploadFile, prefix="/api/admin/file", endpoint="upload")]
+pub async fn upload_file(file: MultipartData) -> Result<ApiResult<String>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+
+            if user.role != UserRole::Admin {
+                return Err(AppError::Unauthorized);
+            }
+
+            let mut file_name = String::new();
+            let mut file_blob = Vec::<u8>::new();
+            let mut mime_type = String::new();
+
+            let mut data = file.into_inner().unwrap();
+            while let Ok(Some(mut field)) = data.next_field().await {
+                file_name = field.file_name().unwrap_or_default().to_string();
+                mime_type = field.content_type().unwrap().to_string();
+
+                while let Ok(Some(chunk)) = field.chunk().await {
+                    file_blob.append(&mut chunk.to_vec());
+                }
+            }
+
+            match db::structs::Attachment::add(&None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "uploaded file".to_string() }),
+                Err(e) => Err(AppError::InternalError(e.to_string()))
+            }
+
+            
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AdminAttachmentFileNamesGetAll, prefix="/api/admin/attachments", endpoint="get_filenames")]
+pub async fn get_all_attachment_filenames() -> Result<Vec<String>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+
+            if user.role != UserRole::Admin {
+                return Err(AppError::Unauthorized);
+            }
+
+            match db::structs::Attachment::get_all_filenames(&auth.backend.pool).await {
+                Ok(filenames) => Ok(filenames),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {

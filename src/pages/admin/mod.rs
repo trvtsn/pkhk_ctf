@@ -3,8 +3,9 @@ pub mod events;
 pub mod log;
 pub mod site_settings;
 pub mod users;
+pub mod files;
 
-use super::admin::{challenges::Challenges, events::Events, log::Log, site_settings::SiteSettings, users::Users};
+use super::admin::{challenges::Challenges, events::Events, log::Log, site_settings::SiteSettings, users::Users, files::Files};
 use crate::{components::navbar::NavBar};
 // use axum::{response::IntoResponse, Router, routing::get};
 // use axum_login::login_required;
@@ -17,6 +18,7 @@ pub enum AdminSections {
     SiteSettings,
     Events,
     Challenges,
+    Files,
     Users,
     Log
 }
@@ -48,6 +50,10 @@ pub fn Admin() -> impl IntoView {
                                 <Challenges />
                             </Show>
 
+                            <Show when=move || selected.get() == AdminSections::Files>
+                                <Files />
+                            </Show>
+
                             <Show when=move || selected.get() == AdminSections::Users>
                                 <Users />
                             </Show>
@@ -72,6 +78,7 @@ pub fn AdminNavBar() -> impl IntoView {
             <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::SiteSettings)>"Site Settings"</p>
             <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Events)>"Events"</p>
             <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Challenges)>"Challenges"</p>
+            <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Files)>"Files"</p>
             <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Users)>"Users"</p>
             <p class="p-2 border-2 border-black" on:click=move |_| selected.set(AdminSections::Log)>"Log"</p>
         </nav>

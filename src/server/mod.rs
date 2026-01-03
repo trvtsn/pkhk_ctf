@@ -21,6 +21,9 @@ use time::OffsetDateTime;
 use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
+#[cfg(feature = "ssr")]
+use axum::{response::IntoResponse, http::{StatusCode, header}};
+use crate::server::db::enums::AttachmentIdentifier;
 
 pub mod admin;
 #[cfg(feature = "ssr")]
@@ -484,4 +487,35 @@ pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
             Err(AppError::NoServerConnection)
         }
     }
+}
+
+#[cfg(feature = "ssr")]
+pub async fn download_blob(
+    auth_session: AuthSession,
+    Path(filename): Path<String>,
+) -> impl IntoResponse {
+    let pool = auth_session.backend.pool;
+    let file = match db::structs::Attachment::get(AttachmentIdentifier::FileName(filename.clone()), &pool).await {
+        Ok(Some(f)) => f,
+        Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
+        Err(e) => {
+            tracing::error!("db error: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
+        }
+    };
+
+    let bytes = file.file_blob;
+    let disposition = format!(
+        "attachment; filename=\"{}\"",
+        // sanitize(&filename)
+        filename
+    );
+
+    (
+        [
+            (header::CONTENT_TYPE, "application/octet-stream".into()),
+            (header::CONTENT_DISPOSITION, disposition),
+        ],
+        bytes,
+    ).into_response()
 }

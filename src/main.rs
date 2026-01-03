@@ -13,7 +13,7 @@ cfg_if! {
         use leptos::prelude::provide_context;
         use leptos_axum::handle_server_fns_with_context;
         use pkhk_ctf::{app::shell, logging::{init_tracing, logs_sse}};
-        use pkhk_ctf::server::{backend::structs::Backend, db::get_db, structs::AppState, init_env};
+        use pkhk_ctf::server::{download_blob, backend::structs::Backend, db::get_db, structs::AppState, init_env};
 
         pub type AuthSession = axum_login::AuthSession<Backend>;
     }
@@ -110,6 +110,10 @@ async fn main() {
         .route(
             "/admin/logs", 
             get(logs_sse)
+        )
+        .route(
+            "/file/{filename}",
+            get(download_blob)
         )
         .leptos_routes_with_handler(
             routes, 

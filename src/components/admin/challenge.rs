@@ -1,7 +1,5 @@
 use crate::server::{CheckFlag, admin::{AdminChallengeApi, challenge}, check_flag, db::structs::{Attachment, Challenge}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
-use leptos_use::UseTimeoutFnReturn;
-use leptos_use::use_timeout_fn;
 // use thaw::*;
 
 #[component]

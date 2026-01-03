@@ -2,8 +2,7 @@
 // use crate::components::navbar::NavBar;
 use leptos::prelude::*;
 use leptos::server::codee::string::FromToStringCodec;
-use leptos::web_sys::{EventSource, MessageEvent};
-use leptos_use::{use_event_source_with_options, UseEventSourceMessage, UseEventSourceOptions, UseEventSourceReturn};
+use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
 
 /// Default Home Page
 #[component]

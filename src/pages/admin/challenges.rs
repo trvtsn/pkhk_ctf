@@ -4,7 +4,7 @@ use std::collections::HashMap;
 // use crate::components::navbar::NavBar;
 use leptos::prelude::*;
 
-use crate::{components::admin::challenge::Challenge, server::{admin::AdminChallengeApi, db, get_all_challenges_with_attachments}};
+use crate::{components::admin::challenge::Challenge, server::{admin::{AdminChallengeApi, get_all_attachment_filenames, get_all_events}, db, get_all_challenges_with_attachments}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Actions {
@@ -24,6 +24,20 @@ pub fn Challenges() -> impl IntoView {
     let cwa = Resource::new(move || (), move |_| async move {
         match get_all_challenges_with_attachments().await {
             Ok(cwa) => Ok(cwa),
+            Err(e) => Err(e)
+        }
+    });
+
+    let attachment_filenames = Resource::new(move || (), move |_| async move {
+        match get_all_attachment_filenames().await {
+            Ok(filenames) => Ok(filenames),
+            Err(e) => Err(e)
+        }
+    });
+
+    let events_resource = Resource::new(move || (), move |_| async move {
+        match get_all_events().await {
+            Ok(events) => Ok(events),
             Err(e) => Err(e)
         }
     });
@@ -83,6 +97,24 @@ pub fn Challenges() -> impl IntoView {
                     </label>
                     <label>
                         <b>"Attachment"</b>
+                        // <select>
+                        //     {
+                        //         let attachment_filenames = attachment_filenames.get().map(|f| match f {
+                        //             Ok(f) => f,
+                        //             Err(e) => Vec::<String>::default()
+                        //         });
+
+                        //         view! {
+                        //             <For
+                        //                 each=move || attachment_filenames.unwrap_or_default()
+                        //                 key=|f: &String| f.clone()
+                        //                 let(f)
+                        //             >
+                        //                 <option value={f}>{f}</option>
+                        //             </For>
+                        //         }
+                        //     }
+                        // </select>
                         <input class="bg-white border" type="file" name="attachment" />
                     </label>
                     //<button loading=loading on_click=move |_| { loading.set(true) }>

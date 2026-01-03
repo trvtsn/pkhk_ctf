@@ -28,8 +28,8 @@ cargo leptos watch
 - [ ] Add "Change Avatar" function for user
 - [x] Actually make challenge solves work on "submit" button press
 - [ ] Fit correct HTTP status codes to matching API responses
-- [ ] Add dark mode toggle in user settings
-- [ ] Add attachments download button to challenges
+- [x] Add dark mode toggle in user settings
+- [x] Add attachments download button to challenges
 
 ### Security
 - [x] Restrict access to admin endpoints and API
@@ -44,3 +44,4 @@ cargo leptos watch
 - [ ] Add icons
 - [x] Add "Points" indicator to user on navbar and profile
 - [x] Format log messages in Admin "Log" section
+- [x] Add dark mode styling

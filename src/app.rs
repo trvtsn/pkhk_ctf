@@ -1,9 +1,11 @@
+use cfg_if::cfg_if;
 use leptos::{prelude::*, task::spawn_local};
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::{
     components::*,
     path
 };
+use leptos_use::{UseColorModeOptions, UseColorModeReturn, use_color_mode_with_options};
 
 // Top-Level pages
 use crate::{
@@ -37,6 +39,11 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
+
+    let UseColorModeReturn { mode, set_mode, .. } = use_color_mode_with_options(
+        UseColorModeOptions::default().cookie_enabled(true)
+    );
+    provide_context(set_mode);
 
     let user = Resource::new(move|| (), |_| async move {
         get_user().await.unwrap_or(None)
