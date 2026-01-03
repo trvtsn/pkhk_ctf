@@ -115,9 +115,6 @@ pub fn Challenges() -> impl IntoView {
         {move || {
             match events_resource.get() {
                 Some(events) if !events.is_empty() => {
-                    for e in events.iter() {
-                        leptos::logging::log!("Timestamp: {}\nStart: {}\nEnd: {}", now.get().to_string().chars().take(10).collect::<String>().parse::<f64>().unwrap(), e.start_date.unix_timestamp(), e.end_date.unix_timestamp());
-                    }
                     // if let Some(event) = events.iter().find(|e| now.get() >= e.start_date.unix_timestamp() as f64 && now.get() <= e.end_date.unix_timestamp() as f64) {}
                     if events.iter().any(|e| 
                         // oh my god please find an alternate solution to trim the timestamp down to 10 digits
