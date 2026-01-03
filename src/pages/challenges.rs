@@ -2,11 +2,13 @@ use std::collections::HashMap;
 
 use crate::{
     components::{challenge::Challenge, navbar::NavBar},
-    server::{db, get_all_challenges_with_attachments, get_user_solved_challenges, structs::ApiResult}
+    server::{admin::get_all_events, db, get_all_challenges_with_attachments, get_user_solved_challenges, structs::ApiResult}
 };
 use leptos::prelude::*;
+use leptos_use::{UseTimestampReturn, use_timestamp};
 use serde::{Deserialize, Serialize};
 use server_fn::codec::JsonEncoding;
+use time::OffsetDateTime;
 
 /// Default Home Page
 #[component]
@@ -19,6 +21,10 @@ pub fn Challenges() -> impl IntoView {
         }
     });
 
+    let events_resource = Resource::new(move || (), move |_| async move {
+        get_all_events().await.unwrap_or_default()
+    });
+
     let solved_challenge_ids = RwSignal::new(Vec::<u32>::default());
 
     Resource::new(move || (), move |_| async move {
@@ -28,18 +34,9 @@ pub fn Challenges() -> impl IntoView {
         }
     });
 
-    // spawn_local({
-    //     let challenges = challenges.clone();
-    //     async move {
-    //         if let Ok(all) = db::structs::Challenge::get_all_with_attachments().await {
-    //             challenges.set(all);
-    //         }
-    //     }
-    // });
+    let now = use_timestamp();
 
-    view! {
-        <NavBar />
-        // {move || if date >= events.starting_date && date <= events.end_date}
+    let challenges_view = move || { view! {
         <div class="container grid justify-center p-8">
             <h1 class="text-4xl text-center">"Challenges"</h1>
             <div class="challenges">
@@ -111,5 +108,31 @@ pub fn Challenges() -> impl IntoView {
                 </Suspense>
             </div>
         </div>
+    }.into_any()};
+
+    view! {
+        <NavBar />
+        {move || {
+            match events_resource.get() {
+                Some(events) if !events.is_empty() => {
+                    for e in events.iter() {
+                        leptos::logging::log!("Timestamp: {}\nStart: {}\nEnd: {}", now.get().to_string().chars().take(10).collect::<String>().parse::<f64>().unwrap(), e.start_date.unix_timestamp(), e.end_date.unix_timestamp());
+                    }
+                    // if let Some(event) = events.iter().find(|e| now.get() >= e.start_date.unix_timestamp() as f64 && now.get() <= e.end_date.unix_timestamp() as f64) {}
+                    if events.iter().any(|e| 
+                        // oh my god please find an alternate solution to trim the timestamp down to 10 digits
+                        // or make .unix_timestamp() return the same number of digits as use_timestamp() does
+                        now.get().to_string().chars().take(10).collect::<String>().parse::<f64>().unwrap() >= e.start_date.unix_timestamp() as f64 && 
+                        now.get().to_string().chars().take(10).collect::<String>().parse::<f64>().unwrap() <= e.end_date.unix_timestamp() as f64
+                    ) {
+                        (challenges_view)().into_any()
+                    } else {
+                        view! { <p>"No events currently active"</p> }.into_any()
+                    }
+                }
+                Some(_) => view! { <p>"No events currently active"</p> }.into_any(),
+                None => view! { <p>"Loading..."</p> }.into_any(),
+            }
+        }}
     }
 }

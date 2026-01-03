@@ -136,15 +136,74 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
                 }
                 ChallengeAction::Delete { id } => {
-                    match db::structs::Challenge::delete(&id, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted challenge".to_string() }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+                    let mut tx = auth.backend.pool.begin().await?;
+                    match db::structs::Attachment::delete(&id, &mut *tx).await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            tx.rollback().await?;
+                            return Err(AppError::InternalError(e.to_string()));
+                        }
+                    }
+
+                    match db::structs::Challenge::delete(&id, &mut *tx).await {
+                        Ok(_) => {
+                            tx.commit().await?;
+                            Ok(ApiResult { result: ResultStatus::Success, details: "deleted challenge".to_string() })
+                        },
+                        Err(e) => {
+                            tx.rollback().await?;
+                            Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+                        }
                     }
                 }
                 ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, attachment } => {
-                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+                    let argon2 = Argon2::default();
+                    // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
+                    let salt = SaltString::generate(&mut OsRng);
+                    // This gives back a data structure with various parts, which can be encoded using
+                    // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
+                    // recommended hashing algorithm at the time of this code being published (2024)
+                    let flag_hash: PasswordHash = argon2.hash_password(flag.as_bytes(), &salt)
+                        .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
+                    // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
+                    // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
+                    // a let-binding outside of the macro or the compiler complains.
+                    let flag_hash_string = flag_hash.to_string();
+
+                    let mut tx = auth.backend.pool.begin().await?;
+                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &mut *tx).await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            tx.rollback().await?;
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
+                        }
+                    }
+
+                    let attachment = match db::structs::Attachment::get(db::enums::AttachmentIdentifier::FileName(attachment), &mut *tx).await {
+                        Ok(attachment) => attachment,
+                        Err(e) => {
+                            tx.rollback().await?;
+                            return Err(AppError::InternalError(e.to_string()))
+                        }
+                    };
+
+                    match attachment {
+                        Some(attachment) => {
+                            match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
+                                Ok(_) => {
+                                    tx.commit().await?;
+                                    Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
+                                },
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    Err(AppError::InternalError(e.to_string()))
+                                }
+                            }
+                        }
+                        None => {
+                            tx.commit().await?;
+                            Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
+                        }
                     }
                 }
             }
@@ -283,7 +342,7 @@ pub async fn upload_file(file: MultipartData) -> Result<ApiResult<String>, AppEr
             }
 
             match db::structs::Attachment::add(&None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &auth.backend.pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "uploaded file".to_string() }),
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: file_name }),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
 
@@ -294,8 +353,8 @@ pub async fn upload_file(file: MultipartData) -> Result<ApiResult<String>, AppEr
     }
 }
 
-#[server(name=AdminAttachmentFileNamesGetAll, prefix="/api/admin/attachments", endpoint="get_filenames")]
-pub async fn get_all_attachment_filenames() -> Result<Vec<String>, AppError> {
+#[server(name=AdminGetAllCategories, prefix="/api/admin/challenges", endpoint="categories")]
+pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -305,8 +364,8 @@ pub async fn get_all_attachment_filenames() -> Result<Vec<String>, AppError> {
                 return Err(AppError::Unauthorized);
             }
 
-            match db::structs::Attachment::get_all_filenames(&auth.backend.pool).await {
-                Ok(filenames) => Ok(filenames),
+            match db::structs::Challenge::get_all_categories(&auth.backend.pool).await {
+                Ok(categories) => Ok(categories),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {

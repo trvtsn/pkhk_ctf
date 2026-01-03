@@ -45,3 +45,6 @@ cargo leptos watch
 - [x] Add "Points" indicator to user on navbar and profile
 - [x] Format log messages in Admin "Log" section
 - [x] Add dark mode styling
+
+### Project Longevity
+- [x] Add doc comments to pages and components

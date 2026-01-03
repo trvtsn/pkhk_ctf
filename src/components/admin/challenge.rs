@@ -22,6 +22,8 @@ pub fn Challenge(
     } else {
         full_desc.clone()
     };
+
+    let attachment_filename = RwSignal::<String>::new("".to_string());
     // let editing = RwSignal::new(false);
     // let deleted = RwSignal::new(false);
     // let challenge_action = ServerAction::<AdminChallengeApi>::new();
@@ -45,7 +47,7 @@ pub fn Challenge(
                             format!("{}...", truncated_desc)
                         }
                     }
-                }</p>
+                }                
                 {
                     if needs_truncate {
                         view! {
@@ -62,6 +64,8 @@ pub fn Challenge(
                         view! { <></> }.into_any()
                     }
                 }
+                </p>
+
                 <Difficulty rating=difficulty />
                 <b>{format!("Points: {points}")}</b>
                 <br />
@@ -71,7 +75,8 @@ pub fn Challenge(
                     key=|a: &Attachment| a.file_name.clone()
                     let(a)
                 >
-                    <div>{a.file_name}</div>
+                    {attachment_filename.set(format!("/file/{}", a.file_name))}
+                    <a href=move || attachment_filename.get()>{a.file_name}</a>
                 </For>
             // </Show>
 

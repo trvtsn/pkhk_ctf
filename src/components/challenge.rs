@@ -76,7 +76,7 @@ pub fn Challenge(
                         format!("{}...", truncated_desc)
                     }
                 }
-            }</p>
+            }
             {
                 if needs_truncate {
                     view! {
@@ -93,6 +93,8 @@ pub fn Challenge(
                     view! { <></> }.into_any()
                 }
             }
+            </p>
+
             <Difficulty rating=difficulty />
             <b>{format!("Points: {points}")}</b>
             <br />

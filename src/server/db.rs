@@ -65,7 +65,7 @@ pub mod structs {
         pub role: UserRole
     }
 
-    #[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
+    #[derive(Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
     pub struct Attachment {
         pub id: u32,
         pub challenge_id: Option<u32>,
@@ -76,7 +76,7 @@ pub mod structs {
         pub mime_type: Option<String>
     }
 
-    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
     pub struct Challenge {
         pub id: u32,
         pub event_id: u32,
@@ -87,13 +87,13 @@ pub mod structs {
         pub points: u32
     }
 
-    #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
+    #[derive(Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
     pub struct ChallengeWithAttachments {
         pub challenge: Challenge,
         pub attachments: Vec<Attachment>,
     }
 
-     #[derive(Clone, PartialEq, Serialize, Deserialize)]
+     #[derive(Eq, Clone, PartialEq, Serialize, Deserialize)]
     pub struct Event {
         pub id: u32,
         pub name: String,
@@ -180,7 +180,7 @@ pub mod enums {
         }
     }
 
-    #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+    #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default, Eq)]
     pub enum FileType {
         #[default]
         Attachment,
@@ -619,6 +619,33 @@ cfg_if! {
                     }
             }
 
+            pub async fn get_all_categories(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT category
+                    FROM challenges 
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(rows) => {
+                            let mut categories = Vec::<String>::new();
+                            for row in rows.iter() {
+                                let category = row.category.clone().unwrap_or_default().clone();
+                                if !category.is_empty() {
+                                    categories.push(category);
+                                }
+                            }
+                            categories.dedup();
+                            Ok(categories)
+                        },
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get_attachments(&self, executor: impl MySqlExecutor<'_>) -> Result<Vec<Attachment>, sqlx::Error> {
                 match sqlx::query_as!(
                     Attachment,
@@ -700,6 +727,26 @@ cfg_if! {
                     file_blob,
                     file_type.to_string(),
                     mime_type
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    DELETE
+                    FROM attachments 
+                    WHERE id = ?
+                    ", 
+                    id
                 )
                     .execute(executor)
                     .await {
