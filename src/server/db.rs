@@ -90,7 +90,7 @@ pub mod structs {
     #[derive(Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
     pub struct ChallengeWithAttachments {
         pub challenge: Challenge,
-        pub attachments: Vec<Attachment>,
+        pub attachments: Vec<String>,
     }
 
      #[derive(Eq, Clone, PartialEq, Serialize, Deserialize)]
@@ -908,6 +908,107 @@ cfg_if! {
                             Err(e)?
                         }
                     }
+            }
+
+            pub async fn get_filenames(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
+                match identifier {
+                    AttachmentIdentifier::Id(id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE challenge_id = ?
+                            ",
+                            challenge_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::EventId(event_id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE event_id = ?
+                            ",
+                            event_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::FileName(file_name) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE file_name = ?
+                            ",
+                            file_name
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
             }
 
             pub async fn get(identifier: AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {

@@ -11,7 +11,7 @@ pub fn Challenge(
     category: Option<String>,
     #[prop(default = 3)] difficulty: i8,
     points: u32,
-    #[prop(optional)] attachments: Vec<Attachment>,
+    #[prop(optional)] attachments: Vec<String>,
 ) -> impl IntoView {
     let full_desc = description.clone().unwrap_or_default();
     let desc_max_len = 200usize;
@@ -67,16 +67,16 @@ pub fn Challenge(
                 </p>
 
                 <Difficulty rating=difficulty />
-                <b>{format!("Points: {points}")}</b>
+                <b class="text-lg/8">{format!("Points: {points}")}</b>
                 <br />
 
                 <For
                     each=move || attachments.clone()
-                    key=|a: &Attachment| a.file_name.clone()
+                    key=|a: &String| a.clone()
                     let(a)
                 >
-                    {attachment_filename.set(format!("/file/{}", a.file_name))}
-                    <a href=move || attachment_filename.get()>{a.file_name}</a>
+                    {attachment_filename.set(format!("/file/{}", a))}
+                    <a download href=move || attachment_filename.get() class="underline text-blue-600">{a}</a>
                 </For>
             // </Show>
 
@@ -162,7 +162,7 @@ pub fn Difficulty(#[prop(default = 3)] rating: i8) -> impl IntoView {
     view! {
         <div class="difficulty" role="img" aria-label=format!("Difficulty: {} of 5", rating)>
             <span class="label">
-                <b>"Difficulty: "</b>
+                <b class="text-lg/8">"Difficulty: "</b>
                 {"⭐".repeat(rating as usize)}
             </span>
         </div>

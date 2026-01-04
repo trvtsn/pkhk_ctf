@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}}};
-use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Submission, SubmissionWithData}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
+use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{Challenge, ChallengeWithAttachments, DbUser, Event, Submission, SubmissionWithData}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
 #[cfg(feature = "ssr")]
 use argon2::{Argon2, PasswordVerifier};
 // #[cfg(feature = "ssr")]
@@ -152,14 +152,14 @@ pub fn init_env() -> anyhow::Result<()> {
 pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAttachments>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let pool = pool()?;
-            let challenges = match db::structs::Challenge::get_all(&pool).await {
+            let auth = use_context::<AuthSession>().unwrap();
+            let challenges = match db::structs::Challenge::get_all(&auth.backend.pool).await {
                 Ok(challenges) => challenges,
                 Err(e) => Err(e)?
             };
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
-                let attachments = challenge.get_attachments(&pool).await?;
+                let attachments = db::structs::Attachment::get_filenames(&AttachmentIdentifier::ChallengeId(challenge.id), &auth.backend.pool).await?;
                 cwa.push(ChallengeWithAttachments { challenge, attachments });
             }
             Ok(cwa)
@@ -168,6 +168,21 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
         }
     }
 }
+
+// #[server(name=Challenges, prefix="/api", endpoint="challenges")]
+// pub async fn get_all_challenges() -> Result<Vec<Challenge>, AppError> {
+//     cfg_if! {
+//         if #[cfg(feature = "ssr")] {
+//             let auth = use_context::<AuthSession>().unwrap();
+//             match db::structs::Challenge::get_all(&auth.backend.pool).await {
+//                 Ok(challenges) => Ok(challenges),
+//                 Err(e) => Err(e)?
+//             }
+//         } else {
+//             Err(AppError::NoServerConnection)
+//         }
+//     }
+// }
 
 #[server(name=Leaderboard, prefix="/api", endpoint="leaderboard")]
 pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
@@ -518,4 +533,29 @@ pub async fn download_blob(
         ],
         bytes,
     ).into_response()
+}
+
+#[server(name=GetActiveEvents, prefix="/api", endpoint="active_events")]
+pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let events = match db::structs::Event::get_all(&auth.backend.pool).await {
+                Ok(events) => events,
+                Err(e) => return Err(e.into())
+            };
+
+            let mut active_events = Vec::new();
+            let now = OffsetDateTime::now_utc();
+            for event in events.into_iter() {
+                if now >= event.start_date && now <= event.end_date {
+                    active_events.push(event);
+                } 
+            }
+
+            Ok(active_events)
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
 }

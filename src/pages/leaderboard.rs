@@ -16,8 +16,8 @@ pub fn Leaderboard() -> impl IntoView {
 
     view! { 
         <NavBar />
-        <div class="container p-8 inline justify-center">
-            <h3 class="text-4xl text-center">"Leaderboard"</h3>
+        <div class="p-4 justify-center grid">
+            <h3 class="text-4xl text-center m-2">"Leaderboard"</h3>
             //<div class="w-screen h-screen">
                 <Suspense fallback=move || view! { <div>"Loading..."</div> }>
                     {move || {

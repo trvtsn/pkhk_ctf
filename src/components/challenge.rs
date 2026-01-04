@@ -13,7 +13,7 @@ pub fn Challenge(
     category: Option<String>,
     #[prop(default = 3)] difficulty: i8,
     points: u32,
-    #[prop(optional)] attachments: Vec<Attachment>,
+    #[prop(optional)] attachments: Vec<String>,
     solved_challenges: RwSignal<Vec<u32>>
 ) -> impl IntoView {
     let full_desc = description.clone().unwrap_or_default();
@@ -60,6 +60,10 @@ pub fn Challenge(
         solved.set(true);
     } 
 
+    let btn_text = Memo::new(move |_| {
+        if solved.get() { "Solved".to_string() } else { "Submit".to_string() }
+    });
+
     view! {
         <div
             class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 content-center"
@@ -96,7 +100,7 @@ pub fn Challenge(
             </p>
 
             <Difficulty rating=difficulty />
-            <b>{format!("Points: {points}")}</b>
+            <b class="text-lg/8">{format!("Points: {points}")}</b>
             <br />
             <label for="flag">
                 <b>"Flag: "</b>
@@ -134,40 +138,16 @@ pub fn Challenge(
                         });
                     }
                 >
-                    "Submit"
+                    { move || btn_text.get() }
                 </button>
-            // </Show>
-            // <Show when=move || solved.get()>
-                // <button
-                //     class=move || button_classes.get()
-                //     disabled=move || solved.get()
-                // >
-                //     "Solved"
-                // </button>
-            // </Show>
-            // <button
-            //     class=button_classes
-            //     //loading=loading
-            //     disabled=solved
-            //     on:click=move |_| {
-            //         loading.set(true);
-            //         if input_flag.get() == "1" {
-            //             loading.set(false);
-            //             solved.set(true);
-            //             println!("{}", solved.get())
-            //         }
-            //     }
-            // >
-            //     {move || { if solved.get() { "Solved" } else { "Submit" } }}
-            // </button>
 
             <For
                 each=move || attachments.clone()
-                key=|a: &Attachment| a.file_name.clone()
+                key=|a: &String| a.clone()
                 let(a)
             >
-                {attachment_filename.set(format!("/file/{}", a.file_name))}
-                <a href=move || attachment_filename.get()>{a.file_name}</a>
+                {attachment_filename.set(format!("/file/{}", a))}
+                <a download href=move || attachment_filename.get() class="underline text-blue-600">{a}</a>
             </For>
         </div>
     }
@@ -180,7 +160,7 @@ pub fn Difficulty(#[prop(default = 3)] rating: i8) -> impl IntoView {
     view! {
         <div class="difficulty" role="img" aria-label=format!("Difficulty: {} of 5", rating)>
             <span class="label">
-                <b>"Difficulty: "</b>
+                <b class="text-lg/8 font-bold">"Difficulty: "</b>
                 {"⭐".repeat(rating as usize)}
             </span>
         </div>

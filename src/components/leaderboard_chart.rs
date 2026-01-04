@@ -11,7 +11,7 @@ pub fn LeaderboardChart(
 ) -> impl IntoView {
     view! {
         <Chart
-            aspect_ratio=AspectRatio::from_outer_ratio(900.0, 400.0)
+            aspect_ratio=AspectRatio::from_outer_ratio(1000.0, 500.0)
             top=RotatedLabel::middle(data.get().event_name.clone())
             left=TickLabels::aligned_floats()
             bottom=TickLabels::timestamps()

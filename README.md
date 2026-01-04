@@ -30,6 +30,7 @@ cargo leptos watch
 - [ ] Fit correct HTTP status codes to matching API responses
 - [x] Add dark mode toggle in user settings
 - [x] Add attachments download button to challenges
+- [ ] Add "Change Password" function for user
 
 ### Security
 - [x] Restrict access to admin endpoints and API
@@ -47,4 +48,4 @@ cargo leptos watch
 - [x] Add dark mode styling
 
 ### Project Longevity
-- [x] Add doc comments to pages and components
+- [ ] Add doc comments to pages and components
