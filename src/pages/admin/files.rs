@@ -43,7 +43,7 @@ pub fn Files() -> impl IntoView {
             }}
 
         </p>
-        <div class="files m-2">
+        <div class="files m-2 grid grid-cols-4">
             <For
                 each=move || all_files.get().clone().unwrap_or_default()
                 key=|file: &db::structs::AttachmentWithoutBlob| file.id

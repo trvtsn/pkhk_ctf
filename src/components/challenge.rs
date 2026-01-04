@@ -160,7 +160,7 @@ pub fn Difficulty(#[prop(default = 3)] rating: i8) -> impl IntoView {
     view! {
         <div class="difficulty" role="img" aria-label=format!("Difficulty: {} of 5", rating)>
             <span class="label">
-                <b class="text-lg/8 font-bold">"Difficulty: "</b>
+                <b class="text-lg/8">"Difficulty: "</b>
                 {"⭐".repeat(rating as usize)}
             </span>
         </div>
