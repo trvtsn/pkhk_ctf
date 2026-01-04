@@ -25,12 +25,12 @@ cargo leptos watch
 - [x] Create challenge categories
 - [ ] Clean up code for better readability, get rid of placeholder code
 - [x] Add "Change Username" function for user
-- [ ] Add "Change Avatar" function for user
+- [x] Add "Change Avatar" function for user
 - [x] Actually make challenge solves work on "submit" button press
 - [ ] Fit correct HTTP status codes to matching API responses
 - [x] Add dark mode toggle in user settings
 - [x] Add attachments download button to challenges
-- [ ] Add "Change Password" function for user
+- [x] Add "Change Password" function for user
 
 ### Security
 - [x] Restrict access to admin endpoints and API

@@ -231,6 +231,26 @@ cfg_if! {
                     }
             }
 
+            pub async fn edit_password(id: &u32, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET pw_hash = ?
+                    WHERE id = ?
+                    ",
+                    pw_hash,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn edit_username(id: &u32, username: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
@@ -332,23 +352,63 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_avatar(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<Option<Vec<u8>>, sqlx::Error> {
-                match sqlx::query!(
-                    "
-                    SELECT avatar
-                    FROM users 
-                    WHERE id = ?
-                    ",
-                    id
-                )
-                    .fetch_one(executor)
-                    .await {
-                        Ok(row) => Ok(row.avatar),
-                        Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
-                        }
+            pub async fn get_avatar(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Vec<u8>>, sqlx::Error> {
+                match identifier {
+                    UserIdentifier::Id(id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT avatar
+                            FROM users 
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .fetch_one(executor)
+                            .await {
+                                Ok(row) => Ok(row.avatar),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
                     }
+                    UserIdentifier::Email(email) => {
+                        match sqlx::query!(
+                            "
+                            SELECT avatar
+                            FROM users 
+                            WHERE email = ?
+                            ",
+                            email
+                        )
+                            .fetch_one(executor)
+                            .await {
+                                Ok(row) => Ok(row.avatar),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    UserIdentifier::Username(username) => {
+                        match sqlx::query!(
+                            "
+                            SELECT avatar
+                            FROM users 
+                            WHERE username = ?
+                            ",
+                            username
+                        )
+                            .fetch_one(executor)
+                            .await {
+                                Ok(row) => Ok(row.avatar),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
             }
 
             pub async fn get_optional(identifier: UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {

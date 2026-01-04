@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{self, db::{self, enums::UserRole, structs::DbUser}, get_db_user, structs::ApiResult}};
+use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{self, db::{self, enums::UserRole, structs::DbUser}, get_db_user, get_avatar, structs::ApiResult}};
 #[cfg(feature = "ssr")]
 use axum::Router;
 use leptos::prelude::*;
@@ -22,21 +22,39 @@ pub fn User() -> impl IntoView {
         get_db_user(username()).await.unwrap_or_default()
     });
 
+    let user_avatar = Resource::new(move || (), move |_| async move {
+        get_avatar(username()).await.unwrap_or_default()
+    });
+
     view! {
         <NavBar />
         <div class="container">
             <Suspense fallback=move || view! { <div>"Loading..."</div> }>
                 <p>
                 {move || {
-                    let view_result = user_res.get().map(|j| match j {
+                    let view_username = user_res.get().map(|j| match j {
                         Some(user) => { 
-                            view! { {user.username} }.into_any()
+                            view! { 
+                                <p>{user.username}</p>
+                            }.into_any()
                         },
                         None => view! { <NotFound /> }.into_any()
                     });
 
+                    let view_avatar = user_avatar.get().map(|a| match a {
+                        Some(avatar) => { 
+                            view! { 
+                                <p>{avatar}</p>
+                            }.into_any()
+                        },
+                        None => view! {}.into_any()
+                    });
+
                     view! {
-                        { view_result }
+                        { view_avatar }
+                        { view_username }
+                        // date joined
+                        // points
                     }.into_any()
                 }}
                 </p>

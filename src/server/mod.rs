@@ -2,9 +2,7 @@
 use crate::server::{backend::{AuthSession, structs::{Credentials}}};
 use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{Challenge, ChallengeWithAttachments, DbUser, Event, Submission, SubmissionWithData}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
 #[cfg(feature = "ssr")]
-use argon2::{Argon2, PasswordVerifier};
-// #[cfg(feature = "ssr")]
-// use password_hash::PasswordHash;
+use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::{self, rand_core::OsRng}};
 #[cfg(feature = "ssr")]
 use axum::extract::Path;
 #[cfg(feature = "ssr")]
@@ -14,7 +12,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use leptos::{
     logging::log, prelude::{
         ServerFnError, ServerFnErrorErr, use_context
-    }, server
+    }, server, server_fn::codec::{MultipartData, MultipartFormData}
 };
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -472,14 +470,43 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
     }
 }
 
-#[server(name=EditAvatar, prefix="/api/user", endpoint="avatar")]
-pub async fn edit_avatar(avatar: Vec<u8>) -> Result<ApiResult<String>, AppError> {
+#[server(input=MultipartFormData, name=EditAvatar, prefix="/api/user", endpoint="edit_avatar")]
+pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            
+            
+            let mut data = avatar.into_inner().unwrap();
+            let mut avatar = Vec::<u8>::new();
+            //let mut mime_type = String::new();
+            while let Ok(Some(mut field)) = data.next_field().await {
+                //mime_type = field.content_type().unwrap().to_string();
+
+                while let Ok(Some(chunk)) = field.chunk().await {
+                    avatar.append(&mut chunk.to_vec());
+                }
+            }
+
             match DbUser::edit_avatar(&user.id, &avatar, &auth.backend.pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed avatar".to_string() }),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetAvatar, prefix="/api/user", endpoint="avatar")]
+pub async fn get_avatar(username: String) -> Result<Option<Vec<u8>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+
+            match DbUser::get_avatar(&UserIdentifier::Username(username), &auth.backend.pool).await {
+                Ok(avatar) => Ok(avatar),
                 Err(e) => Err(e.into())
             }
         } else {
@@ -554,6 +581,33 @@ pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
             }
 
             Ok(active_events)
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=EditPassword, prefix="/api/user", endpoint="password")]
+pub async fn edit_password(old_password: String, new_password: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+
+            if old_password == new_password {
+                return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
+            }
+
+            let argon2 = Argon2::default();
+            let salt = password_hash::SaltString::generate(&mut OsRng);
+            let pw_hash: password_hash::PasswordHash = argon2.hash_password(new_password.as_bytes(), &salt)
+                .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
+            let pw_hash_str = pw_hash.to_string();
+
+            match DbUser::edit_password(&user.id, &pw_hash_str, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
+                Err(e) => Err(e.into())
+            }
         } else {
             Err(AppError::NoServerConnection)
         }
