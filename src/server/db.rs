@@ -1,4 +1,4 @@
-use crate::{constants, server::{db::{enums::{AttachmentIdentifier, UserIdentifier, FileIdentifier, UserRole, FileType}, structs::EventMetadata}}};
+use crate::{constants, server::db::{enums::{AttachmentIdentifier, FileIdentifier, FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, EventMetadata}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::NaiveDateTime;
@@ -70,10 +70,24 @@ pub mod structs {
         pub id: u32,
         pub challenge_id: Option<u32>,
         pub event_id: Option<u32>,
+        pub user_id: Option<u32>,
         pub file_name: String,
         pub file_blob: Vec<u8>,
         pub file_type: FileType,
-        pub mime_type: Option<String>
+        pub mime_type: Option<String>,
+        pub file_size: Option<i32>
+    }
+
+    #[derive(Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
+    pub struct AttachmentWithoutBlob {
+        pub id: u32,
+        pub challenge_id: Option<u32>,
+        pub event_id: Option<u32>,
+        pub user_id: Option<u32>,
+        pub file_name: String,
+        pub file_type: FileType,
+        pub mime_type: Option<String>,
+        pub file_size: Option<i32>
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
@@ -211,15 +225,19 @@ pub mod enums {
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         impl DbUser {
-            pub async fn edit_avatar(id: &u32, avatar: &Vec<u8>, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_avatar(id: &u32, file_name: &String, file_blob: &Vec<u8>, mime_type: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
-                    UPDATE users
-                    SET avatar = ?
-                    WHERE id = ?
+                    INSERT INTO attachments
+                    (user_id, file_name, file_blob, file_type, mime_type)
+                    VALUES
+                    (?, ?, ?, ?, ?)
                     ",
-                    avatar,
-                    id
+                    id,
+                    file_name,
+                    file_blob,
+                    "avatar".to_string(),
+                    mime_type
                 )
                     .execute(executor)
                     .await {
@@ -352,20 +370,20 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_avatar(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Vec<u8>>, sqlx::Error> {
+            pub async fn get_avatar(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<u8>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
                         match sqlx::query!(
                             "
-                            SELECT avatar
-                            FROM users 
-                            WHERE id = ?
+                            SELECT file_blob
+                            FROM attachments
+                            WHERE user_id = ?
                             ",
                             id
                         )
                             .fetch_one(executor)
                             .await {
-                                Ok(row) => Ok(row.avatar),
+                                Ok(row) => Ok(row.file_blob),
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
                                     Err(e)?
@@ -375,15 +393,15 @@ cfg_if! {
                     UserIdentifier::Email(email) => {
                         match sqlx::query!(
                             "
-                            SELECT avatar
-                            FROM users 
-                            WHERE email = ?
+                            SELECT file_blob
+                            FROM attachments
+                            WHERE user_id = (SELECT id FROM users WHERE email = ?)
                             ",
                             email
                         )
                             .fetch_one(executor)
                             .await {
-                                Ok(row) => Ok(row.avatar),
+                                Ok(row) => Ok(row.file_blob),
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
                                     Err(e)?
@@ -393,15 +411,15 @@ cfg_if! {
                     UserIdentifier::Username(username) => {
                         match sqlx::query!(
                             "
-                            SELECT avatar
-                            FROM users 
-                            WHERE username = ?
+                            SELECT file_blob
+                            FROM attachments
+                            WHERE user_id = (SELECT id FROM users WHERE username = ?)
                             ",
                             username
                         )
                             .fetch_one(executor)
                             .await {
-                                Ok(row) => Ok(row.avatar),
+                                Ok(row) => Ok(row.file_blob),
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
                                     Err(e)?
@@ -710,7 +728,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Attachment,
                     "
-                    SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                    SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                     FROM attachments 
                     WHERE challenge_id = ?
                     ", 
@@ -872,7 +890,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE id = ?
                             ",
@@ -891,7 +909,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE challenge_id = ?
                             ", 
@@ -910,7 +928,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE event_id = ?
                             ", 
@@ -929,7 +947,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE file_name = ?
                             ", 
@@ -1077,7 +1095,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE id = ?
                             ",
@@ -1096,7 +1114,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE challenge_id = ?
                             ", 
@@ -1115,7 +1133,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE event_id = ?
                             ", 
@@ -1134,7 +1152,412 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, challenge_id, event_id, file_name, file_blob, file_type, mime_type
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE file_name = ?
+                            ", 
+                            file_name
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(attachment) => Ok(attachment),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
+            }
+        }
+
+        impl AttachmentWithoutBlob {
+            pub async fn add(
+                challenge_id: &Option<u32>, 
+                event_id: &Option<u32>, 
+                file_name: &String,
+                file_blob: &Vec<u8>,
+                file_type: &FileType,
+                mime_type: &Option<String>,
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    INSERT INTO attachments
+                    (challenge_id, event_id, file_name, file_blob, file_type, mime_type)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ", 
+                    challenge_id,
+                    event_id,
+                    file_name,
+                    file_blob,
+                    file_type.to_string(),
+                    mime_type
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    DELETE
+                    FROM attachments 
+                    WHERE id = ?
+                    ", 
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn edit_event(
+                id: &u32,
+                event_id: &u32, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE attachments
+                    SET event_id = ?
+                    WHERE id = ?
+                    ", 
+                    event_id,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn edit_challenge(
+                id: &u32,
+                challenge_id: &u32, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE attachments
+                    SET challenge_id = ?
+                    WHERE id = ?
+                    ", 
+                    challenge_id,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_all(identifier: &Option<AttachmentIdentifier>, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match identifier {
+                    Some(AttachmentIdentifier::Id(id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(attachments) => Ok(attachments),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    Some(AttachmentIdentifier::ChallengeId(challenge_id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE challenge_id = ?
+                            ", 
+                            challenge_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(attachments) => Ok(attachments),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    Some(AttachmentIdentifier::EventId(event_id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE event_id = ?
+                            ", 
+                            event_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(attachments) => Ok(attachments),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    Some(AttachmentIdentifier::FileName(file_name)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE file_name = ?
+                            ", 
+                            file_name
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(attachments) => Ok(attachments),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    },
+                    None => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            "
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(attachments) => Ok(attachments),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
+            }
+
+            pub async fn get_all_filenames(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT file_name
+                    FROM attachments 
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(rows) => {
+                            let mut filenames = Vec::<String>::new();
+                            for row in rows.iter() {
+                                filenames.push(row.file_name.clone());
+                            }
+                            Ok(filenames)
+                        },
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_filenames(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
+                match identifier {
+                    AttachmentIdentifier::Id(id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE challenge_id = ?
+                            ",
+                            challenge_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::EventId(event_id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE event_id = ?
+                            ",
+                            event_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::FileName(file_name) => {
+                        match sqlx::query!(
+                            "
+                            SELECT file_name
+                            FROM attachments 
+                            WHERE file_name = ?
+                            ",
+                            file_name
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(rows) => {
+                                    let mut filenames = Vec::<String>::new();
+                                    for row in rows.iter() {
+                                        filenames.push(row.file_name.clone());
+                                    }
+                                    Ok(filenames)
+                                },
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
+            }
+
+            pub async fn get(identifier: AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match identifier {
+                    AttachmentIdentifier::Id(id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(attachment) => Ok(attachment),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE challenge_id = ?
+                            ", 
+                            challenge_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(attachment) => Ok(attachment),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::EventId(event_id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE event_id = ?
+                            ", 
+                            event_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(attachment) => Ok(attachment),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::FileName(file_name) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
                             FROM attachments 
                             WHERE file_name = ?
                             ", 

@@ -41,14 +41,7 @@ pub fn User() -> impl IntoView {
                         None => view! { <NotFound /> }.into_any()
                     });
 
-                    let view_avatar = user_avatar.get().map(|a| match a {
-                        Some(avatar) => { 
-                            view! { 
-                                <p>{avatar}</p>
-                            }.into_any()
-                        },
-                        None => view! {}.into_any()
-                    });
+                    let view_avatar = user_avatar.get().map(|a| view! { <p>{a}</p> }.into_any());
 
                     view! {
                         { view_avatar }

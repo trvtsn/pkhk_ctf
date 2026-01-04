@@ -7,7 +7,7 @@ use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceRet
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use crate::server::AuthSession;
-use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, User}}};
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
 use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash};
@@ -366,6 +366,27 @@ pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
 
             match db::structs::Challenge::get_all_categories(&auth.backend.pool).await {
                 Ok(categories) => Ok(categories),
+                Err(e) => Err(AppError::InternalError(e.to_string()))
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AdminGetAllFiles, prefix="/api/admin/files", endpoint="all")]
+pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+
+            if user.role != UserRole::Admin {
+                return Err(AppError::Unauthorized);
+            }
+
+            match db::structs::AttachmentWithoutBlob::get_all(&None, &auth.backend.pool).await {
+                Ok(attachments) => Ok(attachments),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
         } else {

@@ -18,27 +18,6 @@ CREATE SCHEMA IF NOT EXISTS `ctfpkhk` DEFAULT CHARACTER SET utf8mb3 ;
 USE `ctfpkhk` ;
 
 -- -----------------------------------------------------
--- Table `ctfpkhk`.`attachments`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `challenge_id` INT UNSIGNED NULL DEFAULT NULL,
-  `event_id` INT UNSIGNED NULL DEFAULT NULL,
-  `file_name` VARCHAR(90) NOT NULL,
-  `file_blob` MEDIUMBLOB NOT NULL,
-  `file_type` VARCHAR(20) NOT NULL,
-  `mime_type` VARCHAR(45) NULL DEFAULT NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB
-AUTO_INCREMENT = 10
-DEFAULT CHARACTER SET = utf8mb3;
-
-CREATE INDEX `fk_attachments_challenges_idx` ON `ctfpkhk`.`attachments` (`challenge_id` ASC) VISIBLE;
-
-CREATE INDEX `fk_attachments_events1_idx` ON `ctfpkhk`.`attachments` (`event_id` ASC) VISIBLE;
-
-
--- -----------------------------------------------------
 -- Table `ctfpkhk`.`events`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`events` (
@@ -81,7 +60,6 @@ CREATE INDEX `fk_challenges_events1_idx` ON `ctfpkhk`.`challenges` (`event_id` A
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`users` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `avatar` MEDIUMBLOB NULL DEFAULT NULL,
   `username` VARCHAR(40) NOT NULL,
   `email` VARCHAR(90) NOT NULL,
   `pw_hash` VARCHAR(100) NOT NULL,
@@ -92,6 +70,40 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`users` (
 ENGINE = InnoDB
 AUTO_INCREMENT = 4
 DEFAULT CHARACTER SET = utf8mb3;
+
+
+-- -----------------------------------------------------
+-- Table `ctfpkhk`.`attachments`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `challenge_id` INT UNSIGNED NULL DEFAULT NULL,
+  `event_id` INT UNSIGNED NULL DEFAULT NULL,
+  `user_id` INT UNSIGNED NULL DEFAULT NULL,
+  `file_name` VARCHAR(90) NOT NULL,
+  `file_blob` MEDIUMBLOB NOT NULL,
+  `file_type` VARCHAR(20) NOT NULL,
+  `mime_type` VARCHAR(45) NULL DEFAULT NULL,
+  `file_size` INT GENERATED ALWAYS AS (length(`file_blob`)) VIRTUAL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_attachments_challenges1`
+    FOREIGN KEY (`challenge_id`)
+    REFERENCES `ctfpkhk`.`challenges` (`id`),
+  CONSTRAINT `fk_attachments_events1`
+    FOREIGN KEY (`event_id`)
+    REFERENCES `ctfpkhk`.`events` (`id`),
+  CONSTRAINT `fk_attachments_users1`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `ctfpkhk`.`users` (`id`))
+ENGINE = InnoDB
+AUTO_INCREMENT = 11
+DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE INDEX `fk_attachments_users1_idx` ON `ctfpkhk`.`attachments` (`user_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_attachments_events1_idx` ON `ctfpkhk`.`attachments` (`event_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_attachments_challenges1_idx` ON `ctfpkhk`.`attachments` (`challenge_id` ASC) VISIBLE;
 
 
 -- -----------------------------------------------------

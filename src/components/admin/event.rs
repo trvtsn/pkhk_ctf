@@ -8,7 +8,7 @@ pub fn Event(
     event: crate::server::db::structs::Event
 ) -> impl IntoView {
     view! {
-        <div class="rounded-1xl border-2 border-black p-2">
+        <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 content-center">
             <p>"ID: " {event.id}</p>
             <p>"Name: " {event.name}</p>
             <p>"Description: " {event.description.unwrap_or_default()}</p>

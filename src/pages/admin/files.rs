@@ -4,15 +4,21 @@ use leptos::{prelude::*, web_sys::{FormData, HtmlFormElement, SubmitEvent}, wasm
 use leptos::server::codee::string::FromToStringCodec;
 use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
 
-use crate::server::{admin::{AdminUploadFile, upload_file}, structs::ApiResult};
+use crate::{components::admin::file::File, server::{admin::{AdminUploadFile, get_all_files, upload_file}, db, structs::ApiResult}};
 
 /// Default Home Page
 #[component]
 pub fn Files() -> impl IntoView {
+    let all_files = Resource::new(move || (), move |_| async move {
+        get_all_files().await.unwrap_or_default()
+    });
+
     let upload_action = Action::new_local(|data: &FormData| {
         // `MultipartData` implements `From<FormData>`
         upload_file(data.clone().into())
     });
+
+    let attachment_filename = RwSignal::<String>::new("".to_string());
 
     view! {
         <form on:submit=move |ev: SubmitEvent| {
@@ -21,24 +27,30 @@ pub fn Files() -> impl IntoView {
             let form_data = FormData::new_with_form(&target).unwrap();
             upload_action.dispatch_local(form_data);
         }>
-            <input type="file" name="file" />
-            <input type="submit" />
+            <input class="bg-white border" type="file" name="file" />
+            <input class="bg-white border" type="submit" value="Upload" />
         </form>
         <p>
             {move || {
-                if upload_action.input().read().is_none() && upload_action.value().read().is_none()
-                {
-                    "Upload a file.".to_string()
-                } else if upload_action.pending().get() {
+                if upload_action.pending().get() {
                     "Uploading...".to_string()
                 } else if let Some(Ok(value)) = upload_action.value().get() {
                     let ApiResult { result, details } = value;
                     details
                 } else {
-                    format!("{:?}", upload_action.value().get())
+                    "".to_string()
                 }
             }}
 
         </p>
+        <div class="files m-2">
+            <For
+                each=move || all_files.get().clone().unwrap_or_default()
+                key=|file: &db::structs::AttachmentWithoutBlob| file.id
+                let(file)
+            >
+                <File file />
+            </For>
+        </div>
     }
 }

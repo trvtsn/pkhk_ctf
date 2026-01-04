@@ -479,17 +479,19 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
             
             
             let mut data = avatar.into_inner().unwrap();
-            let mut avatar = Vec::<u8>::new();
-            //let mut mime_type = String::new();
+            let mut file_name = String::new();
+            let mut file_blob = Vec::<u8>::new();
+            let mut mime_type = String::new();
             while let Ok(Some(mut field)) = data.next_field().await {
-                //mime_type = field.content_type().unwrap().to_string();
+                file_name = field.file_name().unwrap().to_string();
+                mime_type = field.content_type().unwrap().to_string();
 
                 while let Ok(Some(chunk)) = field.chunk().await {
-                    avatar.append(&mut chunk.to_vec());
+                    file_blob.append(&mut chunk.to_vec());
                 }
             }
 
-            match DbUser::edit_avatar(&user.id, &avatar, &auth.backend.pool).await {
+            match DbUser::edit_avatar(&user.id, &file_name, &file_blob, &mime_type, &auth.backend.pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed avatar".to_string() }),
                 Err(e) => Err(e.into())
             }
@@ -500,7 +502,7 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
 }
 
 #[server(name=GetAvatar, prefix="/api/user", endpoint="avatar")]
-pub async fn get_avatar(username: String) -> Result<Option<Vec<u8>>, AppError> {
+pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();

@@ -337,7 +337,7 @@ pub fn Challenges() -> impl IntoView {
                                 } else if let Some(Ok(val)) = upload_action.value().get() {
                                     format!("Uploaded: {}", val.details)
                                 } else {
-                                    "Choose a file".to_string()
+                                    "".to_string()
                                 }
                             }}
                         </p>
