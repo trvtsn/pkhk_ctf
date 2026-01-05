@@ -60,7 +60,6 @@ pub fn Events() -> impl IntoView {
         </Show>
 
         <Show when=move || section.get() == Actions::Delete>
-            "Delete"
             <ActionForm action=event_action>
                 <label>
                     <b>"Event ID"</b>
@@ -78,7 +77,6 @@ pub fn Events() -> impl IntoView {
         </Show>
 
         <Show when=move || section.get() == Actions::Edit>
-            "Edit"
             <ActionForm action=event_action>
                 <label>
                     <b>"ID"</b>
