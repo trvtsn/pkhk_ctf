@@ -1,3 +1,4 @@
+use axum::routing::post;
 use cfg_if::cfg_if;
 use pkhk_ctf::server::auth::logout_user;
 
@@ -112,7 +113,7 @@ async fn main() {
             get(logs_sse)
         )
         .route(
-            "/file/{filename}",
+            "/file/{id}/{filename}",
             get(download_blob)
         )
         .leptos_routes_with_handler(

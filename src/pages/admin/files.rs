@@ -18,8 +18,6 @@ pub fn Files() -> impl IntoView {
         upload_file(data.clone().into())
     });
 
-    let attachment_filename = RwSignal::<String>::new("".to_string());
-
     view! {
         <form on:submit=move |ev: SubmitEvent| {
             ev.prevent_default();
@@ -34,9 +32,6 @@ pub fn Files() -> impl IntoView {
             {move || {
                 if upload_action.pending().get() {
                     "Uploading...".to_string()
-                } else if let Some(Ok(value)) = upload_action.value().get() {
-                    let ApiResult { result, details } = value;
-                    details
                 } else {
                     "".to_string()
                 }

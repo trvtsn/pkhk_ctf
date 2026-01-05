@@ -4,7 +4,7 @@ use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, User
 #[cfg(feature = "ssr")]
 use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::{self, rand_core::OsRng}};
 #[cfg(feature = "ssr")]
-use axum::extract::Path;
+use axum::extract::{Path, Request};
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
@@ -157,7 +157,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
             };
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
-                let attachments = db::structs::Attachment::get_filenames(&AttachmentIdentifier::ChallengeId(challenge.id), &auth.backend.pool).await?;
+                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id)), &auth.backend.pool).await?;
                 cwa.push(ChallengeWithAttachments { challenge, attachments });
             }
             Ok(cwa)
@@ -304,7 +304,7 @@ pub async fn is_user_admin() -> Result<bool, AppError> {
 }
 
 #[server(name=LoginUser, prefix="/api", endpoint="login")]
-pub async fn login_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> {
+pub async fn login_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> { // impl IntoResponse (can serve 403 that way)
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
@@ -325,7 +325,7 @@ pub async fn login_user(email: String, password: String) -> Result<ApiResult<Opt
             // with your sessions elsewhere.
             if let Some(user) = user.as_ref() {
                 match auth.login(user).await {
-                    Ok(_) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(user.clone()) }),
+                    Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) }), // update last_active_date in db
                     Err(e) => Err(AppError::InternalError(e.to_string()))
                 }
             } else {
@@ -539,10 +539,15 @@ pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
 #[cfg(feature = "ssr")]
 pub async fn download_blob(
     auth_session: AuthSession,
-    Path(filename): Path<String>,
+    Path((id_str, filename)): Path<(String, String)>,
 ) -> impl IntoResponse {
+    let id = match id_str.parse::<u32>() { //
+        Ok(v) => v,
+        Err(_) => return (StatusCode::BAD_REQUEST, "invalid id").into_response(),
+    };
+
     let pool = auth_session.backend.pool;
-    let file = match db::structs::Attachment::get(AttachmentIdentifier::FileName(filename.clone()), &pool).await {
+    let file = match db::structs::Attachment::get(AttachmentIdentifier::IdFileName((id, filename.clone())), &pool).await {
         Ok(Some(f)) => f,
         Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
         Err(e) => {

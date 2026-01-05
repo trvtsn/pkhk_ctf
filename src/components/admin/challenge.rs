@@ -1,4 +1,4 @@
-use crate::server::{CheckFlag, admin::{AdminChallengeApi, challenge}, check_flag, db::structs::{Attachment, Challenge}, enums::ResultStatus, structs::ApiResult};
+use crate::server::{CheckFlag, admin::{AdminChallengeApi, challenge}, check_flag, db::structs::{Attachment, AttachmentWithoutBlob, Challenge}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 // use thaw::*;
 
@@ -11,7 +11,7 @@ pub fn Challenge(
     category: Option<String>,
     #[prop(default = 3)] difficulty: i8,
     points: u32,
-    #[prop(optional)] attachments: Vec<String>,
+    #[prop(optional)] attachments: Vec<AttachmentWithoutBlob>,
 ) -> impl IntoView {
     let full_desc = description.clone().unwrap_or_default();
     let desc_max_len = 200usize;
@@ -23,7 +23,7 @@ pub fn Challenge(
         full_desc.clone()
     };
 
-    let attachment_filename = RwSignal::<String>::new("".to_string());
+    let attachment_path = RwSignal::new("".to_string());
     // let editing = RwSignal::new(false);
     // let deleted = RwSignal::new(false);
     // let challenge_action = ServerAction::<AdminChallengeApi>::new();
@@ -72,11 +72,11 @@ pub fn Challenge(
 
                 <For
                     each=move || attachments.clone()
-                    key=|a: &String| a.clone()
+                    key=|a: &AttachmentWithoutBlob| a.id
                     let(a)
                 >
-                    {attachment_filename.set(format!("/file/{}", a))}
-                    <a download href=move || attachment_filename.get() class="underline text-blue-600">{a}</a>
+                    {attachment_path.set(format!("/file/{}/{}", a.id, a.file_name.clone()))}
+                    <a download href=move || attachment_path.get() class="underline text-blue-600">{a.file_name}</a>
                 </For>
             // </Show>
 

@@ -7,7 +7,7 @@ use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceRet
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use crate::server::AuthSession;
-use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{Attachment, AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, User}}};
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
 use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash};
@@ -52,7 +52,7 @@ pub enum ChallengeAction {
         difficulty: i8, 
         points: u32, 
         flag: String,
-        attachment: String
+        attachment: Option<AttachmentWithoutBlob>
     },
     Delete {
         id: u32
@@ -66,7 +66,7 @@ pub enum ChallengeAction {
         difficulty: i8, 
         points: u32, 
         flag: String,
-        attachment: String
+        attachment: Option<AttachmentWithoutBlob>
     }
 }
 
@@ -99,13 +99,6 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     let flag_hash_string = flag_hash.to_string();
 
                     let mut tx = auth.backend.pool.begin().await?;
-                    let attachment = match db::structs::Attachment::get(db::enums::AttachmentIdentifier::FileName(attachment), &mut *tx).await {
-                        Ok(attachment) => attachment,
-                        Err(e) => {
-                            tx.rollback().await?;
-                            return Err(AppError::InternalError(e.to_string()))
-                        }
-                    };
 
                     let mut new_challenge_id = 0;
                     match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash_string, &mut *tx).await {
@@ -178,14 +171,6 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
                     }
-
-                    let attachment = match db::structs::Attachment::get(db::enums::AttachmentIdentifier::FileName(attachment), &mut *tx).await {
-                        Ok(attachment) => attachment,
-                        Err(e) => {
-                            tx.rollback().await?;
-                            return Err(AppError::InternalError(e.to_string()))
-                        }
-                    };
 
                     match attachment {
                         Some(attachment) => {
@@ -317,7 +302,7 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
 }
 
 #[server(input=MultipartFormData, name=AdminUploadFile, prefix="/api/admin/file", endpoint="upload")]
-pub async fn upload_file(file: MultipartData) -> Result<ApiResult<String>, AppError> {
+pub async fn upload_file(file: MultipartData) -> Result<ApiResult<AttachmentWithoutBlob>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -341,12 +326,15 @@ pub async fn upload_file(file: MultipartData) -> Result<ApiResult<String>, AppEr
                 }
             }
 
-            match db::structs::Attachment::add(&None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &auth.backend.pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: file_name }),
+            let insert_id = match db::structs::Attachment::add(&None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &auth.backend.pool).await {
+                Ok(insert_id) => insert_id,
+                Err(e) => return Err(AppError::InternalError(e.to_string()))
+            };
+
+            match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id), &auth.backend.pool).await {
+                Ok(attachment) => Ok(ApiResult { result: ResultStatus::Success, details: attachment.unwrap_or_default() }),
                 Err(e) => Err(AppError::InternalError(e.to_string()))
             }
-
-            
         } else {
             Err(AppError::NoServerConnection)
         }

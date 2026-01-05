@@ -1,5 +1,5 @@
 use cfg_if::cfg_if;
-use crate::server::{CheckFlag, check_flag, db::structs::{Attachment, Challenge}, enums::ResultStatus, structs::ApiResult};
+use crate::server::{CheckFlag, check_flag, db::structs::{Attachment, AttachmentWithoutBlob, Challenge}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 // use thaw::*;
@@ -13,7 +13,7 @@ pub fn Challenge(
     category: Option<String>,
     #[prop(default = 3)] difficulty: i8,
     points: u32,
-    #[prop(optional)] attachments: Vec<String>,
+    #[prop(optional)] attachments: Vec<AttachmentWithoutBlob>,
     solved_challenges: RwSignal<Vec<u32>>
 ) -> impl IntoView {
     let full_desc = description.clone().unwrap_or_default();
@@ -46,7 +46,7 @@ pub fn Challenge(
             )
         }
     });
-    let attachment_filename = RwSignal::<String>::new("".to_string());
+    let attachment_path = RwSignal::new("".to_string());
 
     let UseTimeoutFnReturn { start, stop, .. } =
         use_timeout_fn(move |_: ()| {
@@ -143,11 +143,11 @@ pub fn Challenge(
 
             <For
                 each=move || attachments.clone()
-                key=|a: &String| a.clone()
+                key=|a: &AttachmentWithoutBlob| a.id
                 let(a)
             >
-                {attachment_filename.set(format!("/file/{}", a))}
-                <a download href=move || attachment_filename.get() class="underline text-blue-600">{a}</a>
+                {attachment_path.set(format!("/file/{}/{}", a.id, a.file_name.clone()))}
+                <a download href=move || attachment_path.get() class="underline text-blue-600">{a.file_name}</a>
             </For>
         </div>
     }
