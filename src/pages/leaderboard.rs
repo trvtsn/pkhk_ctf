@@ -1,4 +1,4 @@
-use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar}, server::{build_leaderboard_data, db::structs::{Submission, SubmissionWithData}, structs::{ApiResult, LeaderboardData, PivotRow}}};
+use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar}, server::{build_leaderboard_data, get_active_events, db::structs::{Submission, SubmissionWithData}, structs::{ApiResult, LeaderboardData, PivotRow}}};
 use chrono::{DateTime, Utc};
 use leptos::{logging::log, prelude::*};
 use leptos_chartistry::*;
@@ -8,10 +8,7 @@ use std::collections::HashMap;
 #[component]
 pub fn Leaderboard() -> impl IntoView {
     let leaderboard_data = Resource::new(move || (), move |_| async move {
-        match build_leaderboard_data().await {
-            Ok(leaderboard_data) => Ok(leaderboard_data),
-            Err(e) => Err(e)
-        }
+        build_leaderboard_data().await.unwrap_or_default()
     });
 
     view! { 
@@ -21,8 +18,8 @@ pub fn Leaderboard() -> impl IntoView {
             //<div class="w-screen h-screen">
                 <Suspense fallback=move || view! { <div>"Loading..."</div> }>
                     {move || {
-                        let result_view = leaderboard_data.get().map(|ld| match ld {
-                            Ok(data) => { 
+                        let result_view = match leaderboard_data.get() {
+                            Some(data) => { 
                                 let usernames = data.users.clone();
                                 log!("let usernames");
 
@@ -46,8 +43,8 @@ pub fn Leaderboard() -> impl IntoView {
                                     />
                                 }.into_any()
                             }
-                            Err(e) => view! { {e.to_string()} }.into_any()
-                        });
+                            None => view! { "No events currently active" }.into_any()
+                        };
 
                         view! {
                             { result_view }

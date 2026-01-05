@@ -23,8 +23,35 @@ cfg_if! {
         pub async fn init_db() -> Result<(), ServerFnError> {
             let pool = connect().await?;
             DB.set(pool).expect("DB already initialized");
+            _ = add_admin(get_db_ref()).await?;
             
             Ok(())
+        }
+
+        pub async fn add_admin(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            use argon2::{Argon2, PasswordHash, PasswordHasher, password_hash::{SaltString, rand_core::OsRng}};
+
+            let username = &constants::config::ADMIN_USERNAME;
+            let email = &constants::config::ADMIN_EMAIL;
+            let password = &constants::config::ADMIN_PASSWORD;
+            // Hash the password and insert the new user.
+            // This does the hashing
+            let argon2 = Argon2::default();
+            // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
+            let salt =SaltString::generate(&mut OsRng);
+            // This gives back a data structure with various parts, which can be encoded using
+            // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
+            // recommended hashing algorithm at the time of this code being published (2024)
+            let pw_hash: PasswordHash = argon2.hash_password(password.as_bytes(), &salt).unwrap();
+            // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
+            // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
+            // a let-binding outside of the macro or the compiler complains.
+            let pw_hash_str = pw_hash.to_string();
+
+            match DbUser::add_admin(&username, &email, &pw_hash_str, executor).await {
+                Ok(_) => Ok(()),
+                Err(e) => Ok(())
+            }
         }
 
         async fn connect() -> Result<MySqlPool, sqlx::Error> {
@@ -225,6 +252,31 @@ pub mod enums {
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         impl DbUser {
+            pub async fn add_admin(username: &String, email: &String, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    INSERT INTO users
+                    (username, email, pw_hash, created_at, last_active_at, role)
+                    VALUES
+                    (?, ?, ?, ?, ?, ?)
+                    ",
+                    username,
+                    email,
+                    pw_hash,
+                    sqlx::types::time::OffsetDateTime::now_utc(),
+                    sqlx::types::time::OffsetDateTime::now_utc(),
+                    "admin"
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn edit_avatar(id: &u32, file_name: &String, file_blob: &Vec<u8>, mime_type: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "

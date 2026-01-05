@@ -186,10 +186,13 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
 pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let event_id: &u32 = &1;
             let pool = &pool()?;
+            let active_event_id = match get_active_events().await {
+                Ok(active_events) => active_events.first().unwrap().id,
+                Err(e) => 2 as u32
+            };
 
-            let meta = match db::structs::Event::get_metadata(event_id, pool).await {
+            let meta = match db::structs::Event::get_metadata(&active_event_id, pool).await {
                 Ok(meta) => meta,
                 Err(e) => Err(e)?
             };
@@ -198,7 +201,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
             let x_min = DateTime::from_timestamp(meta.first_submission.unwrap().unix_timestamp(), meta.first_submission.unwrap().nanosecond()).unwrap();
             let x_max = DateTime::from_timestamp(meta.last_submission.unwrap().unix_timestamp(), meta.last_submission.unwrap().nanosecond()).unwrap();
 
-            let y_max = db::structs::Event::get_total_possible_points(event_id, pool).await.unwrap();
+            let y_max = db::structs::Event::get_total_possible_points(&active_event_id, pool).await.unwrap();
 
             let solves = sqlx::query!(
                 r#"
@@ -214,7 +217,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 JOIN users u ON u.id = fs.user_id
                 ORDER BY fs.solved_at
                 "#,
-                event_id
+                active_event_id
             )
             .fetch_all(pool)
             .await?;
