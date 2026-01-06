@@ -1,16 +1,15 @@
-use async_trait::async_trait;
-use cfg_if::cfg_if;
-use chrono::NaiveDateTime;
-use leptos::{prelude::*, server::codee::string::FromToStringCodec, server_fn::codec::{MultipartData, MultipartFormData}, web_sys::FormData};
-#[cfg(feature = "ssr")]
-use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use crate::server::AuthSession;
-use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{Attachment, AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
+use cfg_if::cfg_if;
+use chrono::NaiveDateTime;
+use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
+// #[cfg(feature = "ssr")]
+// use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
-use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash};
+use argon2::{Argon2, PasswordHash, password_hash};
 use argon2::PasswordHasher;
 use password_hash::SaltString;
 
@@ -130,13 +129,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                 }
                 ChallengeAction::Delete { id } => {
                     let mut tx = auth.backend.pool.begin().await?;
-                    match db::structs::Attachment::delete(&id, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tx.rollback().await?;
-                            return Err(AppError::InternalError(e.to_string()));
-                        }
-                    }
+                    _ = db::structs::Attachment::delete(&id, &mut *tx).await;
 
                     match db::structs::Challenge::delete(&id, &mut *tx).await {
                         Ok(_) => {
@@ -164,7 +157,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     let flag_hash_string = flag_hash.to_string();
 
                     let mut tx = auth.backend.pool.begin().await?;
-                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag, &mut *tx).await {
+                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash_string, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tx.rollback().await?;

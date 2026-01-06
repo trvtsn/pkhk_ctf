@@ -1,8 +1,6 @@
-use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar}, server::{build_leaderboard_data, get_active_events, db::structs::{Submission, SubmissionWithData}, structs::{ApiResult, LeaderboardData, PivotRow}}};
-use chrono::{DateTime, Utc};
+use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar}, server::{build_leaderboard_data, structs::PivotRow}};
 use leptos::{logging::log, prelude::*};
 use leptos_chartistry::*;
-use std::collections::HashMap;
 
 /// Default Home Page
 #[component]

@@ -1,4 +1,3 @@
-use axum::routing::post;
 use cfg_if::cfg_if;
 use pkhk_ctf::server::auth::logout_user;
 
@@ -60,14 +59,14 @@ async fn leptos_routes_handler(
 #[tokio::main]
 async fn main() {
     use axum::Router;
-    use axum_login::{AuthManagerLayerBuilder, login_required, tower_sessions::{Expiry, SessionManagerLayer}};
+    use axum_login::{AuthManagerLayerBuilder, tower_sessions::{Expiry, SessionManagerLayer}};
     use leptos::{logging::log, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use pkhk_ctf::{app::*, pages, server::{backend::structs::Backend, db}};
+    use pkhk_ctf::{app::*, server::{backend::structs::Backend, db}};
     use tower_sessions_sqlx_store::MySqlStore;
 
-    _ = init_tracing();
-    _ = init_env();
+    init_tracing();
+    init_env();
     _ = db::init_db().await;
     let pool = get_db();
 

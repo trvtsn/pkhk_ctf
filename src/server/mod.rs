@@ -1,20 +1,17 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}}};
-use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{Challenge, ChallengeWithAttachments, DbUser, Event, Submission, SubmissionWithData}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
+use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
 #[cfg(feature = "ssr")]
 use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::{self, rand_core::OsRng}};
 #[cfg(feature = "ssr")]
-use axum::extract::{Path, Request};
+use axum::extract::Path;
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use leptos::{
-    logging::log, prelude::{
-        ServerFnError, ServerFnErrorErr, use_context
-    }, server, server_fn::codec::{MultipartData, MultipartFormData}
+    logging::log, prelude::use_context, server, server_fn::codec::{MultipartData, MultipartFormData}
 };
-use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
@@ -140,10 +137,8 @@ pub fn pool() -> Result<MySqlPool, AppError> {
 }
 
 #[cfg(feature = "ssr")]
-pub fn init_env() -> anyhow::Result<()> {
+pub fn init_env() {
     dotenvy::dotenv().ok();
-
-    Ok(())
 }
 
 #[server(name=Challenges, prefix="/api", endpoint="challenges")]
@@ -189,7 +184,10 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
             let pool = &pool()?;
             let active_event_id = match get_active_events().await {
                 Ok(active_events) => active_events.first().unwrap().id,
-                Err(e) => 2 as u32
+                Err(e) => {
+                    tracing::error!("server fn error (get_active_events): {}", e);
+                    2_u32
+                }
             };
 
             let meta = match db::structs::Event::get_metadata(&active_event_id, pool).await {
@@ -233,12 +231,12 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
             for r in solves {
                 let unix_timestamp = match r.solved_at {
                     Some(timestamp) => timestamp.unix_timestamp(),
-                    None => 0 as i64
+                    None => 0_i64
                 };
 
                 let nanoseconds = match r.solved_at {
                     Some(timestamp) => timestamp.nanosecond(),
-                    None => 0 as u32
+                    None => 0_u32
                 };
 
                 let ts = match DateTime::from_timestamp(unix_timestamp, nanoseconds) {

@@ -1,8 +1,5 @@
-// use super::AdminNavBar;
-// use crate::components::navbar::NavBar;
+use crate::{components::admin::user::User, server::{admin::{get_all_users}, db::structs::DbUser}};
 use leptos::prelude::*;
-
-use crate::{components::admin::user::User, server::{structs::ApiResult, admin::{get_all_users}, db::structs::DbUser}};
 
 /// Default Home Page
 #[component]

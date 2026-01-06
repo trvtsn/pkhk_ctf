@@ -1,4 +1,4 @@
-use crate::{constants, server::db::{enums::{AttachmentIdentifier, FileIdentifier, FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, EventMetadata}}};
+use crate::{constants, server::db::{enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{AttachmentWithoutBlob, EventMetadata}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::NaiveDateTime;
@@ -23,7 +23,7 @@ cfg_if! {
         pub async fn init_db() -> Result<(), ServerFnError> {
             let pool = connect().await?;
             DB.set(pool).expect("DB already initialized");
-            _ = add_admin().await?;
+            add_admin().await?;
             
             Ok(())
         }
@@ -51,12 +51,12 @@ cfg_if! {
             match DbUser::get(&UserIdentifier::Email(email.clone()), get_db_ref()).await {
                 Ok(Some(_)) => return Ok(()),
                 Ok(None) => {},
-                Err(e) => return Err(e.into())
+                Err(e) => return Err(e)
             }
 
-            match DbUser::add_admin(&username, &email, &pw_hash_str, get_db_ref()).await {
+            match DbUser::add_admin(username, email, &pw_hash_str, get_db_ref()).await {
                 Ok(_) => Ok(()),
-                Err(e) => Err(e.into())
+                Err(e) => Err(e)
             }
         }
 
@@ -875,7 +875,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<Option<()>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -887,10 +887,10 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(_) => Ok(Some(())),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
+                            tracing::error!("db query error (Attachment::delete): {}", e);
+                            Ok(None)
                         }
                     }
             }

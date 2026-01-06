@@ -1,8 +1,5 @@
-use crate::server::{db::enums::UserRole, get_user, get_user_points, structs::{ApiResult, User}};
-//use icondata as i;
-use leptos::{prelude::*, task::spawn_local};
-//use leptos_icons::Icon;
-// use thaw::*;
+use crate::server::{db::enums::UserRole, get_user, get_user_points};
+use leptos::prelude::*;
 
 #[component]
 pub fn NavBar() -> impl IntoView {
@@ -91,13 +88,6 @@ pub fn NavBar() -> impl IntoView {
                         <a href="/settings">"Settings"</a>
                         <a href="/logout">"Logout"</a>
                     </nav>
-                    // <NavDrawer class="flex-col">
-                    //     <NavItem class="m-1" value="Profile" href="/user/profile"><p>Profile</p></NavItem>
-                    //     <NavItem class="m-1" value="Settings" href="/user/settings"><p>Settings</p></NavItem>
-                    //     <NavItem class="m-1" value="Logout" href="/user/logout" on:click=move |_| {
-                    //         spawn_local(async {_ = logout_user().await;});
-                    //     }><p>Logout</p></NavItem>
-                    // </NavDrawer>
                 </Show>
             </nav>
         </div>

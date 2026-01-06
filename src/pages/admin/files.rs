@@ -1,10 +1,5 @@
-// use super::AdminNavBar;
-// use crate::components::navbar::NavBar;
+use crate::{components::admin::file::File, server::{admin::{get_all_files, upload_file}, db}};
 use leptos::{prelude::*, web_sys::{FormData, HtmlFormElement, SubmitEvent}, wasm_bindgen::JsCast};
-use leptos::server::codee::string::FromToStringCodec;
-use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
-
-use crate::{components::admin::file::File, server::{admin::{AdminUploadFile, get_all_files, upload_file}, db, structs::ApiResult}};
 
 /// Default Home Page
 #[component]

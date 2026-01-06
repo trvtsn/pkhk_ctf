@@ -1,8 +1,5 @@
 use leptos::prelude::*;
 
-use crate::server::db::structs::DbUser;
-// use thaw::*;
-
 #[component]
 pub fn File(
     file: crate::server::db::structs::AttachmentWithoutBlob

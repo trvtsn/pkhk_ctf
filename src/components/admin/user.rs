@@ -1,7 +1,5 @@
-use leptos::prelude::*;
-
 use crate::server::db::structs::DbUser;
-// use thaw::*;
+use leptos::prelude::*;
 
 #[component]
 pub fn User(

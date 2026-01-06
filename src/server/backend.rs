@@ -1,12 +1,11 @@
 use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash};
 use argon2::PasswordHasher;
 #[cfg(feature = "ssr")]
-use axum_login::{AuthnBackend, AuthUser, AuthzBackend, UserId};
+use axum_login::{AuthnBackend, AuthUser, UserId};
 use cfg_if::cfg_if;
 use password_hash::SaltString;
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
-use std::collections::HashSet;
 #[cfg(feature = "ssr")]
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use time::OffsetDateTime;
@@ -90,7 +89,10 @@ cfg_if! {
                                 continue;
                             }
                         },
-                        Err(e) => continue,
+                        Err(e) => {
+                            tracing::error!("db query error (DbUser::is_username_available): {}", e);
+                            continue
+                        },
                     }
                 }
                 let new_user = DbUser { 
@@ -145,7 +147,7 @@ cfg_if! {
             }
 
             async fn get_user(&self, user_id: &UserId<Self>) -> Result<Option<Self::User>, Self::Error> {
-                match DbUser::get_optional(UserIdentifier::Id(*user_id as u32), &self.pool).await {
+                match DbUser::get_optional(UserIdentifier::Id(*user_id), &self.pool).await {
                     Ok(Some(user)) => Ok(Some(user.to_user().await.expect(""))),
                     Ok(None) => Err(Self::Error::InternalError("".to_string())),
                     Err(e) => Err(Self::Error::DatabaseError(e.to_string()))

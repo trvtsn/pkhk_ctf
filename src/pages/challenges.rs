@@ -1,12 +1,9 @@
-use std::collections::HashMap;
-
 use crate::{
     components::{challenge::Challenge, navbar::NavBar},
-    server::{db, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges, structs::ApiResult}
+    server::{db, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
 };
 use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
-use server_fn::codec::JsonEncoding;
+use std::collections::HashMap;
 
 /// Default Home Page
 #[component]

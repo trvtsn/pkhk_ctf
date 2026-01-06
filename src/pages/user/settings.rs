@@ -1,5 +1,4 @@
-use cfg_if::cfg_if;
-use crate::{components::navbar::NavBar, server::{EditAvatar, EditUsername, EditPassword, edit_avatar}};
+use crate::{components::navbar::NavBar, server::{EditUsername, EditPassword, edit_avatar}};
 use leptos::{prelude::*, web_sys::{FormData, Event, HtmlInputElement}, wasm_bindgen::JsCast};
 use leptos_use::{ColorMode};
 

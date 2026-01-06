@@ -1,11 +1,8 @@
 pub mod settings;
 
-use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{self, db::{self, enums::UserRole, structs::DbUser}, get_db_user, get_avatar, structs::ApiResult}};
-#[cfg(feature = "ssr")]
-use axum::Router;
+use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{get_db_user, get_avatar}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
-use time::OffsetDateTime;
 
 // pub fn router() -> Router<()> {
 //     Router::new()
