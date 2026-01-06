@@ -159,7 +159,10 @@ pub fn Challenges() -> impl IntoView {
                     </For>
                     <option value="__new__">"-- Add New --"</option>
                 </select>
-                <input class="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" hidden=move || !category_add_new_selected.get() type="text" id="action_create_category_input" />
+                <input class="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" hidden=move || !category_add_new_selected.get() type="text" id="action_create_category_input" on:change=move |ev: Event| {
+                    let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                    category.set(sel.value())
+                }/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Difficulty"</label>
                 <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" min="1" max="5" name="difficulty" on:change=move |ev: Event| {
