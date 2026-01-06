@@ -6,6 +6,9 @@ use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Even
 pub fn Challenge(
     cwa: RwSignal<ChallengeWithAttachments>
 ) -> impl IntoView {
+    if cwa.get() == ChallengeWithAttachments::default() {
+        view! {}
+    }
     let ChallengeWithAttachments { challenge, attachments } = cwa.get();
     let Challenge { id, event_id, name, description, category, difficulty, points } = challenge;
 
@@ -64,7 +67,7 @@ pub fn Challenge(
         if editing.get() { "Confirm Edit".to_string() } else { "Edit".to_string() }
     });
 
-    view! {
+    let result_view = view! {
         <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 content-center">
             <Show when=move || !editing.get() && !deleted.get()>
                 <h3 class="text-3xl/8">{move || name_signal.get().clone()}</h3>
@@ -119,20 +122,20 @@ pub fn Challenge(
                     event_id_signal.set(value.parse::<u32>().unwrap_or_default());
                 }>
                     <option value="">"-- Select Event --"</option>
-                        <For
-                            each=move || events_resource.get().unwrap_or_default()
-                            key=|e: &crate::server::db::structs::Event| e.id
-                            let(e: crate::server::db::structs::Event)
-                        >
-                            {
-                                let e1 = e.clone();
-                                let e2 = e.clone();
-                                let e3 = e.clone();
-                                view! {
-                                    <option value={move || e1.id}>{move || e2.name.clone()} " (ID: " {move || e3.id} ")"</option>
-                                }
+                    <For
+                        each=move || events_resource.get().unwrap_or_default()
+                        key=|e: &crate::server::db::structs::Event| e.id
+                        let(e: crate::server::db::structs::Event)
+                    >
+                        {
+                            let e1 = e.clone();
+                            let e2 = e.clone();
+                            let e3 = e.clone();
+                            view! {
+                                <option value={move || e1.id}>{move || e2.name.clone()} " (ID: " {move || e3.id} ")"</option>
                             }
-                        </For>
+                        }
+                    </For>
                 </select>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
@@ -247,7 +250,7 @@ pub fn Challenge(
                         }
                     >"Cancel"</button>
                 </Show>
-                <button type="button" class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" on:click=move |_| {
+                <button type="button" hidden=move || deleting.get() class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" on:click=move |_| {
                     if editing.get() {
                         spawn_local(async move {
                             // update in db
@@ -291,6 +294,7 @@ pub fn Challenge(
                     }
                 }>{ move || edit_submit_btn_text.get() }</button>
                 <button
+                    hidden=move || editing.get()
                     class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm font-semibold shadow-sm hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     on:click=move |_| {
                         if deleting.get() {
@@ -299,11 +303,12 @@ pub fn Challenge(
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
                                     crate::server::admin::ChallengeAction::Delete { id: challenge_id } 
                                 ).await {
-                                    if result == ResultStatus::Success {
+                                    //if result == ResultStatus::Success {
                                         deleted.set(true);
+                                        cwa.set(ChallengeWithAttachments::default());
                                         // stop();
                                         // start(deleted);
-                                    }
+                                    //}
                                 }
                             });
                             deleting.set(false);
@@ -315,7 +320,11 @@ pub fn Challenge(
                     { move || delete_submit_btn_text.get() }
                 </button>
             </div>
-    </div>
+        </div>
+    }.into_any();
+
+    view! {
+        {result_view}
     }
 }
 

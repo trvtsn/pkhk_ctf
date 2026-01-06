@@ -875,6 +875,7 @@ cfg_if! {
                     }
             }
 
+            // change id -> AttachmentIdentifier
             pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<Option<()>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
