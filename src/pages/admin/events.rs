@@ -38,6 +38,7 @@ pub fn Events() -> impl IntoView {
                     <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
                     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="action[create][name]" />
 
+<<<<<<< HEAD
                     <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
                     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="action[create][description]" />
 
@@ -103,6 +104,57 @@ pub fn Events() -> impl IntoView {
                 </ActionForm>
             </Show>
         </div>
+=======
+        <Show when=move || section.get() == Actions::Delete>
+            <ActionForm action=event_action>
+                <label>
+                    <b>"Event ID"</b>
+                    <input class="bg-white border" type="number" name="action[delete][id]" />
+                </label>
+                //<button loading=loading on_click=move |_| { loading.set(true) }>
+                <input
+                    type="submit"
+                    class=r#"flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                        leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                        focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                    value="Delete"
+                />
+            </ActionForm>
+        </Show>
+
+        <Show when=move || section.get() == Actions::Edit>
+            <ActionForm action=event_action>
+                <label>
+                    <b>"ID"</b>
+                    <input class="bg-white border" type="number" name="action[edit][id]" />
+                </label>
+                <label>
+                    <b>"Name"</b>
+                    <input class="bg-white border" name="action[edit][name]" />
+                </label>
+                <label>
+                    <b>"Description"</b>
+                    <input class="bg-white border" name="action[edit][description]" />
+                </label>
+                <label>
+                    <b>"Start Date"</b>
+                    <input class="bg-white border" type="date" name="action[edit][start_date]" />
+                </label>
+                <label>
+                    <b>"End Date"</b>
+                    <input class="bg-white border" type="date" name="action[edit][end_date]" />
+                </label>
+                //<button loading=loading on_click=move |_| { loading.set(true) }>
+                <input
+                    type="submit"
+                    class=r#"flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                        leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                        focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                    value="Edit"
+                />
+            </ActionForm>
+        </Show>
+>>>>>>> e5479a92a38237d178847247a3109dfd97d2ea6a
 
         <div class="events">
             <Suspense fallback=move || view! { <div>"Loading..."</div> }>

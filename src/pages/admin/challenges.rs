@@ -232,6 +232,7 @@ pub fn Challenges() -> impl IntoView {
                                 }
                             });
                         }
+<<<<<<< HEAD
                     >
                         { move || create_submit_btn_text.get() }
                     </button>
@@ -329,13 +330,173 @@ pub fn Challenges() -> impl IntoView {
                         each=move || categories.get().unwrap_or_default()
                         key=|category: &String| category.clone()
                         let(category)
+=======
+>>>>>>> e5479a92a38237d178847247a3109dfd97d2ea6a
                     >
-                        {move || {
-                            let c = category.clone();
-                            view! {
-                                <option value={c.clone()}>{c.clone()}</option>
+                        { move || create_submit_btn_text.get() }
+                    </button>
+                </div>
+            </Show>
+
+            <Show when=move || section.get() == Actions::Delete>
+                <label>
+                    <b>"Challenge ID"</b>
+                    <input class="bg-white border" type="number" name="challenge_id" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        challenge_id.set(value.parse::<u32>().unwrap_or_default());
+                    }/>
+                </label>
+                <button
+                    class=r#"flex justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                        leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                        focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                    on:click=move |_| {
+                        // let start = start.clone();
+                        // let stop = stop.clone();
+                        let challenge_id = challenge_id.get();
+                        spawn_local(async move {
+                            if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
+                                crate::server::admin::ChallengeAction::Delete { id: challenge_id } 
+                            ).await {
+                                if result == ResultStatus::Success {
+                                    deleted.set(true);
+                                    // stop();
+                                    // start(deleted);
+                                }
+                            }
+                        });
+                    }
+                >
+                    { move || delete_submit_btn_text.get() }
+                </button>
+            </Show>
+
+            <Show when=move || section.get() == Actions::Edit>
+                <label>
+                    <b>"Challenge ID"</b>
+                    <input class="bg-white border" type="number" name="challenge_id" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        challenge_id.set(value.parse::<u32>().unwrap_or_default());
+                    }/>
+                </label>
+                <label>
+                    <b>"Event ID"</b>
+                    <input class="bg-white border" type="number" name="event_id" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        event_id.set(value.parse::<u32>().unwrap_or_default());
+                    }/>
+                </label>
+                <label>
+                    <b>"Name"</b>
+                    <input class="bg-white border" name="name" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        name.set(value);
+                    }/>
+                </label>
+                <label>
+                    <b>"Description"</b>
+                    <input class="bg-white border" name="description" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        description.set(value);
+                    }/>
+                </label>
+                <label>
+                    <b>"Category"</b>
+                    <select class="bg-white border" name="category" on:change=move |ev: Event| {
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let doc = leptos::web_sys::window().unwrap().document().unwrap();
+                        let new_input = doc
+                            .get_element_by_id("action_edit_category_input")
+                            .unwrap()
+                            .unchecked_into::<HtmlInputElement>();
+
+                        if sel.value() == "__new__" {
+                            let _ = sel.remove_attribute("name");
+                            let _ = new_input.set_attribute("name", "category");
+                            category_add_new_selected.set(true);
+                        } else {
+                            let _ = sel.set_attribute("name", "category");
+                            let _ = new_input.remove_attribute("name");
+                            category_add_new_selected.set(false);
+                        }
+
+                        category.set(sel.value());
+                    }>
+                        <option value="">"-- Select Category --"</option>
+                        <For
+                            each=move || categories.get().unwrap_or_default()
+                            key=|category: &String| category.clone()
+                            let(category)
+                        >
+                            {move || {
+                                let c = category.clone();
+                                view! {
+                                    <option value={c.clone()}>{c.clone()}</option>
+                                }
+                            }}
+                        </For>
+                        <option value="__new__">"-- Add New --"</option>
+                    </select>
+                    <input class="bg-white border" hidden=move || !category_add_new_selected.get() type="text" id="action_edit_category_input" />
+                </label>
+                <label>
+                    <b>"Difficulty"</b>
+                    <input class="bg-white border" type="number" name="difficulty" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        difficulty.set(value.parse::<i8>().unwrap_or_default());
+                    }/>
+                </label>
+                <label>
+                    <b>"Points"</b>
+                    <input class="bg-white border" type="number" name="points" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        points.set(value.parse::<u32>().unwrap_or_default());
+                    }/>
+                </label>
+                <label>
+                    <b>"Flag"</b>
+                    <input class="bg-white border" name="flag" on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        let value = input.value();
+                        flag.set(value);
+                    }/>
+                </label>
+                <label>
+                    <b>"Attachment (Max 16 MiB)"</b>
+                    <input class="bg-white border" type="file" name="file"
+                        on:change=move |ev: Event| {
+                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                            if let Some(files) = input.files() {
+                                if files.length() > 0 {
+                                    let file = files.get(0).unwrap();
+                                    let fd = FormData::new().unwrap();
+                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                    upload_action.dispatch_local(fd);
+                                }
+                            }
+                        }
+                    />
+                    <p>
+                        { move || {
+                            if upload_action.pending().get() {
+                                "Uploading...".to_string()
+                            } else if let Some(Ok(val)) = upload_action.value().get() {
+                                let file_name = val.details.file_name.clone();
+                                let file_size = val.details.file_size.unwrap_or_default() as f64;
+                                let file_size_mb = file_size / 1_000_000_f64;
+                                format!("Uploaded: {file_name} ({file_size_mb} MB)")
+                            } else {
+                                "".to_string()
                             }
                         }}
+<<<<<<< HEAD
                     </For>
                     <option value="__new__">"-- Add New --"</option>
                 </select>
@@ -423,6 +584,42 @@ pub fn Challenges() -> impl IntoView {
                         { move || edit_submit_btn_text.get() }
                     </button>
                 </div>
+=======
+                    </p>
+                </label>
+                <button
+                    class=r#"flex justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold
+                        leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline 
+                        focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"#
+                    on:click=move |_| {
+                        // let start = start.clone();
+                        // let stop = stop.clone();
+                        let challenge_id = challenge_id.get();
+                        let event_id = event_id.get().clone();
+                        let name = name.get().clone();
+                        let description = description.get().clone();
+                        let category = category.get().clone();
+                        let difficulty = difficulty.get().clone();
+                        let points = points.get().clone();
+                        let flag = flag.get().clone();
+                        let attachment = attachment.get().clone();
+
+                        spawn_local(async move {
+                            if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
+                                crate::server::admin::ChallengeAction::Edit { id: challenge_id, event_id, name, description, category, difficulty, points, flag, attachment }
+                            ).await {
+                                if result == ResultStatus::Success {
+                                    edited.set(true);
+                                    // stop();
+                                    // start(edited);
+                                }
+                            }
+                        });
+                    }
+                >
+                    { move || edit_submit_btn_text.get() }
+                </button>
+>>>>>>> e5479a92a38237d178847247a3109dfd97d2ea6a
             </Show>
         </div>
 
