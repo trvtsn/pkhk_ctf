@@ -1,4 +1,4 @@
-use crate::{constants, server::db::{enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{AttachmentWithoutBlob, EventMetadata}}};
+use crate::{constants, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier}, structs::{AttachmentWithoutBlob, EventMetadata}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::NaiveDateTime;
@@ -24,9 +24,16 @@ cfg_if! {
             let pool = connect().await?;
             DB.set(pool).expect("DB already initialized");
             add_admin().await?;
+            // #[cfg(debug_assertions)]
+            // add_sample_data().await?;
             
             Ok(())
         }
+
+        // #[cfg(debug_assertions)]
+        // async fn add_sample_data() -> Result<(), String> {
+
+        // }
 
         pub async fn add_admin() -> Result<(), sqlx::Error> {
             use argon2::{Argon2, PasswordHash, PasswordHasher, password_hash::{SaltString, rand_core::OsRng}};
@@ -193,6 +200,14 @@ pub mod enums {
         EventId(u32),
         FileName(String),
         IdFileName((u32, String))
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub enum SubmissionIdentifier {
+        Id(u32),
+        ChallengeId(u32),
+        EventId(u32),
+        UserId(u32),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -661,8 +676,7 @@ cfg_if! {
             }
 
             pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query_as!(
-                    Self,
+                match sqlx::query!(
                     "
                     DELETE
                     FROM challenges 
@@ -670,7 +684,7 @@ cfg_if! {
                     ", 
                     id
                 )
-                    .fetch_one(executor)
+                    .execute(executor)
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
@@ -875,25 +889,100 @@ cfg_if! {
                     }
             }
 
-            // change id -> AttachmentIdentifier
-            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<Option<()>, sqlx::Error> {
-                match sqlx::query_as!(
-                    Self,
-                    "
-                    DELETE
-                    FROM attachments 
-                    WHERE id = ?
-                    ", 
-                    id
-                )
-                    .execute(executor)
-                    .await {
-                        Ok(_) => Ok(Some(())),
-                        Err(e) => {
-                            tracing::error!("db query error (Attachment::delete): {}", e);
-                            Ok(None)
-                        }
+            pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<()>, sqlx::Error> {
+                match identifier {
+                    AttachmentIdentifier::Id(id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE id = ?
+                            ", 
+                            id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
                     }
+                    AttachmentIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE challenge_id = ?
+                            ", 
+                            challenge_id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::EventId(event_id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE event_id = ?
+                            ", 
+                            event_id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::FileName(file_name) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE file_name = ?
+                            ", 
+                            file_name
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::IdFileName((id, file_name)) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE id = ? AND file_name = ?
+                            ", 
+                            id,
+                            file_name
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                }
             }
 
             pub async fn edit_event(
@@ -1329,24 +1418,100 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query_as!(
-                    Self,
-                    "
-                    DELETE
-                    FROM attachments 
-                    WHERE id = ?
-                    ", 
-                    id
-                )
-                    .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
-                        }
+            pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<()>, sqlx::Error> {
+                match identifier {
+                    AttachmentIdentifier::Id(id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE id = ?
+                            ", 
+                            id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
                     }
+                    AttachmentIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE challenge_id = ?
+                            ", 
+                            challenge_id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::EventId(event_id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE event_id = ?
+                            ", 
+                            event_id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::FileName(file_name) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE file_name = ?
+                            ", 
+                            file_name
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::IdFileName((id, file_name)) => {
+                        match sqlx::query!(
+                            "
+                            DELETE
+                            FROM attachments 
+                            WHERE id = ? AND file_name = ?
+                            ", 
+                            id,
+                            file_name
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(Some(())),
+                                Err(e) => {
+                                    tracing::error!("db query error (Attachment::delete): {}", e);
+                                    Ok(None)
+                                }
+                            }
+                    }
+                }
             }
 
             pub async fn edit_event(
@@ -1797,8 +1962,7 @@ cfg_if! {
             }
 
             pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query_as!(
-                    Self,
+                match sqlx::query!(
                     "
                     DELETE
                     FROM events 
@@ -1806,7 +1970,7 @@ cfg_if! {
                     ", 
                     id
                 )
-                    .fetch_one(executor)
+                    .execute(executor)
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
@@ -1968,6 +2132,79 @@ cfg_if! {
                             Err(e)?
                         }
                     }
+            }
+
+            pub async fn delete(identifier: &SubmissionIdentifier, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match identifier {
+                    SubmissionIdentifier::Id(id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE FROM submissions
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(()),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    SubmissionIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE FROM submissions
+                            WHERE challenge_id = ?
+                            ",
+                            challenge_id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(()),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    SubmissionIdentifier::EventId(event_id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE FROM submissions
+                            WHERE event_id = ?
+                            ",
+                            event_id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(()),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    SubmissionIdentifier::UserId(user_id) => {
+                        match sqlx::query!(
+                            "
+                            DELETE FROM submissions
+                            WHERE user_id = ?
+                            ",
+                            user_id
+                        )
+                            .execute(executor)
+                            .await {
+                                Ok(_) => Ok(()),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
             }
 
             pub async fn get_user_points(user_id: &u32, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {

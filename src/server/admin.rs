@@ -129,7 +129,16 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                 }
                 ChallengeAction::Delete { id } => {
                     let mut tx = auth.backend.pool.begin().await?;
-                    _ = db::structs::Attachment::delete(&id, &mut *tx).await;
+
+                    if let Err(e) = db::structs::Submission::delete(&db::enums::SubmissionIdentifier::ChallengeId(id), &mut *tx).await {
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
+                    }
+
+                    if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
+                    }
 
                     match db::structs::Challenge::delete(&id, &mut *tx).await {
                         Ok(_) => {

@@ -33,18 +33,27 @@ pub fn Challenges() -> impl IntoView {
     let flag = RwSignal::new("".to_string());
     let attachment = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
 
+    let refresh = RwSignal::new(0);
+
     // load once on mount
-    let cwa = Resource::new(move || (), move |_| async move {
+    let cwa = Resource::new(move || refresh.get(), move |_| async move {
         get_all_challenges_with_attachments().await.unwrap_or_default()
     });
 
-    let categories = Resource::new(move || (), move |_| async move {
-        get_all_challenge_categories().await.unwrap_or_default()
+    let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
+    let events_signal = RwSignal::<Vec<db::structs::Event>>::new(vec![]);
+
+    let categories_resource = Resource::new(move || refresh.get(), move |_| async move {
+        let all_categories = get_all_challenge_categories().await.unwrap_or_default();
+        categories_signal.set(all_categories);
     });
 
-    let events_resource = Resource::new(move || (), move |_| async move {
-        get_all_events().await.unwrap_or_default()
+    let events_resource = Resource::new(move || refresh.get(), move |_| async move {
+        let all_events = get_all_events().await.unwrap_or_default();
+        events_signal.set(all_events);
     });
+
+
 
     let upload_action = Action::new_local(|data: &FormData| {
         upload_file(data.clone().into())
@@ -56,10 +65,8 @@ pub fn Challenges() -> impl IntoView {
         }
     });
 
-    let creating = RwSignal::new(false);
     let created = RwSignal::new(false);
-    let deleted = RwSignal::new(false);
-    let edited = RwSignal::new(false);
+    let creating = RwSignal::new(false);
     let create_submit_btn_text = Memo::new(move |_| {
         if created.get() { "Created!".to_string() } else { "Create".to_string() }
     });
@@ -101,7 +108,7 @@ pub fn Challenges() -> impl IntoView {
                 }>
                     <option value="">"-- Select Event --"</option>
                         <For
-                            each=move || events_resource.get().unwrap_or_default()
+                            each=move || events_signal.get()
                             key=|e: &db::structs::Event| e.id
                             let(e: db::structs::Event)
                         >
@@ -153,7 +160,7 @@ pub fn Challenges() -> impl IntoView {
                 }>
                     <option value="">"-- Select Category --"</option>
                     <For
-                        each=move || categories.get().unwrap_or_default()
+                        each=move || categories_signal.get()
                         key=|category: &String| category.clone()
                         let(category)
                     >
@@ -236,6 +243,7 @@ pub fn Challenges() -> impl IntoView {
                                 ).await {
                                     if result == ResultStatus::Success {
                                         created.set(true);
+                                        refresh.update(|n| *n += 1);
                                         // stop();
                                         // start(created);
                                     }
@@ -247,193 +255,6 @@ pub fn Challenges() -> impl IntoView {
                     </button>
                 </div>
             </Show>
-
-            // <Show when=move || section.get() == Actions::Delete>
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Challenge ID"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="challenge_id" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         challenge_id.set(value.parse::<u32>().unwrap_or_default());
-            //     }/>
-            //     <div class="flex gap-3 mt-2">
-            //         <button type="button" class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50">"Cancel"</button>
-            //         <button
-            //             class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            //             on:click=move |_| {
-            //                 // let start = start.clone();
-            //                 // let stop = stop.clone();
-            //                 let challenge_id = challenge_id.get();
-            //                 spawn_local(async move {
-            //                     if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
-            //                         crate::server::admin::ChallengeAction::Delete { id: challenge_id } 
-            //                     ).await {
-            //                         if result == ResultStatus::Success {
-            //                             deleted.set(true);
-            //                             // stop();
-            //                             // start(deleted);
-            //                         }
-            //                     }
-            //                 });
-            //             }
-            //         >
-            //             { move || delete_submit_btn_text.get() }
-            //         </button>
-            //     </div>
-            // </Show>
-
-            // <Show when=move || section.get() == Actions::Edit>
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Challenge ID"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="challenge_id" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         challenge_id.set(value.parse::<u32>().unwrap_or_default());
-            //     }/>
-                
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Event ID"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="event_id" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         event_id.set(value.parse::<u32>().unwrap_or_default());
-            //     }/>
-                
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="name" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         name.set(value);
-            //     }/>
-            
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="description" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         description.set(value);
-            //     }/>
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Category"</label>
-            //     <select class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="category" on:change=move |ev: Event| {
-            //         let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-            //         let doc = leptos::web_sys::window().unwrap().document().unwrap();
-            //         let new_input = doc
-            //             .get_element_by_id("action_edit_category_input")
-            //             .unwrap()
-            //             .unchecked_into::<HtmlInputElement>();
-
-            //         if sel.value() == "__new__" {
-            //             let _ = sel.remove_attribute("name");
-            //             let _ = new_input.set_attribute("name", "category");
-            //             category_add_new_selected.set(true);
-            //         } else {
-            //             let _ = sel.set_attribute("name", "category");
-            //             let _ = new_input.remove_attribute("name");
-            //             category_add_new_selected.set(false);
-            //         }
-
-            //         category.set(sel.value());
-            //     }>
-            //         <option value="">"-- Select Category --"</option>
-            //         <For
-            //             each=move || categories.get().unwrap_or_default()
-            //             key=|category: &String| category.clone()
-            //             let(category)
-            //         >
-            //             {move || {
-            //                 let c = category.clone();
-            //                 view! {
-            //                     <option value={c.clone()}>{c.clone()}</option>
-            //                 }
-            //             }}
-            //         </For>
-            //         <option value="__new__">"-- Add New --"</option>
-            //     </select>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" hidden=move || !category_add_new_selected.get() type="text" id="action_edit_category_input" />
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Difficulty"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="difficulty" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         difficulty.set(value.parse::<i8>().unwrap_or_default());
-            //     }/>
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Points"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="points" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         points.set(value.parse::<u32>().unwrap_or_default());
-            //     }/>
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Flag"</label>
-            //     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="flag" on:change=move |ev: Event| {
-            //         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //         let value = input.value();
-            //         flag.set(value);
-            //     }/>
-
-            //     <label class="block text-sm font-medium text-gray-700 mb-1">"Attachment (Max 16 MiB)"</label>
-            //     <input class="w-full text-sm" type="file" name="file"
-            //         on:change=move |ev: Event| {
-            //             let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-            //             if let Some(files) = input.files() {
-            //                 if files.length() > 0 {
-            //                     let file = files.get(0).unwrap();
-            //                     let fd = FormData::new().unwrap();
-            //                     fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-            //                     upload_action.dispatch_local(fd);
-            //                 }
-            //             }
-            //         }
-            //     />
-            //     <p>
-            //         { move || {
-            //             if upload_action.pending().get() {
-            //                 "Uploading...".to_string()
-            //             } else if let Some(Ok(val)) = upload_action.value().get() {
-            //                 let file_name = val.details.file_name.clone();
-            //                 let file_size = val.details.file_size.unwrap_or_default() as f64;
-            //                 let file_size_mb = file_size / 1_000_000_f64;
-            //                 format!("Uploaded: {file_name} ({file_size_mb} MB)")
-            //             } else {
-            //                 "".to_string()
-            //             }
-            //         }}
-            //     </p>
-            //     <div class="flex gap-3 mt-2">
-            //         <button type="button" class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50">"Cancel"</button>
-            //         <button
-            //             class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            //             on:click=move |_| {
-            //                 // let start = start.clone();
-            //                 // let stop = stop.clone();
-            //                 let challenge_id = challenge_id.get();
-            //                 let event_id = event_id.get();
-            //                 let name = name.get().clone();
-            //                 let description = description.get().clone();
-            //                 let category = category.get().clone();
-            //                 let difficulty = difficulty.get();
-            //                 let points = points.get();
-            //                 let flag = flag.get().clone();
-            //                 let attachment = attachment.get().clone();
-
-            //                 spawn_local(async move {
-            //                     if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
-            //                         crate::server::admin::ChallengeAction::Edit { id: challenge_id, event_id, name, description, category, difficulty, points, flag, attachment }
-            //                     ).await {
-            //                         if result == ResultStatus::Success {
-            //                             edited.set(true);
-            //                             // stop();
-            //                             // start(edited);
-            //                         }
-            //                     }
-            //                 });
-            //             }
-            //         >
-            //             { move || edit_submit_btn_text.get() }
-            //         </button>
-            //     </div>
-            // </Show>
         </div>
 
         <div class="challenges">
@@ -467,7 +288,7 @@ pub fn Challenges() -> impl IntoView {
                                         let(challenge)
                                     >
                                         <div class="challenge p-2">
-                                            <Challenge cwa=RwSignal::new(challenge)/>
+                                            <Challenge cwa=RwSignal::new(challenge) refresh categories=categories_signal events=events_signal/>
                                         </div>
                                     </For>
                                 </div>

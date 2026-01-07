@@ -1,14 +1,14 @@
-use crate::server::{admin::{get_all_challenge_categories, get_all_events, upload_file}, db::structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}, enums::ResultStatus, structs::ApiResult};
+use crate::server::{admin::{get_all_challenge_categories, get_all_events, upload_file}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
 // use thaw::*;
 
 #[component]
 pub fn Challenge(
-    cwa: RwSignal<ChallengeWithAttachments>
+    cwa: RwSignal<ChallengeWithAttachments>,
+    refresh: RwSignal<i32>,
+    categories: RwSignal<Vec<String>>,
+    events: RwSignal<Vec<db::structs::Event>>
 ) -> impl IntoView {
-    if cwa.get() == ChallengeWithAttachments::default() {
-        view! {}
-    }
     let ChallengeWithAttachments { challenge, attachments } = cwa.get();
     let Challenge { id, event_id, name, description, category, difficulty, points } = challenge;
 
@@ -41,14 +41,6 @@ pub fn Challenge(
     let upload_action = Action::new_local(|data: &FormData| {
         // `MultipartData` implements `From<FormData>`
         upload_file(data.clone().into())
-    });
-
-    let categories = Resource::new(move || (), move |_| async move {
-        get_all_challenge_categories().await.unwrap_or_default()
-    });
-
-    let events_resource = Resource::new(move || (), move |_| async move {
-        get_all_events().await.unwrap_or_default()
     });
 
     Effect::new(move |_| {
@@ -123,7 +115,7 @@ pub fn Challenge(
                 }>
                     <option value="">"-- Select Event --"</option>
                     <For
-                        each=move || events_resource.get().unwrap_or_default()
+                        each=move || events.get()
                         key=|e: &crate::server::db::structs::Event| e.id
                         let(e: crate::server::db::structs::Event)
                     >
@@ -175,7 +167,7 @@ pub fn Challenge(
                 }>
                     <option value="">"-- Select Category --"</option>
                     <For
-                        each=move || categories.get().unwrap_or_default()
+                        each=move || categories.get()
                         key=|category: &String| category.clone()
                         let(category)
                     >
@@ -283,6 +275,7 @@ pub fn Challenge(
                                     };
                                 
                                     cwa.set(new_cwa);
+                                    refresh.update(|n| *n += 1);
                                     // stop();
                                     // start(edited);
                                 }
@@ -300,15 +293,16 @@ pub fn Challenge(
                         if deleting.get() {
                             let challenge_id = id_signal.get();
                             spawn_local(async move {
+                                tracing::debug!("deleting challenge ID: {challenge_id}");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
                                     crate::server::admin::ChallengeAction::Delete { id: challenge_id } 
                                 ).await {
-                                    //if result == ResultStatus::Success {
+                                    if result == ResultStatus::Success {
                                         deleted.set(true);
-                                        cwa.set(ChallengeWithAttachments::default());
+                                        refresh.update(|n| *n += 1);
                                         // stop();
                                         // start(deleted);
-                                    //}
+                                    }
                                 }
                             });
                             deleting.set(false);
@@ -323,8 +317,10 @@ pub fn Challenge(
         </div>
     }.into_any();
 
-    view! {
-        {result_view}
+    if deleted.get() {
+        view! {}.into_any()
+    } else {
+        result_view
     }
 }
 
