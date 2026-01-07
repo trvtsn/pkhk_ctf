@@ -1,8 +1,6 @@
 #[cfg(feature = "ssr")]
-use crate::server::{backend::{AuthSession, structs::{Credentials}}};
+use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}};
 use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
-#[cfg(feature = "ssr")]
-use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::{self, rand_core::OsRng}};
 #[cfg(feature = "ssr")]
 use axum::extract::Path;
 #[cfg(feature = "ssr")]
@@ -13,6 +11,7 @@ use leptos::{
     logging::log, prelude::use_context, server, server_fn::codec::{MultipartData, MultipartFormData}
 };
 use time::OffsetDateTime;
+use tracing::instrument;
 use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
@@ -96,38 +95,6 @@ pub mod enums {
         Fail
     }
 }
-//     use serde::{Deserialize, Serialize};
-
-//     pub enum ApiActions {
-//         Challenge {
-//             action: ChallengeAction
-//         },
-//         Leaderboard {
-//             action: LeaderboardAction
-//         },
-//         User {
-//             action: UserAction
-//         }
-//     }
-
-//     // #[serde(rename_all = "lowercase")]
-//     #[derive(Debug, Clone, Deserialize, Serialize)]
-//     pub enum LeaderboardAction {
-//         Build
-//     }
-
-//     // #[serde(rename_all = "lowercase")]
-//     #[derive(Debug, Clone, Deserialize, Serialize)]
-//     pub enum UserAction {
-//         Build,
-//         IsAdmin,
-//         Get,
-//         Login,
-//         Register,
-//         GetAll,
-//         GetPoints
-//     }
-// }
 
 #[cfg(feature = "ssr")]
 pub fn pool() -> Result<MySqlPool, AppError> {
@@ -142,6 +109,7 @@ pub fn init_env() {
 }
 
 #[server(name=Challenges, prefix="/api", endpoint="challenges")]
+#[instrument]
 pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAttachments>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -162,22 +130,8 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
     }
 }
 
-// #[server(name=Challenges, prefix="/api", endpoint="challenges")]
-// pub async fn get_all_challenges() -> Result<Vec<Challenge>, AppError> {
-//     cfg_if! {
-//         if #[cfg(feature = "ssr")] {
-//             let auth = use_context::<AuthSession>().unwrap();
-//             match db::structs::Challenge::get_all(&auth.backend.pool).await {
-//                 Ok(challenges) => Ok(challenges),
-//                 Err(e) => Err(e)?
-//             }
-//         } else {
-//             Err(AppError::NoServerConnection)
-//         }
-//     }
-// }
-
 #[server(name=Leaderboard, prefix="/api", endpoint="leaderboard")]
+#[instrument]
 pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -185,7 +139,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
             let active_event_id = match get_active_events().await {
                 Ok(active_events) => active_events.first().unwrap().id,
                 Err(e) => {
-                    tracing::error!("server fn error (get_active_events): {}", e);
+                    tracing::error!(error = ?e);
                     2_u32
                 }
             };
@@ -302,6 +256,7 @@ pub async fn is_user_admin() -> Result<bool, AppError> {
 }
 
 #[server(name=LoginUser, prefix="/api", endpoint="login")]
+#[instrument(skip(password))]
 pub async fn login_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> { // impl IntoResponse (can serve 403 that way)
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -324,7 +279,10 @@ pub async fn login_user(email: String, password: String) -> Result<ApiResult<Opt
             if let Some(user) = user.as_ref() {
                 match auth.login(user).await {
                     Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) }), // update last_active_date in db
-                    Err(e) => Err(AppError::InternalError(e.to_string()))
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        Err(AppError::InternalError("internal error".to_string()))
+                    }
                 }
             } else {
                 Ok(ApiResult { result: ResultStatus::Fail, details: None })
@@ -336,6 +294,7 @@ pub async fn login_user(email: String, password: String) -> Result<ApiResult<Opt
 }
 
 #[server(name=GetUser, prefix="/api", endpoint="user")]
+#[instrument]
 pub async fn get_user() -> Result<Option<User>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -350,13 +309,17 @@ pub async fn get_user() -> Result<Option<User>, AppError> {
 }
 
 #[server(name=GetUserPoints, prefix="/api/user", endpoint="points")]
+#[instrument]
 pub async fn get_user_points() -> Result<u32, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let session: AuthSession = use_context().expect("session not provided");
             match db::structs::Submission::get_user_points(&session.user.unwrap_or_default().id, &session.backend.pool).await {
                 Ok(points) => Ok(points),
-                Err(e) => Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -365,13 +328,17 @@ pub async fn get_user_points() -> Result<u32, AppError> {
 }
 
 #[server(name=GetDbUser, prefix="/api/user", endpoint="info")]
+#[instrument]
 pub async fn get_db_user(username: String) -> Result<Option<DbUser>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let pool = use_context::<MySqlPool>().expect("pool not provided");
             match DbUser::get(&UserIdentifier::Username(username), &pool).await {
                 Ok(user) => Ok(user),
-                Err(e) => Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -383,6 +350,7 @@ pub async fn get_db_user(username: String) -> Result<Option<DbUser>, AppError> {
 /// make me log in separately after that. Give me a break! This function is called from the Register component
 /// which is in pages/register.rs.
 #[server(name=Register, prefix="/api", endpoint="register")]
+#[instrument(skip(password))]
 pub async fn register_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -394,12 +362,10 @@ pub async fn register_user(email: String, password: String) -> Result<ApiResult<
             // the backend, and it's all done!
             let user: Option<User> = auth_session.backend.add_user(email.clone(), password).await?;
 
-            log!("get_user returned {user:#?}");
             if let Some(user) = user {
                 // Tell the AuthSession that we're logged-in now and it should behave accordingly. This will set the
                 // session id and send it to the browser as a side-effect (before now you likely had no session id in the browser).
                 auth_session.login(&user).await?;
-                log!("AuthSession user after register: {}", auth_session.user.as_ref().unwrap().username);
                 Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
             } else {
                 Err(AppError::InternalError("".to_string()))
@@ -411,12 +377,10 @@ pub async fn register_user(email: String, password: String) -> Result<ApiResult<
 }
 
 #[server(name=CheckFlag, prefix="/api", endpoint="check_flag")]
+#[instrument(skip(challenge))]
 pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Challenge) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
-            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
-            // and it feels faster. Get the AuthSession.
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
 
@@ -427,25 +391,26 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                         return Ok(ApiResult { result: ResultStatus::Fail, details: "challenge already solved".to_string() });
                     }
                 },
-                Err(e) => return Err(AppError::InternalError("failed to check flag".to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("failed to check flag".to_string()));
+                }
             }
 
             let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&challenge.id, &auth.backend.pool).await {
                 Ok(flag_hash) => flag_hash,
-                Err(e) => return Err(AppError::InternalError("Failed to get flag hash".to_string())),
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("Failed to get flag hash".to_string()));
+                }
             };
 
-            let hasher = Argon2::default();
-            let hash = argon2::PasswordHash::parse(challenge_flag_hash.as_ref(), argon2::password_hash::Encoding::B64)
-                .map_err(|e| AppError::InternalError("Failed to parse flag hash".to_string()))?;
-            // Use the existing implementation to verify the password. I was doing this myself until
-            // I noticed that there is a PasswordVerifier trait, so this is better in every way.
-            if let Ok(()) = hasher.verify_password(flag.as_bytes(), &hash) {
+            let hash = hash_string(challenge_flag_hash.clone())?;
+            if let Ok(()) = verify_hash(flag.clone(), hash) {
                 match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &OffsetDateTime::now_utc(), &auth.backend.pool).await {
                     Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() }),
                     Err(e) => Err(e.into())
                 }
-                
             } else {
                 Ok(ApiResult { result: ResultStatus::Fail, details: "incorrect solution".to_string() })
             }
@@ -456,6 +421,7 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
 }
 
 #[server(name=EditUsername, prefix="/api/user", endpoint="username")]
+#[instrument]
 pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -472,12 +438,12 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
 }
 
 #[server(input=MultipartFormData, name=EditAvatar, prefix="/api/user", endpoint="edit_avatar")]
+#[instrument(skip(avatar))]
 pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
-            
             
             let mut data = avatar.into_inner().unwrap();
             let mut file_name = String::new();
@@ -503,6 +469,7 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
 }
 
 #[server(name=GetAvatar, prefix="/api/user", endpoint="avatar")]
+#[instrument]
 pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -519,6 +486,7 @@ pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
 }
 
 #[server(name=SolvedChallenges, prefix="/api/challenges", endpoint="solved")]
+#[instrument]
 pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -535,6 +503,7 @@ pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
 }
 
 #[cfg(feature = "ssr")]
+#[instrument(skip(auth_session))]
 pub async fn download_blob(
     auth_session: AuthSession,
     Path((id_str, filename)): Path<(String, String)>,
@@ -549,7 +518,7 @@ pub async fn download_blob(
         Ok(Some(f)) => f,
         Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
         Err(e) => {
-            tracing::error!("db error: {}", e);
+            tracing::error!(error = ?e);
             return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
         }
     };
@@ -571,6 +540,7 @@ pub async fn download_blob(
 }
 
 #[server(name=GetActiveEvents, prefix="/api", endpoint="active_events")]
+#[instrument]
 pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -596,6 +566,7 @@ pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
 }
 
 #[server(name=EditPassword, prefix="/api/user", endpoint="password")]
+#[instrument(skip(old_password, new_password))]
 pub async fn edit_password(old_password: String, new_password: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -606,13 +577,9 @@ pub async fn edit_password(old_password: String, new_password: String) -> Result
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
             }
 
-            let argon2 = Argon2::default();
-            let salt = password_hash::SaltString::generate(&mut OsRng);
-            let pw_hash: password_hash::PasswordHash = argon2.hash_password(new_password.as_bytes(), &salt)
-                .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
-            let pw_hash_str = pw_hash.to_string();
+            let pw_hash = hash_string(new_password.clone())?;
 
-            match DbUser::edit_password(&user.id, &pw_hash_str, &auth.backend.pool).await {
+            match DbUser::edit_password(&user.id, &pw_hash, &auth.backend.pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
                 Err(e) => Err(e.into())
             }

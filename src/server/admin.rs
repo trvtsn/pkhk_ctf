@@ -1,5 +1,5 @@
 #[cfg(feature = "ssr")]
-use crate::server::AuthSession;
+use crate::server::{AuthSession, hash_string};
 use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
 use cfg_if::cfg_if;
 use chrono::NaiveDateTime;
@@ -7,38 +7,7 @@ use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
 // #[cfg(feature = "ssr")]
 // use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "ssr")]
-use password_hash::rand_core::OsRng;
-use argon2::{Argon2, PasswordHash, password_hash};
-use argon2::PasswordHasher;
-use password_hash::SaltString;
-
-// pub enum UserArgs {
-//     Create {
-//         user: DbUser
-//     },
-// }
-
-// #[async_trait]
-// pub trait Crud {
-//     type Arguments: Send + Sync;
-//     /// An error which can occur during authentication and authorization.
-//     type Error: std::error::Error + Send + Sync;
-
-//     async fn create(args: Self::Arguments, session: AuthSession) -> Result<(), Self::Error>;
-//     async fn read(args: Self::Arguments, session: AuthSession) -> Result<Self, Self::Error>;
-//     async fn update(args: Self::Arguments, session: AuthSession) -> Result<(), Self::Error>;
-//     async fn delete(args: Self::Arguments, session: AuthSession) -> Result<(), Self::Error>;
-// }
-
-// impl Crud for User {
-//     type Arguments = UserArgs;
-//     type Error = Error;
-
-//     async fn create(args: Self::Arguments, session: AuthSession) -> Result<(), Self::Error> {
-//         Ok(())
-//     }
-// }
+use tracing::instrument;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -70,6 +39,7 @@ pub enum ChallengeAction {
 }
 
 #[server(name=AdminChallengeApi, prefix="/api/admin", endpoint="challenge")]
+#[instrument]
 pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -84,29 +54,16 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
 
             match action {
                 ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, attachment } => {
-                    let argon2 = Argon2::default();
-                    // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
-                    let salt = SaltString::generate(&mut OsRng);
-                    // This gives back a data structure with various parts, which can be encoded using
-                    // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
-                    // recommended hashing algorithm at the time of this code being published (2024)
-                    let flag_hash: PasswordHash = argon2.hash_password(flag.as_bytes(), &salt)
-                        .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
-                    // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
-                    // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
-                    // a let-binding outside of the macro or the compiler complains.
-                    let flag_hash_string = flag_hash.to_string();
-
+                    let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
-
-                    let mut new_challenge_id = 0;
-                    match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash_string, &mut *tx).await {
-                        Ok(result) => new_challenge_id = result,
+                    let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &mut *tx).await {
+                        Ok(result) => result,
                         Err(e) => {
                             tx.rollback().await?;
+                            tracing::error!(error = ?e);
                             return Err(AppError::InternalError(e.to_string()))
                         }
-                    }
+                    };
 
                     match attachment {
                         Some(attachment) => {
@@ -117,6 +74,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                                 },
                                 Err(e) => {
                                     tx.rollback().await?;
+                                    tracing::error!(error = ?e);
                                     Err(AppError::InternalError(e.to_string()))
                                 }
                             }
@@ -132,12 +90,14 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
 
                     if let Err(e) = db::structs::Submission::delete(&db::enums::SubmissionIdentifier::ChallengeId(id), &mut *tx).await {
                         tx.rollback().await?;
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
+                        tracing::error!(error = ?e);
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
                     }
 
                     if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
                         tx.rollback().await?;
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
+                        tracing::error!(error = ?e);
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
                     }
 
                     match db::structs::Challenge::delete(&id, &mut *tx).await {
@@ -147,30 +107,20 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         },
                         Err(e) => {
                             tx.rollback().await?;
-                            Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+                            tracing::error!(error = ?e);
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
                         }
                     }
                 }
                 ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, attachment } => {
-                    let argon2 = Argon2::default();
-                    // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
-                    let salt = SaltString::generate(&mut OsRng);
-                    // This gives back a data structure with various parts, which can be encoded using
-                    // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
-                    // recommended hashing algorithm at the time of this code being published (2024)
-                    let flag_hash: PasswordHash = argon2.hash_password(flag.as_bytes(), &salt)
-                        .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
-                    // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
-                    // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
-                    // a let-binding outside of the macro or the compiler complains.
-                    let flag_hash_string = flag_hash.to_string();
-
+                    let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
-                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash_string, &mut *tx).await {
+                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
+                            tracing::error!(error = ?e);
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
                         }
                     }
 
@@ -200,7 +150,6 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
     }
 }
 
-// #[serde(rename_all = "lowercase")]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EventAction {
@@ -223,6 +172,7 @@ pub enum EventAction {
 }
 
 #[server(name=AdminEventApi, prefix="/api/admin", endpoint="event")]
+#[instrument]
 pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -239,19 +189,28 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                 EventAction::Create { name, description, start_date, end_date } => {
                     match db::structs::Event::add(&name, &description, &start_date, &end_date, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created event".to_string()) }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                        }
                     }
                 }
                 EventAction::Delete { id } => {
                     match db::structs::Event::delete(&id, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                        }
                     }
                 }
                 EventAction::Edit { id, name, description, start_date, end_date } => {
                     match db::structs::Event::edit(&id, &name, &description, &start_date, &end_date, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string()) }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                        }
                     }
                 }
             }
@@ -262,6 +221,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
 }
 
 #[server(name=AdminUsersGetAll, prefix="/api/admin", endpoint="users")]
+#[instrument]
 pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -274,7 +234,10 @@ pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
 
             match DbUser::get_all(&auth.backend.pool).await {
                 Ok(users) => Ok(users),
-                Err(e) => Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -283,6 +246,7 @@ pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
 }
 
 #[server(name=AdminEventsGetAll, prefix="/api/admin", endpoint="events")]
+#[instrument]
 pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -295,7 +259,10 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
 
             match db::structs::Event::get_all(&auth.backend.pool).await {
                 Ok(events) => Ok(events),
-                Err(e) => Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -304,6 +271,7 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
 }
 
 #[server(input=MultipartFormData, name=AdminUploadFile, prefix="/api/admin/file", endpoint="upload")]
+#[instrument(skip(file))]
 pub async fn upload_file(file: MultipartData) -> Result<ApiResult<AttachmentWithoutBlob>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -330,12 +298,18 @@ pub async fn upload_file(file: MultipartData) -> Result<ApiResult<AttachmentWith
 
             let insert_id = match db::structs::Attachment::add(&None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &auth.backend.pool).await {
                 Ok(insert_id) => insert_id,
-                Err(e) => return Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
             };
 
             match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id), &auth.backend.pool).await {
                 Ok(attachment) => Ok(ApiResult { result: ResultStatus::Success, details: attachment.unwrap_or_default() }),
-                Err(e) => Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -344,6 +318,7 @@ pub async fn upload_file(file: MultipartData) -> Result<ApiResult<AttachmentWith
 }
 
 #[server(name=AdminGetAllCategories, prefix="/api/admin/challenges", endpoint="categories")]
+#[instrument]
 pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -356,7 +331,10 @@ pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
 
             match db::structs::Challenge::get_all_categories(&auth.backend.pool).await {
                 Ok(categories) => Ok(categories),
-                Err(e) => Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -365,6 +343,7 @@ pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
 }
 
 #[server(name=AdminGetAllFiles, prefix="/api/admin/files", endpoint="all")]
+#[instrument]
 pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -377,7 +356,10 @@ pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
 
             match db::structs::AttachmentWithoutBlob::get_all(&None, &auth.backend.pool).await {
                 Ok(attachments) => Ok(attachments),
-                Err(e) => Err(AppError::InternalError(e.to_string()))
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
             }
         } else {
             Err(AppError::NoServerConnection)

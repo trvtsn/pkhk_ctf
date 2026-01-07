@@ -11,6 +11,7 @@ cfg_if! {
         use tokio_stream::wrappers::BroadcastStream;
         use tracing::{Event as TracingEvent, Subscriber};
         use tracing::field::{Field, Visit};
+        use tracing_subscriber::fmt::format::FmtSpan;
         use tracing_subscriber::layer::Context;
         use tracing_subscriber::layer::Layer;
         use tracing_subscriber::prelude::*;
@@ -82,6 +83,9 @@ cfg_if! {
         /// 2. To broadcast layer
         pub fn init_tracing() {
             let fmt_layer = tracing_subscriber::fmt::layer()
+                .with_file(true)
+                .with_line_number(true)
+                .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
                 .with_target(true)
                 .with_writer(std::io::stdout);
 

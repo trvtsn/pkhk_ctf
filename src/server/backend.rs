@@ -185,6 +185,32 @@ cfg_if! {
                 })
             }
         }
+
+        pub fn hash_string(string: String) -> Result<String, argon2::password_hash::Error> {
+            let argon2 = Argon2::default();
+            // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
+            let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
+            // This gives back a data structure with various parts, which can be encoded using
+            // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
+            // recommended hashing algorithm at the time of this code being published (2024)
+            let flag_hash= argon2.hash_password(string.as_bytes(), &salt)?;
+            // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
+            // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
+            // a let-binding outside of the macro or the compiler complains.
+            Ok(flag_hash.to_string())
+        }
+
+        pub fn verify_hash(string: String, hash: String) -> Result<(), argon2::password_hash::Error> {
+            let hasher = Argon2::default();
+            let hash = argon2::PasswordHash::parse(hash.as_ref(), argon2::password_hash::Encoding::B64)?;
+            // Use the existing implementation to verify the password. I was doing this myself until
+            // I noticed that there is a PasswordVerifier trait, so this is better in every way.
+            match hasher.verify_password(string.as_bytes(), &hash) {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e)
+            }
+        }
+
     }
 }
 

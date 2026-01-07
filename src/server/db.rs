@@ -1,4 +1,4 @@
-use crate::{constants, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier}, structs::{AttachmentWithoutBlob, EventMetadata}}};
+use crate::{constants, error_template::AppError, server::{db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier}, structs::{AttachmentWithoutBlob, EventMetadata}}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::NaiveDateTime;
@@ -6,6 +6,7 @@ use leptos::prelude::ServerFnError;
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
+        use crate::server::hash_string;
         use sqlx::MySqlExecutor;
         use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
         use tokio::sync::OnceCell;
@@ -35,35 +36,21 @@ cfg_if! {
 
         // }
 
-        pub async fn add_admin() -> Result<(), sqlx::Error> {
-            use argon2::{Argon2, PasswordHash, PasswordHasher, password_hash::{SaltString, rand_core::OsRng}};
-
+        pub async fn add_admin() -> Result<(), AppError> {
             let username = &constants::config::ADMIN_USERNAME.to_string();
             let email = &constants::config::ADMIN_EMAIL.to_string();
             let password = &constants::config::ADMIN_PASSWORD.to_string();
-            // Hash the password and insert the new user.
-            // This does the hashing
-            let argon2 = Argon2::default();
-            // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
-            let salt = SaltString::generate(&mut OsRng);
-            // This gives back a data structure with various parts, which can be encoded using
-            // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
-            // recommended hashing algorithm at the time of this code being published (2024)
-            let pw_hash: PasswordHash = argon2.hash_password(password.as_bytes(), &salt).unwrap();
-            // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
-            // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
-            // a let-binding outside of the macro or the compiler complains.
-            let pw_hash_str = pw_hash.to_string();
+            let pw_hash = hash_string(password.clone())?;
 
             match DbUser::get(&UserIdentifier::Email(email.clone()), get_db_ref()).await {
                 Ok(Some(_)) => return Ok(()),
                 Ok(None) => {},
-                Err(e) => return Err(e)
+                Err(e) => return Err(e.into())
             }
 
-            match DbUser::add_admin(username, email, &pw_hash_str, get_db_ref()).await {
+            match DbUser::add_admin(username, email, &pw_hash, get_db_ref()).await {
                 Ok(_) => Ok(()),
-                Err(e) => Err(e)
+                Err(e) => Err(e.into())
             }
         }
 

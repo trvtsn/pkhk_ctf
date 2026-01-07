@@ -1,13 +1,49 @@
 use cfg_if::cfg_if;
 cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use crate::server::AuthSession;
-        use axum::response::{IntoResponse};
+        use crate::server::{AuthSession, backend::structs::Credentials};
+        use axum::{response::{IntoResponse}, Json};
         use http::StatusCode;
     }
 }
 
-pub async fn logout_user(mut auth_session: AuthSession) -> impl IntoResponse {
+pub async fn login_handler(
+    mut auth: AuthSession,
+    Json(creds): Json<Credentials>,
+) -> impl IntoResponse {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            match auth.authenticate(creds).await {
+                Ok(Some(user)) => auth
+                    .login(&user)
+                    .await
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR),
+                Ok(None) => Err(StatusCode::UNAUTHORIZED),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    }
+}
+
+// pub async fn register_handler(
+//     mut auth: AuthSession,
+//     Json(creds): Json<Credentials>,
+// ) -> impl IntoResponse {
+//     cfg_if::cfg_if! {
+//         if #[cfg(feature = "ssr")] {
+//             match auth.backend.add_user(creds.user_identifier, creds.password.clone()).await {
+//                 Ok(Some(user)) => auth
+//                     .login(&user)
+//                     .await
+//                     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR),
+//                 Ok(None) => Err(StatusCode::UNAUTHORIZED),
+//                 Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+//             }
+//         }
+//     }
+// }
+
+pub async fn logout_handler(mut auth_session: AuthSession) -> impl IntoResponse {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             match auth_session.logout().await {
