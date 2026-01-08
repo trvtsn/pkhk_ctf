@@ -1,10 +1,11 @@
-use crate::{components::navbar::NavBar, server::LoginUser};
+use crate::{components::navbar::NavBar, server::{LoginUser, get_user}};
 use leptos::prelude::*;
-use leptos_router::components::Redirect;
+use leptos_router::{components::Redirect, hooks::{use_navigate, use_query_map}};
 
 /// Default Home Page
 #[component]
 pub fn Login() -> impl IntoView {
+    let qmap = use_query_map();
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
     let loading = RwSignal::new(false);
@@ -20,6 +21,44 @@ pub fn Login() -> impl IntoView {
                 "{base} {}",
                 "bg-lavender-blush-100 hover:bg-lavender-blush-200"
             )
+        }
+    });
+
+    let logged_in_user = Resource::new(
+        move || login.version().get(),
+        move |_user| async move {
+            if let Ok(Some(user)) = get_user().await {
+                Some(user)
+            } else {
+                None
+            }
+        }
+    );
+
+    // let login_status = move || Suspend::new(async move {
+    //     match logged_in_user.await {
+    //         Some(user) => view! { <p>"Logged in as " {user.username}</p> }.into_any(),
+    //         None => view! { <p>"Not logged in"</p> }.into_any()
+    //     }
+    // });
+
+    Effect::new(move || {
+        // use urlencoding::decode;
+        //
+        // if let Some(next) = qmap.get().get("c") {
+        //     if let Some(Some(_)) = logged_in_user.get() {
+        //         let nav = use_navigate();
+        //
+        //         if let Ok(next) = decode(&next) {
+        //             //nav(&next, Default::default());
+        //             nav("/", Default::default());
+        //         }
+        //     }
+        // }
+
+        if let Some(Some(_)) = logged_in_user.get() {
+            let nav = use_navigate();
+            nav("/", Default::default());
         }
     });
 
@@ -46,5 +85,6 @@ pub fn Login() -> impl IntoView {
                 />
             </ActionForm>
         </div>
+        //<Transition fallback=move || view! { <p>"Checking login..."</p> }>{login_status}</Transition>
     }
 }
