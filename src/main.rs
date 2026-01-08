@@ -1,5 +1,5 @@
 use cfg_if::cfg_if;
-use pkhk_ctf::server::auth::{login_handler, logout_handler};
+use pkhk_ctf::server::auth::{login_handler};
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
@@ -102,10 +102,6 @@ async fn main() {
         .route(
             "/api/{*fn_name}",
             get(server_fn_handler).post(server_fn_handler),
-        )
-        .route(
-            "/logout",
-            get(logout_handler)
         )
         // .route(
         //     "/login",

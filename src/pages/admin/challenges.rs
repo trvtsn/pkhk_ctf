@@ -43,18 +43,6 @@ pub fn Challenges() -> impl IntoView {
     let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
     let events_signal = RwSignal::<Vec<db::structs::Event>>::new(vec![]);
 
-    let categories_resource = Resource::new(move || refresh.get(), move |_| async move {
-        let all_categories = get_all_challenge_categories().await.unwrap_or_default();
-        categories_signal.set(all_categories);
-    });
-
-    let events_resource = Resource::new(move || refresh.get(), move |_| async move {
-        let all_events = get_all_events().await.unwrap_or_default();
-        events_signal.set(all_events);
-    });
-
-
-
     let upload_action = Action::new_local(|data: &FormData| {
         upload_file(data.clone().into())
     });
@@ -102,8 +90,7 @@ pub fn Challenges() -> impl IntoView {
             <Show when=move || section.get() == Actions::Create>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Event"</label>
                 <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="event_id" on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     event_id.set(value.parse::<u32>().unwrap_or_default());
                 }>
                     <option value="">"-- Select Event --"</option>
@@ -125,15 +112,13 @@ pub fn Challenges() -> impl IntoView {
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
                 <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="name" on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     name.set(value);
                 }/>
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
                 <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="description" on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     description.set(value);
                 }/>
 
@@ -174,27 +159,24 @@ pub fn Challenges() -> impl IntoView {
                     <option value="__new__">"-- Add New --"</option>
                 </select>
                 <input class="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" hidden=move || !category_add_new_selected.get() type="text" id="action_create_category_input" on:change=move |ev: Event| {
-                    let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                    category.set(sel.value())
+                    let value = event_target_value(&ev);
+                    category.set(value)
                 }/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Difficulty"</label>
                 <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" min="1" max="5" name="difficulty" on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     difficulty.set(value.parse::<i8>().unwrap_or_default());
                 }/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Points"</label>
                     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" min="0" name="points" on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        let value = input.value();
+                        let value = event_target_value(&ev);
                         points.set(value.parse::<u32>().unwrap_or_default());
                     }/>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Flag"</label>
                     <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="flag" on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        let value = input.value();
+                        let value = event_target_value(&ev);
                         flag.set(value);
                     }/>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Attachment (Max 16 MiB)"</label>

@@ -27,7 +27,7 @@ cargo leptos watch
 - [x] Add "Change Username" function for user
 - [x] Add "Change Avatar" function for user
 - [x] Actually make challenge solves work on "submit" button press
-- [ ] Fit correct HTTP status codes to matching API responses
+- [x] Fit correct HTTP status codes to matching API responses
 - [x] Add dark mode toggle in user settings
 - [x] Add attachments download button to challenges
 - [x] Add "Change Password" function for user
@@ -43,7 +43,7 @@ cargo leptos watch
 ### Styling
 - [x] Display challenges and users in uniform boxes
 - [x] Add custom site favicon
-- [ ] Add icons
+- [x] Add icons
 - [x] Add "Points" indicator to user on navbar and profile
 - [x] Format log messages in Admin "Log" section
 - [x] Add dark mode styling

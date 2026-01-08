@@ -4,6 +4,10 @@ use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{At
 use cfg_if::cfg_if;
 use chrono::NaiveDateTime;
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
+#[cfg(feature = "ssr")]
+use leptos_axum::ResponseOptions;
+#[cfg(feature = "ssr")]
+use http::StatusCode;
 // #[cfg(feature = "ssr")]
 // use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use serde::{Deserialize, Serialize};
@@ -48,8 +52,11 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
             // and it feels faster. Get the AuthSession.
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+
             if user.role != UserRole::Admin {
-                return Err(AppError::Unauthorized);
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
             }
 
             match action {
@@ -181,8 +188,11 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
             // and it feels faster. Get the AuthSession.
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+
             if user.role != UserRole::Admin {
-                return Err(AppError::Unauthorized);
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
             }
 
             match action {
@@ -227,15 +237,18 @@ pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
 
             if user.role != UserRole::Admin {
-                return Err(AppError::Unauthorized);
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
             }
 
             match DbUser::get_all(&auth.backend.pool).await {
                 Ok(users) => Ok(users),
                 Err(e) => {
                     tracing::error!(error = ?e);
+                    response.set_status(StatusCode::INTERNAL_SERVER_ERROR);
                     Err(AppError::InternalError("internal error".to_string()))
                 }
             }
@@ -252,9 +265,11 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
 
             if user.role != UserRole::Admin {
-                return Err(AppError::Unauthorized);
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
             }
 
             match db::structs::Event::get_all(&auth.backend.pool).await {
@@ -277,9 +292,11 @@ pub async fn upload_file(file: MultipartData) -> Result<ApiResult<AttachmentWith
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
 
             if user.role != UserRole::Admin {
-                return Err(AppError::Unauthorized);
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
             }
 
             let mut file_name = String::new();
@@ -324,9 +341,11 @@ pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
 
             if user.role != UserRole::Admin {
-                return Err(AppError::Unauthorized);
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
             }
 
             match db::structs::Challenge::get_all_categories(&auth.backend.pool).await {
@@ -349,11 +368,12 @@ pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
 
             if user.role != UserRole::Admin {
-                return Err(AppError::Unauthorized);
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
             }
-
             match db::structs::AttachmentWithoutBlob::get_all(&None, &auth.backend.pool).await {
                 Ok(attachments) => Ok(attachments),
                 Err(e) => {

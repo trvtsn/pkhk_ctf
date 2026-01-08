@@ -7,9 +7,9 @@ pub mod files;
 
 use super::admin::{challenges::Challenges, events::Events, log::Log, site_settings::SiteSettings, users::Users, files::Files};
 use crate::{components::navbar::NavBar};
-// use axum::{response::IntoResponse, Router, routing::get};
-// use axum_login::login_required;
+use icondata as i;
 use leptos::prelude::*;
+use leptos_icons::Icon;
 // use std::fmt::Display;
 // use thaw::*;
 
@@ -77,44 +77,54 @@ pub fn AdminNavBar() -> impl IntoView {
         <nav class="col-start-1 col-end-1 p-4 bg-white rounded-lg shadow-sm flex flex-col gap-2">
             <ul class="flex flex-col gap-1" role="menu" aria-label="Admin navigation">
                 <li>
-                    <p class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" on:click=move |_| selected.set(AdminSections::SiteSettings)>"Site Settings"</p>
+                    <p 
+                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        on:click=move |_| selected.set(AdminSections::SiteSettings)>
+                        <Icon icon=i::LuSettings/>
+                        "Site Settings"
+                    </p>
                 </li>
                 <li>
-                    <p class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" on:click=move |_| selected.set(AdminSections::Events)>"Events"</p>
+                    <p 
+                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        on:click=move |_| selected.set(AdminSections::Events)>
+                        <Icon icon=i::LuCalendarRange/>
+                        "Events"
+                    </p>
                 </li>
                 <li>
-                    <p class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" on:click=move |_| selected.set(AdminSections::Challenges)>"Challenges"</p>
+                    <p 
+                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        on:click=move |_| selected.set(AdminSections::Challenges)>
+                        <Icon icon=i::MdiBullseyeArrow/>
+                        "Challenges"
+                    </p>
                 </li>
                 <li>
-                    <p class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" on:click=move |_| selected.set(AdminSections::Files)>"Files"</p>
+                    <p 
+                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        on:click=move |_| selected.set(AdminSections::Files)>
+                        <Icon icon=i::LuFiles/>
+                        "Files"
+                    </p>
                 </li>
                 <li>
-                    <p class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" on:click=move |_| selected.set(AdminSections::Users)>"Users"</p>
+                    <p 
+                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        on:click=move |_| selected.set(AdminSections::Users)>
+                        <Icon icon=i::LuUsers/>
+                        "Users"
+                    </p>
                 </li>
                 <li>
-                    <p class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" on:click=move |_| selected.set(AdminSections::Log)>"Log"</p>
+                    <p 
+                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        on:click=move |_| selected.set(AdminSections::Log)>
+                        <Icon icon=i::LuLogs/>
+                        "Log"
+                    </p>
                 </li>
             </ul>
         </nav>
-        // <NavDrawer>
-        //     <NavItem
-        //         value="Site Settings"
-        //         on:click=move |_| selected.set("Site Settings".to_string())
-        //     >
-        //         <p>"Site Settings"</p>
-        //     </NavItem>
-        //     <NavItem value="Events" on:click=move |_| selected.set("Events".to_string())>
-        //         <p>"Events"</p>
-        //     </NavItem>
-        //     <NavItem
-        //         value="Challenges"
-        //         on:click=move |_| selected.set("Challenges".to_string())
-        //     >
-        //         <p>"Challenges"</p>
-        //     </NavItem>
-        //     <NavItem value="Log" on:click=move |_| selected.set("Log".to_string())>
-        //         <p>"Log"</p>
-        //     </NavItem>
-        // </NavDrawer>
     }
 }

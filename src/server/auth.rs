@@ -43,18 +43,18 @@ pub async fn login_handler(
 //     }
 // }
 
-pub async fn logout_handler(mut auth_session: AuthSession) -> impl IntoResponse {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "ssr")] {
-            match auth_session.logout().await {
-                Ok(_) => axum::response::Redirect::to("/").into_response(),
-                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            }
-        } else {
-            leptos_router::Redirect::to("/").into_response()
-        }
-    }
-}
+// pub async fn logout_handler(mut auth_session: AuthSession) -> impl IntoResponse {
+//     cfg_if::cfg_if! {
+//         if #[cfg(feature = "ssr")] {
+//             match auth_session.logout().await {
+//                 Ok(_) => axum::response::Redirect::to("/").into_response(),
+//                 Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+//             }
+//         } else {
+//             leptos_router::Redirect::to("/").into_response()
+//         }
+//     }
+// }
 
 // use anyhow::anyhow;
 // use argon2::{Argon2, PasswordHash, PasswordVerifier};

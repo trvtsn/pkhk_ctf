@@ -57,13 +57,13 @@ pub fn Login() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="container p-8 inline justify-center">
+        <div class="p-8 justify-center grid grid-col">
             <h3 class="text-4xl text-center">"Login"</h3>
             <ActionForm action=login>
-                <label>"Email"</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Email"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="email" name="email" bind:value=email />
                 
-                <label>"Password"</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="password" bind:value=password />
                 
                 <input

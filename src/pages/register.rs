@@ -42,15 +42,16 @@ pub fn Register() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="container p-8 inline justify-center">
+        <div class="p-8 justify-center grid grid-col">
             <h3 class="text-4xl text-center">"Register"</h3>
             <ActionForm action=register>
                 <label>"Email"</label>
+                {available_ui}
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="email" name="email" on:blur=move |ev| {
                     let value = event_target_value(&ev);
                     email.set(value);
                 }/>
-                    {available_ui}
+                    
                 <label>"Password"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="password" bind:value=password />
                 

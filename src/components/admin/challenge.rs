@@ -109,8 +109,7 @@ pub fn Challenge(
             <Show when=move || editing.get()>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Event"</label>
                 <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="event_id" on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     event_id_signal.set(value.parse::<u32>().unwrap_or_default());
                 }>
                     <option value="">"-- Select Event --"</option>
@@ -139,8 +138,7 @@ pub fn Challenge(
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="description" value=move || description_signal.get().unwrap_or_default() on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     description_signal.set(Some(value));
                 }></input>
                 
@@ -181,29 +179,25 @@ pub fn Challenge(
                     <option value="__new__">"-- Add New --"</option>
                 </select>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" hidden=move || !category_add_new_selected.get() type="text" id="action_edit_category_input" on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     category_signal.set(Some(value));
                 }/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Difficulty"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="difficulty" min=0 max=5 value=move || difficulty_signal.get() on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     difficulty_signal.set(value.parse::<i8>().unwrap_or_default());
                 }></input>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Points"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="points" value=move || points_signal.get() on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     points_signal.set(value.parse::<u32>().unwrap_or_default());
                 }></input>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Flag"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="flag" value=move || flag_signal.get() on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     flag_signal.set(value);
                 }></input>
                 

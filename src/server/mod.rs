@@ -8,8 +8,10 @@ use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use leptos::{
-    logging::log, prelude::use_context, server, server_fn::codec::{MultipartData, MultipartFormData}
+    logging::log, prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}
 };
+#[cfg(feature = "ssr")]
+use leptos_axum::ResponseOptions;
 use time::OffsetDateTime;
 use tracing::instrument;
 use std::collections::{BTreeSet, HashMap};
@@ -298,9 +300,13 @@ pub async fn login_user(email: String, password: String) -> Result<ApiResult<Opt
 pub async fn get_user() -> Result<Option<User>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
+            let response = expect_context::<ResponseOptions>();
             match use_context::<AuthSession>() {
                 Some(session) => Ok(session.user.clone()),
-                None => Ok(None)
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    Ok(None)
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -313,8 +319,16 @@ pub async fn get_user() -> Result<Option<User>, AppError> {
 pub async fn get_user_points() -> Result<u32, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let session: AuthSession = use_context().expect("session not provided");
-            match db::structs::Submission::get_user_points(&session.user.unwrap_or_default().id, &session.backend.pool).await {
+            let auth: AuthSession = use_context().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+            match db::structs::Submission::get_user_points(&user.id, &auth.backend.pool).await {
                 Ok(points) => Ok(points),
                 Err(e) => {
                     tracing::error!(error = ?e);
@@ -332,8 +346,16 @@ pub async fn get_user_points() -> Result<u32, AppError> {
 pub async fn get_db_user(username: String) -> Result<Option<DbUser>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let pool = use_context::<MySqlPool>().expect("pool not provided");
-            match DbUser::get(&UserIdentifier::Username(username), &pool).await {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+            match DbUser::get(&UserIdentifier::Username(username), &auth.backend.pool).await {
                 Ok(user) => Ok(user),
                 Err(e) => {
                     tracing::error!(error = ?e);
@@ -382,7 +404,14 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
-            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
 
             // check if the challenge is already solved, and if so, return Error
             match db::structs::Submission::get_user_solved_challenges(&user.id, &auth.backend.pool).await {
@@ -426,7 +455,14 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
-            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
             match DbUser::edit_username(&user.id, &username, &auth.backend.pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed username".to_string() }),
                 Err(e) => Err(e.into())
@@ -443,7 +479,14 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
-            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
             
             let mut data = avatar.into_inner().unwrap();
             let mut file_name = String::new();
@@ -474,8 +517,16 @@ pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
 
-            match DbUser::get_avatar(&UserIdentifier::Username(username), &auth.backend.pool).await {
+            match DbUser::get_avatar(&UserIdentifier::Username(user.username.clone()), &auth.backend.pool).await {
                 Ok(avatar) => Ok(avatar),
                 Err(e) => Err(e.into())
             }
@@ -491,7 +542,14 @@ pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
-            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
             match db::structs::Submission::get_user_solved_challenges(&user.id, &auth.backend.pool).await {
                 Ok(solved) => Ok(solved),
                 Err(e) => Err(e.into())
@@ -508,6 +566,10 @@ pub async fn download_blob(
     auth_session: AuthSession,
     Path((id_str, filename)): Path<(String, String)>,
 ) -> impl IntoResponse {
+    match auth_session.user {
+        Some(_) => {},
+        None => return (StatusCode::FORBIDDEN).into_response(),
+    } 
     let id = match id_str.parse::<u32>() { //
         Ok(v) => v,
         Err(_) => return (StatusCode::BAD_REQUEST, "invalid id").into_response(),
@@ -571,7 +633,14 @@ pub async fn edit_password(old_password: String, new_password: String) -> Result
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
-            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
 
             if old_password == new_password {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
@@ -598,3 +667,14 @@ pub async fn user_exists(email: String) -> Result<bool, AppError> {
         Err(e) => Err(e.into())
     }
 }
+
+#[server(name=LogoutUser, prefix="/api/",endpoint="logout")]
+pub async fn logout_user() -> Result<(), AppError> {
+    let mut auth = use_context::<AuthSession>().unwrap();
+
+    match auth.logout().await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e.into())
+    }
+}
+
