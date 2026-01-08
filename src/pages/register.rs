@@ -1,5 +1,6 @@
-use crate::{components::navbar::NavBar, server::Register};
+use crate::{components::navbar::NavBar, server::{Register, get_user, user_exists}};
 use leptos::prelude::*;
+use leptos_router::hooks::use_navigate;
 
 /// Default Home Page
 #[component]
@@ -22,6 +23,48 @@ pub fn Register() -> impl IntoView {
         }
     });
 
+    let logged_in = Resource::new(move || register.version().get(), move |ver| async move {
+        if let Some(user) = get_user().await.ok().and_then(|u| u) {
+            if ver > 0 { // only redirect if a *new* registration happened
+                let nav = use_navigate();
+                nav("/", Default::default());
+            }
+            Some(user)          
+        } else {
+            None
+        }
+    });
+
+    // Return true if the username provided is already taken, false if it is available
+    let name_taken = Resource::new(move || email.get(), move |email| async move {user_exists(email).await});
+
+    // Show a piece of text to inform the user of whether or not their chosen username is already
+    // taken. A Transition is used here instead of a Suspense so that it can switch back and forth
+    // every time the name is edited. Suspend::new is a new way to turn async stuff into events in
+    // the reactive system. 
+    let available_ui = move || view! {
+        <Transition fallback=|| {
+            view! { "..." }
+        }>
+            {move || Suspend::new(async move {
+                match name_taken.await {
+                    Ok(true) => view! { " Sorry, that one's taken. " }.into_any(),
+                    _ => view! { " Available! " }.into_any(),
+                }
+            })}
+        </Transition>
+    };
+
+    // Inform the user if they are logged in already, and who they are (people forget these things
+    // from time to time) This uses the Either component, which has a ton of relatives for
+    // different numbers of options. If you have 7 things, for example, try the Either7 version.
+    let login_status = move || Suspend::new(async move {
+        match logged_in.await {
+            Some(user) => view! { <p>"Logged in as " {user.username}</p> }.into_any(),
+            None => view! { <p>"Not logged in yet!"</p> }.into_any()
+        } 
+    });
+
     view! {
         <NavBar />
         <div class="container p-8 inline justify-center">
@@ -30,6 +73,7 @@ pub fn Register() -> impl IntoView {
                 <label>
                     <b>"Email"</b>
                     <input class="bg-white border" type="email" name="email" bind:value=email />
+                    {available_ui}
                 </label>
                 <label>
                     <b>"Password"</b>
@@ -44,6 +88,7 @@ pub fn Register() -> impl IntoView {
                     value="Register"
                 />
             </ActionForm>
+            <Transition fallback=|| view! { "Checking login status..." }>{login_status}</Transition>
         </div>
     }
 }

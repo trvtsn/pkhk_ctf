@@ -602,6 +602,30 @@ cfg_if! {
                     }
             }
 
+            pub async fn is_user_available(email: &String, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT email
+                    FROM users
+                    WHERE email = ?
+                    ",
+                    email
+                )
+                    .fetch_optional(executor)
+                    .await {
+                        Ok(row) => {
+                            match row {
+                                Some(_) => Ok(true),
+                                None => Ok(false)
+                            }
+                        },
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn add(&self, executor: impl MySqlExecutor<'_>) -> anyhow::Result<u32> {
                 match sqlx::query!(
                     "

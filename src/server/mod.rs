@@ -588,3 +588,13 @@ pub async fn edit_password(old_password: String, new_password: String) -> Result
         }
     }
 }
+
+#[server(name=UserExists, prefix="/api",endpoint="user_exists")]
+pub async fn user_exists(email: String) -> Result<bool, AppError> {
+    let auth = use_context::<AuthSession>().unwrap();
+
+    match DbUser::is_user_available(&email, &auth.backend.pool).await {
+        Ok(result) => Ok(result),
+        Err(e) => Err(e.into())
+    }
+}
