@@ -1,5 +1,4 @@
 use cfg_if::cfg_if;
-use pkhk_ctf::server::auth::{login_handler};
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
@@ -112,7 +111,7 @@ async fn main() {
             get(logs_sse)
         )
         .route(
-            "/file/{id}/{filename}",
+            "/file/{id}",
             get(download_blob)
         )
         .leptos_routes_with_handler(

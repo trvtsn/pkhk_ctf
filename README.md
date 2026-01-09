@@ -35,10 +35,9 @@ cargo leptos watch
 ### Security
 - [x] Restrict access to admin endpoints and API
 - [x] Hashing of flags
-- [ ] Increase session cookie length and complexity
 - [x] Generalize/structurize API endpoint names (e.g. **GET /api/build_leaderboard_data** -> **POST /api/leaderboard** and **GET /api/get_db_user** -> **POST /api/user**)
 - [x] Persist challenge solves, progress after reloads (Make sure users can't solve one challenge many times)
-- [ ] Replace all ID's with UUID's
+- [x] Replace all ID's with UUID's
 
 ### Styling
 - [x] Display challenges and users in uniform boxes

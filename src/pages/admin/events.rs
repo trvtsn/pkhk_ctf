@@ -109,7 +109,7 @@ pub fn Events() -> impl IntoView {
                                 <div class="m-4 grid grid-cols-4 content-stretch">
                                     <For
                                         each=move || events.clone()
-                                        key=|event: &db::structs::Event| event.id
+                                        key=|event: &db::structs::Event| event.id.clone()
                                         let(event)
                                     >
                                         <div class="event p-2">

@@ -7,9 +7,7 @@ use axum::extract::Path;
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
-use leptos::{
-    logging::log, prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}
-};
+use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
 use time::OffsetDateTime;
@@ -51,7 +49,7 @@ pub mod structs {
     #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
     pub struct User {
         /// The database id for this user
-        pub id: u32,
+        pub id: String,
 
         /// User-facing username, has a unique constraint in the db so we can use it to id users
         pub username: String,
@@ -122,7 +120,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
             };
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
-                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id)), &auth.backend.pool).await?;
+                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &auth.backend.pool).await?;
                 cwa.push(ChallengeWithAttachments { challenge, attachments });
             }
             Ok(cwa)
@@ -139,10 +137,10 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
         if #[cfg(feature = "ssr")] {
             let pool = &pool()?;
             let active_event_id = match get_active_events().await {
-                Ok(active_events) => active_events.first().unwrap().id,
+                Ok(active_events) => active_events.first().unwrap().id.clone(),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    2_u32
+                    "05ea8233-b9f1-4b29-bc3a-025161bddf6d".to_string() // perpetual event in db
                 }
             };
 
@@ -348,13 +346,13 @@ pub async fn get_db_user(username: String) -> Result<Option<DbUser>, AppError> {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
+            match auth.user {
+                Some(_) => {},
                 None => {
                     response.set_status(StatusCode::FORBIDDEN);
                     return Err(AppError::Forbidden);
                 }
-            };
+            }
             match DbUser::get(&UserIdentifier::Username(username), &auth.backend.pool).await {
                 Ok(user) => Ok(user),
                 Err(e) => {
@@ -538,7 +536,7 @@ pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
 
 #[server(name=SolvedChallenges, prefix="/api/challenges", endpoint="solved")]
 #[instrument]
-pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
+pub async fn get_user_solved_challenges() -> Result<Vec<String>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -564,19 +562,15 @@ pub async fn get_user_solved_challenges() -> Result<Vec<u32>, AppError> {
 #[instrument(skip(auth_session))]
 pub async fn download_blob(
     auth_session: AuthSession,
-    Path((id_str, filename)): Path<(String, String)>,
+    Path(id): Path<String>,
 ) -> impl IntoResponse {
     match auth_session.user {
         Some(_) => {},
         None => return (StatusCode::FORBIDDEN).into_response(),
     } 
-    let id = match id_str.parse::<u32>() { //
-        Ok(v) => v,
-        Err(_) => return (StatusCode::BAD_REQUEST, "invalid id").into_response(),
-    };
 
     let pool = auth_session.backend.pool;
-    let file = match db::structs::Attachment::get(AttachmentIdentifier::IdFileName((id, filename.clone())), &pool).await {
+    let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id), &pool).await {
         Ok(Some(f)) => f,
         Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
         Err(e) => {
@@ -589,7 +583,7 @@ pub async fn download_blob(
     let disposition = format!(
         "attachment; filename=\"{}\"",
         // sanitize(&filename)
-        filename
+        file.file_name
     );
 
     (

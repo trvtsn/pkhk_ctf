@@ -1,6 +1,6 @@
 use crate::{components::navbar::NavBar, server::{LoginUser, get_user}};
 use leptos::prelude::*;
-use leptos_router::{components::Redirect, hooks::{use_navigate, use_query_map}};
+use leptos_router::hooks::{use_navigate, use_query_map};
 
 /// Default Home Page
 #[component]

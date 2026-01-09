@@ -8,7 +8,7 @@ use leptos_router::hooks::use_navigate;
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
     let user = Resource::new(move || (), async move |_| {
-        get_user().await.unwrap_or_default()
+        get_user().await.unwrap_or(None)
     });
     let user_points = Resource::new(move || (), async move |_| {
         get_user_points().await
@@ -31,14 +31,14 @@ pub fn NavBar() -> impl IntoView {
                     </li>
                     <li class="flex items-center gap-2">
                         
-                        <a href="challenges" class="inline-flex items-center gap-2 m-1">
+                        <a href="/challenges" class="inline-flex items-center gap-2 m-1">
                             <Icon icon=i::MdiBullseyeArrow />
                             "Challenges"
                         </a>
                     </li>
                     <li class="flex items-center gap-2">
                         
-                        <a href="leaderboard" class="inline-flex items-center gap-2 m-1">
+                        <a href="/leaderboard" class="inline-flex items-center gap-2 m-1">
                             <Icon icon=i::LuChartLine />
                             "Leaderboard"
                         </a>
@@ -84,7 +84,7 @@ pub fn NavBar() -> impl IntoView {
                                     </li>
                                     <b>"Points: "{move || user_points.get().map(|user_points| match user_points {
                                         Ok(user_points) => user_points,
-                                        Err(e) => 0_u32
+                                        Err(_e) => 0_u32
                                     })}</b>
                                 }.into_any()
                             }

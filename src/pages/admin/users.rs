@@ -20,7 +20,7 @@ pub fn Users() -> impl IntoView {
                             view! {
                                 <For
                                     each=move || users.clone()
-                                    key=|user: &DbUser| user.id
+                                    key=|user: &DbUser| user.id.clone()
                                     let(user)
                                 >
                                     <User user/>

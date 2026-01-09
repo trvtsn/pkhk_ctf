@@ -1,6 +1,5 @@
-use crate::{components::navbar::NavBar, server::{Register, get_user, user_exists}};
-use leptos::{prelude::*, web_sys::{HtmlInputElement, Event}, wasm_bindgen::JsCast};
-use leptos_router::hooks::use_navigate;
+use crate::{components::navbar::NavBar, server::{Register, user_exists}};
+use leptos::prelude::*;
 
 /// Default Home Page
 #[component]
@@ -45,14 +44,14 @@ pub fn Register() -> impl IntoView {
         <div class="p-8 justify-center grid grid-col">
             <h3 class="text-4xl text-center">"Register"</h3>
             <ActionForm action=register>
-                <label>"Email"</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Email"</label>
                 {available_ui}
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="email" name="email" on:blur=move |ev| {
                     let value = event_target_value(&ev);
                     email.set(value);
                 }/>
                     
-                <label>"Password"</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="password" bind:value=password />
                 
                 <input

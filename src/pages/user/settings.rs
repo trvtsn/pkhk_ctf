@@ -52,13 +52,11 @@ pub fn Settings() -> impl IntoView {
                 <input class="bg-white border" type="file" name="file"
                     on:change=move |ev: Event| {
                         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() {
-                            if files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                edit_avatar_action.dispatch_local(fd);
-                            }
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            edit_avatar_action.dispatch_local(fd);
                         }
                     }
                 />

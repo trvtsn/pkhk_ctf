@@ -36,7 +36,7 @@ pub fn Files() -> impl IntoView {
         <div class="files m-2 grid grid-cols-4">
             <For
                 each=move || all_files.get().clone().unwrap_or_default()
-                key=|file: &db::structs::AttachmentWithoutBlob| file.id
+                key=|file: &db::structs::AttachmentWithoutBlob| file.id.clone()
                 let(file)
             >
                 <File file />

@@ -9,6 +9,7 @@ use password_hash::rand_core::OsRng;
 #[cfg(feature = "ssr")]
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use time::OffsetDateTime;
+use tracing::instrument;
 
 #[cfg(feature = "ssr")]
 pub type AuthSession = axum_login::AuthSession<Backend>;
@@ -20,7 +21,7 @@ pub mod structs {
     #[cfg(feature = "ssr")]
     use sqlx::MySqlPool;
 
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     pub struct Backend {
         pub pool: MySqlPool
     }
@@ -38,9 +39,9 @@ cfg_if! {
         use sqlx::MySqlPool;
 
         impl AuthUser for User {
-            type Id = u32;
+            type Id = String;
             fn id(&self) -> Self::Id {
-                self.id
+                self.id.clone()
             }
             fn session_auth_hash(&self) -> &[u8] {
                 self.session_auth_hash.as_ref()
@@ -96,7 +97,7 @@ cfg_if! {
                     }
                 }
                 let new_user = DbUser { 
-                    id: 0, 
+                    id: "".to_string(), 
                     username: username.clone(), 
                     email, 
                     pw_hash: pw_hash_str, 
@@ -127,27 +128,25 @@ cfg_if! {
             type Credentials = Credentials;
             type Error = AppError;
 
+            #[instrument]
             async fn authenticate(&self, creds: Self::Credentials) -> Result<Option<Self::User>, Self::Error> {
-                let db_user = match DbUser::get_optional(creds.user_identifier, &self.pool).await {
+                let db_user = match DbUser::get(&creds.user_identifier, &self.pool).await {
                     Ok(Some(user)) => user,
                     Ok(None) => return Ok(None),
                     Err(e) => return Err(Self::Error::DatabaseError(e.to_string()))
                 };
 
-                let hasher = Argon2::default();
-                let hash = PasswordHash::parse(db_user.pw_hash.as_ref(), password_hash::Encoding::B64)
-                    .map_err(|e| Self::Error::InternalError(format!("Corrupted password hash: {e}")))?;
-                // Use the existing implementation to verify the password. I was doing this myself until
-                // I noticed that there is a PasswordVerifier trait, so this is better in every way.
-                if let Ok(()) = hasher.verify_password(creds.password.as_bytes(), &hash) {
+                if let Ok(()) = verify_hash(creds.password, db_user.clone().pw_hash) {
                     Ok(Some(db_user.to_user().await?))
                 } else {
                     Err(Self::Error::InternalError("wrong pw".to_string()))
                 }
             }
 
+            #[instrument]
             async fn get_user(&self, user_id: &UserId<Self>) -> Result<Option<Self::User>, Self::Error> {
-                match DbUser::get_optional(UserIdentifier::Id(*user_id), &self.pool).await {
+                tracing::info!("DbUser::get()");
+                match DbUser::get(&UserIdentifier::Id(user_id.clone()), &self.pool).await {
                     Ok(Some(user)) => Ok(Some(user.to_user().await.expect(""))),
                     Ok(None) => Err(Self::Error::InternalError("".to_string())),
                     Err(e) => Err(Self::Error::DatabaseError(e.to_string()))
@@ -167,6 +166,7 @@ cfg_if! {
         // }
 
         impl DbUser {
+            #[instrument]
             pub async fn to_user(self) -> anyhow::Result<User> {
                 // parse the hash data out of the string representation that we kept in the database
                 let PasswordHash {hash, ..} = PasswordHash::parse(&self.pw_hash, password_hash::Encoding::B64).map_err(|e| AppError::InternalError(format!("Decode password: {e}")))?;

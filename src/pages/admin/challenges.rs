@@ -7,7 +7,7 @@ use leptos_use::{UseTimeoutFnReturn, use_timeout_fn};
 use crate::server::db::structs::AttachmentWithoutBlob;
 use crate::server::enums::ResultStatus;
 use crate::server::structs::ApiResult;
-use crate::{components::admin::challenge::Challenge, server::{admin::{upload_file, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
+use crate::{components::admin::challenge::Challenge, server::{admin::{upload_file}, db, get_all_challenges_with_attachments}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Actions {
@@ -23,8 +23,7 @@ pub fn Challenges() -> impl IntoView {
     let section = RwSignal::new(Actions::None);
     let category_add_new_selected = RwSignal::new(false);
     
-    let challenge_id = RwSignal::new(0_u32);
-    let event_id = RwSignal::new(0_u32);
+    let event_id = RwSignal::new("".to_string());
     let name = RwSignal::new("".to_string());
     let description = RwSignal::new("".to_string());
     let category = RwSignal::new("".to_string());
@@ -91,12 +90,12 @@ pub fn Challenges() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Event"</label>
                 <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="event_id" on:change=move |ev: Event| {
                     let value = event_target_value(&ev);
-                    event_id.set(value.parse::<u32>().unwrap_or_default());
+                    event_id.set(value);
                 }>
                     <option value="">"-- Select Event --"</option>
                         <For
                             each=move || events_signal.get()
-                            key=|e: &db::structs::Event| e.id
+                            key=|e: &db::structs::Event| e.id.clone()
                             let(e: db::structs::Event)
                         >
                             {
@@ -104,7 +103,7 @@ pub fn Challenges() -> impl IntoView {
                                 let e2 = e.clone();
                                 let e3 = e.clone();
                                 view! {
-                                    <option value={move || e1.id}>{move || e2.name.clone()} " (ID: " {move || e3.id} ")"</option>
+                                    <option value={move || e1.id.clone()}>{move || e2.name.clone()} " (ID: " {move || e3.id.clone()} ")"</option>
                                 }
                             }
                         </For>
@@ -183,13 +182,11 @@ pub fn Challenges() -> impl IntoView {
                 <input class="w-full text-sm" type="file" name="attachment"
                     on:change=move |ev: Event| {
                         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() {
-                            if files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                upload_action.dispatch_local(fd);
-                            }
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            upload_action.dispatch_local(fd);
                         }
                     }
                 />
@@ -211,7 +208,7 @@ pub fn Challenges() -> impl IntoView {
                         on:click=move |_| {
                             // let start = start.clone();
                             // let stop = stop.clone();
-                            let event_id = event_id.get();
+                            let event_id = event_id.get().clone();
                             let name = name.get().clone();
                             let description = description.get().clone();
                             let category = category.get().clone();
@@ -222,13 +219,11 @@ pub fn Challenges() -> impl IntoView {
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
                                     crate::server::admin::ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, attachment } 
-                                ).await {
-                                    if result == ResultStatus::Success {
-                                        created.set(true);
-                                        refresh.update(|n| *n += 1);
-                                        // stop();
-                                        // start(created);
-                                    }
+                                ).await && result == ResultStatus::Success {
+                                    created.set(true);
+                                    refresh.update(|n| *n += 1);
+                                    // stop();
+                                    // start(created);
                                 }
                             });
                         }
@@ -266,7 +261,7 @@ pub fn Challenges() -> impl IntoView {
                                 <div class="m-4 grid grid-cols-4 content-stretch">
                                     <For
                                         each=move || group.1.clone()
-                                        key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id
+                                        key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id.clone()
                                         let(challenge)
                                     >
                                         <div class="challenge p-2">

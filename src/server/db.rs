@@ -25,16 +25,9 @@ cfg_if! {
             let pool = connect().await?;
             DB.set(pool).expect("DB already initialized");
             add_admin().await?;
-            // #[cfg(debug_assertions)]
-            // add_sample_data().await?;
             
             Ok(())
         }
-
-        // #[cfg(debug_assertions)]
-        // async fn add_sample_data() -> Result<(), String> {
-
-        // }
 
         pub async fn add_admin() -> Result<(), AppError> {
             let username = &constants::config::ADMIN_USERNAME.to_string();
@@ -83,7 +76,7 @@ pub mod structs {
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     #[cfg_attr(feature = "ssr", derive(FromRow))]
     pub struct User {
-        pub id: u32,
+        pub id: String,
         pub username: String,
         pub email: String,
         pub pw_hash: String,
@@ -94,10 +87,10 @@ pub mod structs {
 
     #[derive(Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
     pub struct Attachment {
-        pub id: u32,
-        pub challenge_id: Option<u32>,
-        pub event_id: Option<u32>,
-        pub user_id: Option<u32>,
+        pub id: String,
+        pub challenge_id: Option<String>,
+        pub event_id: Option<String>,
+        pub user_id: Option<String>,
         pub file_name: String,
         pub file_blob: Vec<u8>,
         pub file_type: FileType,
@@ -107,10 +100,10 @@ pub mod structs {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
     pub struct AttachmentWithoutBlob {
-        pub id: u32,
-        pub challenge_id: Option<u32>,
-        pub event_id: Option<u32>,
-        pub user_id: Option<u32>,
+        pub id: String,
+        pub challenge_id: Option<String>,
+        pub event_id: Option<String>,
+        pub user_id: Option<String>,
         pub file_name: String,
         pub file_type: FileType,
         pub mime_type: Option<String>,
@@ -119,8 +112,8 @@ pub mod structs {
 
     #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
     pub struct Challenge {
-        pub id: u32,
-        pub event_id: u32,
+        pub id: String,
+        pub event_id: String,
         pub name: String,
         pub description: Option<String>,
         pub category: Option<String>,
@@ -136,7 +129,7 @@ pub mod structs {
 
      #[derive(Eq, Clone, PartialEq, Serialize, Deserialize)]
     pub struct Event {
-        pub id: u32,
+        pub id: String,
         pub name: String,
         pub description: Option<String>,
         pub start_date: OffsetDateTime,
@@ -145,10 +138,10 @@ pub mod structs {
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
     pub struct Submission {
-        pub id: u32,
-        pub challenge_id: u32,
-        pub event_id: u32,
-        pub user_id: u32,
+        pub id: String,
+        pub challenge_id: String,
+        pub event_id: String,
+        pub user_id: String,
         pub points: u32,
         pub solved_at: OffsetDateTime
     }
@@ -175,31 +168,31 @@ pub mod enums {
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub enum UserIdentifier {
-        Id(u32),
+        Id(String),
         Email(String),
         Username(String),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub enum AttachmentIdentifier {
-        Id(u32),
-        ChallengeId(u32),
-        EventId(u32),
+        Id(String),
+        ChallengeId(String),
+        EventId(String),
         FileName(String),
-        IdFileName((u32, String))
+        IdFileName((String, String))
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub enum SubmissionIdentifier {
-        Id(u32),
-        ChallengeId(u32),
-        EventId(u32),
-        UserId(u32),
+        Id(String),
+        ChallengeId(String),
+        EventId(String),
+        UserId(String),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub enum FileIdentifier {
-        Id(u32),
+        Id(String),
         FileName(String)
     }
 
@@ -261,14 +254,16 @@ pub mod enums {
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         impl DbUser {
-            pub async fn add_admin(username: &String, email: &String, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn add_admin(username: &String, email: &String, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO users
-                    (username, email, pw_hash, created_at, last_active_at, role)
+                    (id, username, email, pw_hash, created_at, last_active_at, role)
                     VALUES
-                    (?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?)
                     ",
+                    id.to_string(),
                     username,
                     email,
                     pw_hash,
@@ -278,7 +273,7 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(_) => Ok(id.to_string()),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -286,15 +281,17 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_avatar(id: &u32, file_name: &String, file_blob: &Vec<u8>, mime_type: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_avatar(user_id: &String, file_name: &String, file_blob: &Vec<u8>, mime_type: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO attachments
-                    (user_id, file_name, file_blob, file_type, mime_type)
+                    (id, user_id, file_name, file_blob, file_type, mime_type)
                     VALUES
-                    (?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?)
                     ",
-                    id,
+                    id.to_string(), 
+                    user_id,
                     file_name,
                     file_blob,
                     "avatar".to_string(),
@@ -310,7 +307,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_password(id: &u32, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_password(id: &String, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -330,7 +327,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_username(id: &u32, username: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_username(id: &String, username: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -490,94 +487,6 @@ cfg_if! {
                 }
             }
 
-            pub async fn get_optional(identifier: UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
-                match identifier {
-                    UserIdentifier::Id(id) => {
-                        match sqlx::query_as!(
-                            Self,
-                            "
-                            SELECT id, username, email, pw_hash, created_at, last_active_at, role
-                            FROM users 
-                            WHERE id = ?
-                            ", 
-                            id
-                        )
-                            .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
-                                }
-                            }
-                    }
-                    UserIdentifier::Email(email) => {
-                        match sqlx::query_as!(
-                            Self,
-                            "
-                            SELECT id, username, email, pw_hash, created_at, last_active_at, role
-                            FROM users 
-                            WHERE email = ?
-                            ", 
-                            email
-                        )
-                            .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
-                                }
-                            }
-                    }
-                    UserIdentifier::Username(username) => {
-                        let pattern = format!("%{username}%");
-                        match sqlx::query_as!(
-                            Self,
-                            "
-                            SELECT id, username, email, pw_hash, created_at, last_active_at, role
-                            FROM users 
-                            WHERE username LIKE ?
-                            ", 
-                            pattern
-                        )
-                            .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
-                                }
-                            }
-                    }
-                }
-            }
-
-            pub async fn is_admin(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
-                match sqlx::query!(
-                    "
-                    SELECT role
-                    FROM users
-                    WHERE id = ?
-                    ",
-                    id
-                )
-                    .fetch_one(executor)
-                    .await {
-                        Ok(row) => {
-                            match row.role.to_lowercase().as_str() {
-                                "admin" => Ok(true),
-                                "competitor" => Ok(false),
-                                &_ => Ok(false)
-                            }
-                        },
-                        Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
-                        }
-                    }
-            }
-
             pub async fn is_username_available(username: &String, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
                 match sqlx::query!(
                     "
@@ -626,12 +535,14 @@ cfg_if! {
                     }
             }
 
-            pub async fn add(&self, executor: impl MySqlExecutor<'_>) -> anyhow::Result<u32> {
+            pub async fn add(&self, executor: impl MySqlExecutor<'_>) -> anyhow::Result<String> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
-                    INSERT INTO users (username, email, pw_hash, created_at, last_active_at, role) 
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ", 
+                    id.to_string(),
                     self.username,
                     self.email,
                     self.pw_hash,
@@ -641,7 +552,7 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(result) => Ok(result.last_insert_id() as u32),
+                        Ok(_) => Ok(id.to_string()),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -652,7 +563,7 @@ cfg_if! {
 
         impl Challenge {
             pub async fn add(
-                event_id: &u32, 
+                event_id: &String, 
                 name: &String, 
                 description: &String, 
                 category: &String,
@@ -660,14 +571,16 @@ cfg_if! {
                 points: &u32, 
                 flag_hash: &String, 
                 executor: impl MySqlExecutor<'_>
-            ) -> Result<u32, sqlx::Error> {
+            ) -> Result<String, sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO challenges
-                    (event_id, name, description, category, difficulty, points, flag_hash)
+                    (id, event_id, name, description, category, difficulty, points, flag_hash)
                     VALUES 
-                    (?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
+                    id.to_string(),
                     event_id,
                     name,
                     description,
@@ -678,7 +591,7 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(result) => Ok(result.last_insert_id() as u32),
+                        Ok(_) => Ok(id.to_string()),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -686,7 +599,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete(id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE
@@ -706,8 +619,8 @@ cfg_if! {
             }
 
             pub async fn edit(
-                id: &u32,
-                event_id: &u32, 
+                id: &String,
+                event_id: &String, 
                 name: &String, 
                 description: &String, 
                 category: &String,
@@ -743,7 +656,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get(id: &u32, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
+            pub async fn get(id: &String, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -828,7 +741,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_flag_hash(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
+            pub async fn get_flag_hash(id: &String, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT flag_hash
@@ -846,43 +759,26 @@ cfg_if! {
                         }
                     }
             }
-
-            pub async fn get_points(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
-                match sqlx::query!(
-                    "
-                    SELECT points
-                    FROM challenges 
-                    WHERE id = ?
-                    ", 
-                    id
-                )
-                    .fetch_one(executor)
-                    .await {
-                        Ok(row) => Ok(row.points),
-                        Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
-                        }
-                    }
-            }
         }
 
         impl Attachment {
             pub async fn add(
-                challenge_id: &Option<u32>, 
-                event_id: &Option<u32>, 
+                challenge_id: &Option<String>, 
+                event_id: &Option<String>, 
                 file_name: &String,
                 file_blob: &Vec<u8>,
                 file_type: &FileType,
                 mime_type: &Option<String>,
                 executor: impl MySqlExecutor<'_>
-            ) -> Result<u32, sqlx::Error> {
+            ) -> Result<String, sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO attachments
-                    (challenge_id, event_id, file_name, file_blob, file_type, mime_type)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (id, challenge_id, event_id, file_name, file_blob, file_type, mime_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ", 
+                    id.to_string(), 
                     challenge_id,
                     event_id,
                     file_name,
@@ -892,7 +788,7 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(result) => Ok(result.last_insert_id() as u32),
+                        Ok(_) => Ok(id.to_string()),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -997,8 +893,8 @@ cfg_if! {
             }
 
             pub async fn edit_event(
-                id: &u32,
-                event_id: &u32, 
+                id: &String,
+                event_id: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -1021,8 +917,8 @@ cfg_if! {
             }
 
             pub async fn edit_challenge(
-                id: &u32,
-                challenge_id: &u32, 
+                id: &String,
+                challenge_id: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -1398,20 +1294,22 @@ cfg_if! {
 
         impl AttachmentWithoutBlob {
             pub async fn add(
-                challenge_id: &Option<u32>, 
-                event_id: &Option<u32>, 
+                challenge_id: &Option<String>, 
+                event_id: &Option<String>, 
                 file_name: &String,
                 file_blob: &Vec<u8>,
                 file_type: &FileType,
                 mime_type: &Option<String>,
                 executor: impl MySqlExecutor<'_>
-            ) -> Result<(), sqlx::Error> {
+            ) -> Result<String, sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO attachments
-                    (challenge_id, event_id, file_name, file_blob, file_type, mime_type)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (id, challenge_id, event_id, file_name, file_blob, file_type, mime_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ", 
+                    id.to_string(), 
                     challenge_id,
                     event_id,
                     file_name,
@@ -1421,7 +1319,7 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(_) => Ok(id.to_string()),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -1526,8 +1424,8 @@ cfg_if! {
             }
 
             pub async fn edit_event(
-                id: &u32,
-                event_id: &u32, 
+                id: &String,
+                event_id: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -1550,8 +1448,8 @@ cfg_if! {
             }
 
             pub async fn edit_challenge(
-                id: &u32,
-                challenge_id: &u32, 
+                id: &String,
+                challenge_id: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -1949,14 +1847,16 @@ cfg_if! {
                 start_date: &NaiveDateTime, 
                 end_date: &NaiveDateTime, 
                 executor: impl MySqlExecutor<'_>
-            ) -> Result<(), sqlx::Error> {
+            ) -> Result<String, sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO events
-                    (name, description, start_date, end_date)
+                    (id, name, description, start_date, end_date)
                     VALUES 
-                    (?, ?, ?, ?)
+                    (?, ?, ?, ?, ?)
                     ", 
+                    id.to_string(), 
                     name,
                     description,
                     start_date,
@@ -1964,7 +1864,7 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(_) => Ok(id.to_string()),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -1972,7 +1872,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete(id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE
@@ -1992,7 +1892,7 @@ cfg_if! {
             }
 
             pub async fn edit(
-                id: &u32,
+                id: &String,
                 name: &String, 
                 description: &String, 
                 start_date: &NaiveDateTime, 
@@ -2021,7 +1921,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get(id: &u32, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
+            pub async fn get(id: &String, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -2059,7 +1959,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_metadata(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<EventMetadata, sqlx::Error> {
+            pub async fn get_metadata(id: &String, executor: impl MySqlExecutor<'_>) -> Result<EventMetadata, sqlx::Error> {
                 match sqlx::query_as!(
                     EventMetadata,
                     "
@@ -2079,7 +1979,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_total_possible_points(id: &u32, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
+            pub async fn get_total_possible_points(id: &String, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT CAST(COALESCE(SUM(points), 0) AS UNSIGNED) AS total_possible_points
@@ -2098,19 +1998,21 @@ cfg_if! {
 
         impl Submission {
             pub async fn add(
-                challenge_id: &u32, 
-                event_id: &u32, 
-                user_id: &u32, 
+                challenge_id: &String, 
+                event_id: &String, 
+                user_id: &String, 
                 points: &u32, 
                 solved_at: &time::OffsetDateTime, 
                 executor: impl MySqlExecutor<'_>
-            ) -> Result<(), sqlx::Error> {
+            ) -> Result<String, sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO submissions
-                    (challenge_id, event_id, user_id, points, solved_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    (id, challenge_id, event_id, user_id, points, solved_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ",
+                    id.to_string(),
                     challenge_id,
                     event_id,
                     user_id,
@@ -2119,7 +2021,7 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(_) => Ok(id.to_string()),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -2218,7 +2120,7 @@ cfg_if! {
                 }
             }
 
-            pub async fn get_user_points(user_id: &u32, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
+            pub async fn get_user_points(user_id: &String, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT CAST(COALESCE(SUM(points), 0) AS UNSIGNED) as points
@@ -2237,7 +2139,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_user_solved_challenges(user_id: &u32, executor: impl MySqlExecutor<'_>) -> Result<Vec<u32>, sqlx::Error> {
+            pub async fn get_user_solved_challenges(user_id: &String, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT challenge_id
@@ -2249,7 +2151,7 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => {
-                            let mut solved_challenge_ids = Vec::<u32>::new();
+                            let mut solved_challenge_ids = Vec::<String>::new();
                             for record in rows {
                                 solved_challenge_ids.push(record.challenge_id)
                             }

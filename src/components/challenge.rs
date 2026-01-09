@@ -1,20 +1,19 @@
-use cfg_if::cfg_if;
-use crate::server::{CheckFlag, check_flag, db::structs::{Attachment, AttachmentWithoutBlob, Challenge}, enums::ResultStatus, structs::ApiResult};
+use crate::server::{check_flag, db::structs::{AttachmentWithoutBlob, Challenge}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 // use thaw::*;
 
 #[component]
 pub fn Challenge(
-    id: u32,
+    id: String,
     name: String,
     description: Option<String>,
-    event_id: u32,
+    event_id: String,
     category: Option<String>,
     #[prop(default = 3)] difficulty: i8,
     points: u32,
     #[prop(optional)] attachments: Vec<AttachmentWithoutBlob>,
-    solved_challenges: RwSignal<Vec<u32>>
+    solved_challenges: RwSignal<Vec<String>>
 ) -> impl IntoView {
     let full_desc = description.clone().unwrap_or_default();
     let desc_max_len = 200usize;
@@ -94,13 +93,13 @@ pub fn Challenge(
                         </button>
                     }.into_any()
                 } else {
-                    view! { <></> }.into_any()
+                    view! {}.into_any()
                 }
             }
             </p>
 
             <Difficulty rating=difficulty />
-            <b class="text-lg/8">{format!("Points: {points}")}</b>
+            <p class="text-lg/8"><b>"Points: "</b> {points}</p>
             <br />
             <label for="flag">
                 <b>"Flag: "</b>
@@ -112,41 +111,42 @@ pub fn Challenge(
                     }
                 />
             </label>
-            // <Show when=move || !solved.get()>
-                <button
-                    class=move || button_classes.get()
-                    disabled=move || solved.get() || incorrect.get()
-                    on:click=move |_| {
-                        let flag = flag.get().clone();
-                        let name = name.clone();
-                        let description = description.clone();
-                        let category = category.clone();
-                        let start = start.clone();
-                        let stop = stop.clone();
-                        spawn_local(async move {
-                            if let Ok(ApiResult { result, details }) = check_flag(flag, Challenge { id, event_id, name, description, category, difficulty, points }).await {
-                                // change button appearance to red, incorrect
-                                if result == ResultStatus::Fail && details == "incorrect solution" {
-                                    incorrect.set(true);
-                                    // cancel previous pending timeout (if any)
-                                    stop();
-                                    start(());
-                                } else if result == ResultStatus::Success {
-                                    solved.set(true);
-                                }
+            <button
+                class=move || button_classes.get()
+                disabled=move || solved.get() || incorrect.get()
+                on:click=move |_| {
+                    let id = id.clone();
+                    let event_id = event_id.clone();
+                    let flag = flag.get().clone();
+                    let name = name.clone();
+                    let description = description.clone();
+                    let category = category.clone();
+                    let start = start.clone();
+                    let stop = stop.clone();
+                    spawn_local(async move {
+                        if let Ok(ApiResult { result, details }) = check_flag(flag, Challenge { id, event_id, name, description, category, difficulty, points }).await {
+                            // change button appearance to red, incorrect
+                            if result == ResultStatus::Fail && details == "incorrect solution" {
+                                incorrect.set(true);
+                                // cancel previous pending timeout (if any)
+                                stop();
+                                start(());
+                            } else if result == ResultStatus::Success {
+                                solved.set(true);
                             }
-                        });
-                    }
-                >
-                    { move || btn_text.get() }
-                </button>
+                        }
+                    });
+                }
+            >
+                { move || btn_text.get() }
+            </button>
 
             <For
                 each=move || attachments.clone()
-                key=|a: &AttachmentWithoutBlob| a.id
+                key=|a: &AttachmentWithoutBlob| a.id.clone()
                 let(a)
             >
-                {attachment_path.set(format!("/file/{}/{}", a.id, a.file_name.clone()))}
+                {attachment_path.set(format!("/file/{}", a.id))}
                 <a download href=move || attachment_path.get() class="underline text-blue-600">{a.file_name}</a>
             </For>
         </div>

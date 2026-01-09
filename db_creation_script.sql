@@ -21,14 +21,13 @@ USE `ctfpkhk` ;
 -- Table `ctfpkhk`.`events`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`events` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id` CHAR(36) NOT NULL,
   `name` VARCHAR(45) NOT NULL,
   `description` TEXT NULL DEFAULT NULL,
   `start_date` TIMESTAMP NOT NULL,
   `end_date` TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
-AUTO_INCREMENT = 2
 DEFAULT CHARACTER SET = utf8mb3;
 
 
@@ -36,8 +35,8 @@ DEFAULT CHARACTER SET = utf8mb3;
 -- Table `ctfpkhk`.`challenges`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`challenges` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `event_id` INT UNSIGNED NOT NULL,
+  `id` CHAR(36) NOT NULL,
+  `event_id` CHAR(36) NOT NULL,
   `name` VARCHAR(45) NOT NULL,
   `description` TEXT NULL DEFAULT NULL,
   `category` VARCHAR(45) NULL DEFAULT NULL,
@@ -45,30 +44,31 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`challenges` (
   `points` INT UNSIGNED NOT NULL,
   `flag_hash` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`id`),
+  INDEX `fk_challenges_events1_idx` (`event_id` ASC) VISIBLE,
   CONSTRAINT `fk_challenges_events1`
     FOREIGN KEY (`event_id`)
-    REFERENCES `ctfpkhk`.`events` (`id`))
+    REFERENCES `ctfpkhk`.`events` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE)
 ENGINE = InnoDB
-AUTO_INCREMENT = 21
 DEFAULT CHARACTER SET = utf8mb3;
-
-CREATE INDEX `fk_challenges_events1_idx` ON `ctfpkhk`.`challenges` (`event_id` ASC) VISIBLE;
 
 
 -- -----------------------------------------------------
 -- Table `ctfpkhk`.`users`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`users` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id` CHAR(36) NOT NULL,
   `username` VARCHAR(40) NOT NULL,
   `email` VARCHAR(90) NOT NULL,
   `pw_hash` VARCHAR(100) NOT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_active_at` TIMESTAMP NOT NULL,
   `role` VARCHAR(14) NOT NULL,
-  PRIMARY KEY (`id`))
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `username_UNIQUE` (`username` ASC) VISIBLE,
+  INDEX `email_idx` (`email` ASC) INVISIBLE)
 ENGINE = InnoDB
-AUTO_INCREMENT = 4
 DEFAULT CHARACTER SET = utf8mb3;
 
 
@@ -76,65 +76,67 @@ DEFAULT CHARACTER SET = utf8mb3;
 -- Table `ctfpkhk`.`attachments`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `challenge_id` INT UNSIGNED NULL DEFAULT NULL,
-  `event_id` INT UNSIGNED NULL DEFAULT NULL,
-  `user_id` INT UNSIGNED NULL DEFAULT NULL,
+  `id` CHAR(36) NOT NULL,
+  `challenge_id` CHAR(36) NULL DEFAULT NULL,
+  `event_id` CHAR(36) NULL DEFAULT NULL,
+  `user_id` CHAR(36) NULL DEFAULT NULL,
   `file_name` VARCHAR(90) NOT NULL,
   `file_blob` MEDIUMBLOB NOT NULL,
   `file_type` VARCHAR(20) NOT NULL,
   `mime_type` VARCHAR(45) NULL DEFAULT NULL,
   `file_size` INT GENERATED ALWAYS AS (length(`file_blob`)) VIRTUAL,
   PRIMARY KEY (`id`),
+  INDEX `fk_attachments_users1_idx` (`user_id` ASC) VISIBLE,
+  INDEX `fk_attachments_events1_idx` (`event_id` ASC) VISIBLE,
+  INDEX `fk_attachments_challenges1_idx` (`challenge_id` ASC) VISIBLE,
+  INDEX `file_name_idx` (`file_name` ASC) VISIBLE,
   CONSTRAINT `fk_attachments_challenges1`
     FOREIGN KEY (`challenge_id`)
-    REFERENCES `ctfpkhk`.`challenges` (`id`),
+    REFERENCES `ctfpkhk`.`challenges` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_attachments_events1`
     FOREIGN KEY (`event_id`)
-    REFERENCES `ctfpkhk`.`events` (`id`),
+    REFERENCES `ctfpkhk`.`events` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_attachments_users1`
     FOREIGN KEY (`user_id`)
-    REFERENCES `ctfpkhk`.`users` (`id`))
+    REFERENCES `ctfpkhk`.`users` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE)
 ENGINE = InnoDB
-AUTO_INCREMENT = 11
 DEFAULT CHARACTER SET = utf8mb3;
-
-CREATE INDEX `fk_attachments_users1_idx` ON `ctfpkhk`.`attachments` (`user_id` ASC) VISIBLE;
-
-CREATE INDEX `fk_attachments_events1_idx` ON `ctfpkhk`.`attachments` (`event_id` ASC) VISIBLE;
-
-CREATE INDEX `fk_attachments_challenges1_idx` ON `ctfpkhk`.`attachments` (`challenge_id` ASC) VISIBLE;
 
 
 -- -----------------------------------------------------
 -- Table `ctfpkhk`.`submissions`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `challenge_id` INT UNSIGNED NOT NULL,
-  `event_id` INT UNSIGNED NOT NULL,
-  `user_id` INT UNSIGNED NOT NULL,
+  `id` CHAR(36) NOT NULL,
+  `challenge_id` CHAR(36) NOT NULL,
+  `event_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
   `points` INT UNSIGNED NOT NULL,
   `solved_at` TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`),
-  CONSTRAINT `fk_leaderboard_challenges1`
+  INDEX `fk_leaderboard_users1_idx` (`user_id` ASC) VISIBLE,
+  INDEX `fk_leaderboard_events1_idx` (`event_id` ASC) VISIBLE,
+  INDEX `fk_leaderboard_challenges1_idx` (`challenge_id` ASC) VISIBLE,
+  CONSTRAINT `fk_submissions_challenges1`
     FOREIGN KEY (`challenge_id`)
-    REFERENCES `ctfpkhk`.`challenges` (`id`),
-  CONSTRAINT `fk_leaderboard_events1`
+    REFERENCES `ctfpkhk`.`challenges` (`id`)
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_submissions_events1`
     FOREIGN KEY (`event_id`)
-    REFERENCES `ctfpkhk`.`events` (`id`),
-  CONSTRAINT `fk_leaderboard_users1`
+    REFERENCES `ctfpkhk`.`events` (`id`)
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_submissions_users1`
     FOREIGN KEY (`user_id`)
-    REFERENCES `ctfpkhk`.`users` (`id`))
+    REFERENCES `ctfpkhk`.`users` (`id`)
+    ON UPDATE CASCADE)
 ENGINE = InnoDB
-AUTO_INCREMENT = 16
 DEFAULT CHARACTER SET = utf8mb3;
-
-CREATE INDEX `fk_leaderboard_users1_idx` ON `ctfpkhk`.`submissions` (`user_id` ASC) VISIBLE;
-
-CREATE INDEX `fk_leaderboard_events1_idx` ON `ctfpkhk`.`submissions` (`event_id` ASC) VISIBLE;
-
-CREATE INDEX `fk_leaderboard_challenges1_idx` ON `ctfpkhk`.`submissions` (`challenge_id` ASC) VISIBLE;
 
 
 SET SQL_MODE=@OLD_SQL_MODE;

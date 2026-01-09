@@ -1,7 +1,7 @@
 [package]
 name = "pkhk_ctf"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -29,7 +29,7 @@ futures = "0.3.31"
 tracing = "0.1.44"
 cfg-if = "1.0.4"
 argon2 = "0.5.3"
-#uuid = { version = "1.19.0", features = ["v4"] }
+uuid = { version = "1.19.0", features = ["v4"], optional = true }
 cookie = "0.18.1"
 axum-extra = { version = "0.12.3", features = ["cookie"], optional = true }
 axum_session = { version = "0.17.1", optional = true }
@@ -79,6 +79,7 @@ ssr = [
     "dep:tower-sessions-sqlx-store",
     "leptos-chartistry/ssr",
     "dep:rand",
+    "dep:uuid",
     "leptos-use/ssr",
     "leptos-use/axum"
 ]

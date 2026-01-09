@@ -1,5 +1,4 @@
-use cfg_if::cfg_if;
-use leptos::{prelude::*, task::spawn_local};
+use leptos::{prelude::*};
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::{
     components::*,
@@ -12,7 +11,7 @@ use crate::{
     pages::{
         admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login::Login,
         not_found::NotFound, register::Register, user,
-    }, server::{db::enums::UserRole, get_user, structs::ApiResult}
+    }, server::{db::enums::UserRole, get_user,}
 };
 
 
@@ -43,6 +42,7 @@ pub fn App() -> impl IntoView {
     let UseColorModeReturn { mode, set_mode, .. } = use_color_mode_with_options(
         UseColorModeOptions::default().cookie_enabled(true)
     );
+    provide_context(mode);
     provide_context(set_mode);
 
     let user = Resource::new(move|| (), |_| async move {

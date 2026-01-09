@@ -17,11 +17,14 @@ pub fn Challenges() -> impl IntoView {
         get_active_events().await.unwrap_or_default()
     });
 
-    let solved_challenge_ids = RwSignal::new(Vec::<u32>::default());
+    let solved_challenge_ids = RwSignal::new(Vec::<String>::default());
 
     Resource::new(move || (), move |_| async move {
         match get_user_solved_challenges().await {
-            Ok(solved) => Ok(solved_challenge_ids.set(solved)),
+            Ok(solved) => {
+                solved_challenge_ids.set(solved);
+                Ok(())
+            },
             Err(e) => Err(e)
         }
     });
@@ -56,15 +59,15 @@ pub fn Challenges() -> impl IntoView {
                                         <div class="m-4 grid grid-cols-4 content-stretch">
                                             <For
                                                 each=move || group.1.clone()
-                                                key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id
+                                                key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id.clone()
                                                 let(challenge)
                                             >
                                                 <div class="challenge p-2">
                                                     <Challenge
-                                                        id=challenge.challenge.id
+                                                        id=challenge.challenge.id.clone()
                                                         name=challenge.challenge.name.clone()
                                                         description=challenge.challenge.description.clone()
-                                                        event_id=challenge.challenge.event_id
+                                                        event_id=challenge.challenge.event_id.clone()
                                                         category=challenge.challenge.category.clone()
                                                         difficulty=challenge.challenge.difficulty
                                                         points=challenge.challenge.points

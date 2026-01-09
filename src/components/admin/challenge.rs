@@ -1,6 +1,5 @@
-use crate::server::{admin::{get_all_challenge_categories, get_all_events, upload_file}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
+use crate::server::{admin::{upload_file}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
-// use thaw::*;
 
 #[component]
 pub fn Challenge(
@@ -63,8 +62,8 @@ pub fn Challenge(
         <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 content-center">
             <Show when=move || !editing.get() && !deleted.get()>
                 <h3 class="text-3xl/8">{move || name_signal.get().clone()}</h3>
-                <h3 class="text-lg/8">"ID: "{move || id_signal.get()}</h3>
-                <h3 class="text-lg/8">"Event ID: "{move || event_id_signal.get()}</h3>
+                <p class="text-lg/8"><b>"ID: "</b>{move || id_signal.get().clone()}</p>
+                <p class="text-lg/8"><b>"Event ID: "</b>{move || event_id_signal.get().clone()}</p>
                 <p class="text-lg/8">{
                     move || {
                         if desc_expanded.get() || !needs_truncate {
@@ -93,15 +92,15 @@ pub fn Challenge(
                 </p>
 
                 <Difficulty rating=difficulty_signal.get() />
-                <b class="text-lg/8">{format!("Points: {}", points_signal.get())}</b>
+                <p class="text-lg/8"><b>"Points: " {points_signal.get()}</b></p>
                 <br />
 
                 <For
                     each=move || attachments_signal.get().clone()
-                    key=|a: &AttachmentWithoutBlob| a.id
+                    key=|a: &AttachmentWithoutBlob| a.id.clone()
                     let(a)
                 >
-                    {attachment_path.set(format!("/file/{}/{}", a.id, a.file_name.clone()))}
+                    {attachment_path.set(format!("/file/{}", a.id.clone()))}
                     <a download href=move || attachment_path.get() class="underline text-blue-600">{a.file_name}</a>
                 </For>
             </Show>
@@ -110,12 +109,12 @@ pub fn Challenge(
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Event"</label>
                 <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="event_id" on:change=move |ev: Event| {
                     let value = event_target_value(&ev);
-                    event_id_signal.set(value.parse::<u32>().unwrap_or_default());
+                    event_id_signal.set(value);
                 }>
                     <option value="">"-- Select Event --"</option>
                     <For
                         each=move || events.get()
-                        key=|e: &crate::server::db::structs::Event| e.id
+                        key=|e: &crate::server::db::structs::Event| e.id.clone()
                         let(e: crate::server::db::structs::Event)
                     >
                         {
@@ -123,7 +122,7 @@ pub fn Challenge(
                             let e2 = e.clone();
                             let e3 = e.clone();
                             view! {
-                                <option value={move || e1.id}>{move || e2.name.clone()} " (ID: " {move || e3.id} ")"</option>
+                                <option value={move || e1.id.clone()}>{move || e2.name.clone()} " (ID: " {move || e3.id.clone()} ")"</option>
                             }
                         }
                     </For>
@@ -131,8 +130,7 @@ pub fn Challenge(
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="name" value=move || name_signal.get() on:change=move |ev: Event| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let value = input.value();
+                    let value = event_target_value(&ev);
                     name_signal.set(value);
                 }></input>
                 
@@ -204,13 +202,11 @@ pub fn Challenge(
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Attachment"</label>
                 <input class="w-full text-sm" type="file" name="attachment" on:change=move |ev: Event| {
                     let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    if let Some(files) = input.files() {
-                        if files.length() > 0 {
-                            let file = files.get(0).unwrap();
-                            let fd = FormData::new().unwrap();
-                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            upload_action.dispatch_local(fd);
-                        }
+                    if let Some(files) = input.files() && files.length() > 0 {
+                        let file = files.get(0).unwrap();
+                        let fd = FormData::new().unwrap();
+                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                        upload_action.dispatch_local(fd);
                     }
                 }/>
             </Show>
@@ -242,8 +238,8 @@ pub fn Challenge(
                             // update in db
                             if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
                                 crate::server::admin::ChallengeAction::Edit { 
-                                    id: id_signal.get(), 
-                                    event_id: event_id_signal.get(), 
+                                    id: id_signal.get().clone(), 
+                                    event_id: event_id_signal.get().clone(), 
                                     name: name_signal.get().to_string(), 
                                     description: description_signal.get().unwrap_or_default(), 
                                     category: category_signal.get().unwrap_or_default(), 
@@ -257,8 +253,8 @@ pub fn Challenge(
                                 if result == ResultStatus::Success {
                                     let new_cwa = ChallengeWithAttachments {
                                         challenge: Challenge {
-                                            id: id_signal.get(), 
-                                            event_id: event_id_signal.get(), 
+                                            id: id_signal.get().clone(), 
+                                            event_id: event_id_signal.get().clone(), 
                                             name: name_signal.get().to_string(), 
                                             description: description_signal.get().clone(), 
                                             category: category_signal.get().clone(), 
@@ -285,18 +281,16 @@ pub fn Challenge(
                     class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm font-semibold shadow-sm hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     on:click=move |_| {
                         if deleting.get() {
-                            let challenge_id = id_signal.get();
+                            let challenge_id = id_signal.get().clone();
                             spawn_local(async move {
                                 tracing::debug!("deleting challenge ID: {challenge_id}");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
-                                    crate::server::admin::ChallengeAction::Delete { id: challenge_id } 
-                                ).await {
-                                    if result == ResultStatus::Success {
-                                        deleted.set(true);
-                                        refresh.update(|n| *n += 1);
-                                        // stop();
-                                        // start(deleted);
-                                    }
+                                    crate::server::admin::ChallengeAction::Delete { id: challenge_id.clone() } 
+                                ).await && result == ResultStatus::Success {
+                                    deleted.set(true);
+                                    refresh.update(|n| *n += 1);
+                                    // stop();
+                                    // start(deleted);
                                 }
                             });
                             deleting.set(false);

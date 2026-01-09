@@ -17,7 +17,7 @@ use tracing::instrument;
 #[serde(rename_all = "lowercase")]
 pub enum ChallengeAction {
     Create {
-        event_id: u32, 
+        event_id: String, 
         name: String, 
         description: String, 
         category: String,
@@ -27,11 +27,11 @@ pub enum ChallengeAction {
         attachment: Option<AttachmentWithoutBlob>
     },
     Delete {
-        id: u32
+        id: String
     },
     Edit {
-        id: u32,
-        event_id: u32, 
+        id: String,
+        event_id: String, 
         name: String, 
         description: String, 
         category: String,
@@ -95,13 +95,13 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                 ChallengeAction::Delete { id } => {
                     let mut tx = auth.backend.pool.begin().await?;
 
-                    if let Err(e) = db::structs::Submission::delete(&db::enums::SubmissionIdentifier::ChallengeId(id), &mut *tx).await {
+                    if let Err(e) = db::structs::Submission::delete(&db::enums::SubmissionIdentifier::ChallengeId(id.clone()), &mut *tx).await {
                         tx.rollback().await?;
                         tracing::error!(error = ?e);
                         return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
                     }
 
-                    if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
+                    if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id.clone()), &mut *tx).await {
                         tx.rollback().await?;
                         tracing::error!(error = ?e);
                         return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
@@ -167,10 +167,10 @@ pub enum EventAction {
         end_date: NaiveDateTime
     },
     Delete {
-        id: u32
+        id: String
     },
     Edit {
-        id: u32,
+        id: String,
         name: String,  
         description: String, 
         start_date: NaiveDateTime, 
