@@ -22,12 +22,14 @@ pub fn Log() -> impl IntoView {
     });
 
     view! {
-        <textarea class="server-logs w-full border-1 border-black" readonly rows="20">
+        <textarea class="server-logs w-full rounded-lg shadow-sm p-4" readonly rows="20">
         {move || {
             logs.get()
         }}
         </textarea>
-        <button on:click=move |_| logs.set(Vec::new())>"Clear"</button>
-        <button>"Export"</button>
+        <div class="flex gap-3 mt-2">
+            <button class="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition" on:click=move |_| logs.set(Vec::new())>"Clear"</button>
+            <button class="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition">"Export"</button>
+        </div>
     }
 }

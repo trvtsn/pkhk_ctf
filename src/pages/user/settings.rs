@@ -14,7 +14,7 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="container">
+        <div class="grid justify-center p-4">
             <label>
                 "Dark Mode"
                 <input type="checkbox" on:input=move |ev| {
@@ -25,8 +25,8 @@ pub fn Settings() -> impl IntoView {
             <ActionForm action=edit_username>
                 <label>
                     "Change Username" 
-                    <input class="bg-white border" type="text" name="username" />
-                    <input class="bg-white border" type="submit" value="Submit" />
+                    <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="text" name="username" />
+                    <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Submit" />
                 </label>
             </ActionForm>
             <ActionForm action=edit_password>
@@ -34,22 +34,22 @@ pub fn Settings() -> impl IntoView {
                     "Change Password" 
                     <label>
                         "Old Password"
-                        <input class="bg-white border" type="password" name="old_password" />
+                        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="old_password" />
                     </label>
                     <label>
                         "New Password"
-                        <input class="bg-white border" type="password" name="new_password" />
+                        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="new_password" />
                     </label>
                     <label>
                         "Confirm New Password"
-                        <input class="bg-white border" type="password" name="confirm_new_password" />
+                        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="confirm_new_password" />
                     </label>
-                    <input class="bg-white border" type="submit" value="Submit" /> // check if new_password == confirm_new_password
+                    <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Submit" /> // check if new_password == confirm_new_password
                 </label>
             </ActionForm>
             <label>
                 <b>"Change Avatar (Max 16 MiB)"</b>
-                <input class="bg-white border" type="file" name="file"
+                <input class="bg-white shadow-sm rounded-lg p-2" type="file" name="file"
                     on:change=move |ev: Event| {
                         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                         if let Some(files) = input.files() && files.length() > 0 {
@@ -64,10 +64,13 @@ pub fn Settings() -> impl IntoView {
                     { move || {
                         if edit_avatar_action.pending().get() {
                             "Uploading...".to_string()
-                        } else if let Some(Ok(val)) = edit_avatar_action.value().get() {
-                            format!("Uploaded: {}", val.details)
+                        // } else if let Some(Ok(val)) = edit_avatar_action.value().get() {
+                        //     format!("Uploaded: {}", val.details)
+                        // } else {
+                        //     "Choose a file".to_string()
+                        // }
                         } else {
-                            "Choose a file".to_string()
+                            "".to_string()
                         }
                     }}
                 </p>

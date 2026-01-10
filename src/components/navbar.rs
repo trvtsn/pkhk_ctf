@@ -17,7 +17,7 @@ pub fn NavBar() -> impl IntoView {
     let user_profile_path = RwSignal::new("".to_string());
 
     view! {
-        <div class="flex top-0 w-full items-center bg-lavender-blush-50/25 border-b p-4">
+        <div class="flex top-0 w-full items-center bg-lavender-blush-50/25 shadow-sm p-4">
             <div class="flex-1"></div>
 
             <nav class="flex items-center justify-center">
@@ -73,7 +73,7 @@ pub fn NavBar() -> impl IntoView {
                                 view! {
                                     <li class="flex items-center gap-2">
                                         <a
-                                            class="inline-flex items-center gap-2 m-1"
+                                            class="inline-flex items-center gap-2 m-1  cursor-pointe"
                                             on:click=move |_| {
                                                 open.set(!open.get());
                                             }
@@ -122,7 +122,9 @@ pub fn NavBar() -> impl IntoView {
                                     </a>
                                 </li>
                                 <li>
-                                    <button on:click=move |_| {
+                                    <button
+                                        class="cursor-pointer" 
+                                        on:click=move |_| {
                                         spawn_local(async move {
                                             if let Ok(()) = logout_user().await {
                                                 let nav = use_navigate();

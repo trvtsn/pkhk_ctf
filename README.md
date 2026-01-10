@@ -19,7 +19,7 @@ cargo leptos watch
 ## To-Do List
 
 ### Functionality
-- [ ] Replace SQLx crate and MySQL DB with SurrealDB
+- [ ] Add both MySQL and SurrealDB database options to .env
 - [ ] Mitigate any unnecessary hydration/data-processing loops or cycles (to save resources)
 - [x] Server-side flag checking
 - [x] Create challenge categories

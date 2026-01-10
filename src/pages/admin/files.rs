@@ -20,8 +20,8 @@ pub fn Files() -> impl IntoView {
             let form_data = FormData::new_with_form(&target).unwrap();
             upload_action.dispatch_local(form_data);
         }>
-            <input class="bg-white border" type="file" name="file" />
-            <input class="bg-white border" type="submit" value="Upload" />
+            <input class="bg-white shadow-sm rounded-lg p-2" type="file" name="file" />
+            <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Upload" />
         </form>
         <p>
             {move || {

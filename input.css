@@ -93,3 +93,9 @@
         background-position: 100% 50%;
     }
 }
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 4);
+}

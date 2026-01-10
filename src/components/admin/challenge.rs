@@ -59,7 +59,7 @@ pub fn Challenge(
     });
 
     let result_view = view! {
-        <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 content-center">
+        <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center">
             <Show when=move || !editing.get() && !deleted.get()>
                 <h3 class="text-3xl/8">{move || name_signal.get().clone()}</h3>
                 <p class="text-lg/8"><b>"ID: "</b>{move || id_signal.get().clone()}</p>
@@ -77,7 +77,7 @@ pub fn Challenge(
                     if needs_truncate {
                         view! {
                             <button
-                                class="ml-2 text-sm underline text-blue-600"
+                                class="ml-2 text-base underline text-blue-600"
                                 on:click=move |_| {
                                     desc_expanded.set(!desc_expanded.get());
                                 }
@@ -92,7 +92,7 @@ pub fn Challenge(
                 </p>
 
                 <Difficulty rating=difficulty_signal.get() />
-                <p class="text-lg/8"><b>"Points: " {points_signal.get()}</b></p>
+                <p class="text-lg/8"><b>"Points: "</b> {points_signal.get()}</p>
                 <br />
 
                 <For
@@ -232,7 +232,7 @@ pub fn Challenge(
                         }
                     >"Cancel"</button>
                 </Show>
-                <button type="button" hidden=move || deleting.get() class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" on:click=move |_| {
+                <button type="button" hidden=move || deleting.get() class="inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400" on:click=move |_| {
                     if editing.get() {
                         spawn_local(async move {
                             // update in db

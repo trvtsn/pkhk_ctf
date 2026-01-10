@@ -33,15 +33,15 @@ pub fn Challenge(
     //
     let solved_challenges = solved_challenges.get();
     let button_classes = Memo::new(move |_| {
-        let base = "border-2 border-black p-2 text-black rounded";
+        let base = "inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition";
         if solved.get() {
-            format!("{base} {}", "bg-green-500")
+            format!("{base} {}", "bg-green-600 hover:bg-green-700 focus:ring-green-400")
         } else if incorrect.get() {
-            format!("{base} {}", "bg-red-500")
+            format!("{base} {}", "bg-red-600 hover:bg-red-700 focus:ring-red-400")
         } else {
             format!(
                 "{base} {}",
-                "bg-lavender-blush-100 hover:bg-lavender-blush-200"
+                "bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400"
             )
         }
     });
@@ -65,7 +65,7 @@ pub fn Challenge(
 
     view! {
         <div
-            class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-2xl p-4 content-center"
+            class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center"
             on:click=move |_| {
                 open.set(true);
             }
@@ -84,7 +84,7 @@ pub fn Challenge(
                 if needs_truncate {
                     view! {
                         <button
-                            class="ml-2 text-sm underline text-blue-600"
+                            class="ml-2 text-base underline text-blue-600 cursor-pointer"
                             on:click=move |_| {
                                 desc_expanded.set(!desc_expanded.get());
                             }
@@ -101,16 +101,14 @@ pub fn Challenge(
             <Difficulty rating=difficulty />
             <p class="text-lg/8"><b>"Points: "</b> {points}</p>
             <br />
-            <label for="flag">
-                <b>"Flag: "</b>
-                <input
-                    class="border-black border-1 m-1"
-                    on:input=move |ev| {
-                        let val = event_target_value(&ev);
-                        flag.set(val);
-                    }
-                />
-            </label>
+            <label for="flag"><b>"Flag: "</b></label>
+            <input
+                class="border-black border-1 rounded-sm bg-white m-1"
+                on:input=move |ev| {
+                    let val = event_target_value(&ev);
+                    flag.set(val);
+                }
+            />
             <button
                 class=move || button_classes.get()
                 disabled=move || solved.get() || incorrect.get()
