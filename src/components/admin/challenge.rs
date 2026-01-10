@@ -1,4 +1,4 @@
-use crate::server::{admin::{upload_file}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
+use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
 
 #[component]
@@ -39,7 +39,7 @@ pub fn Challenge(
 
     let upload_action = Action::new_local(|data: &FormData| {
         // `MultipartData` implements `From<FormData>`
-        upload_file(data.clone().into())
+        upload_files(data.clone().into())
     });
 
     Effect::new(move |_| {
@@ -47,7 +47,7 @@ pub fn Challenge(
             // let mut new_attachments = Vec::new();
             // new_attachments.push(api_result.details.clone());
             // attachments_signal.set(&new_attachments);
-            attachments_signal.set(vec![api_result.details.clone()]);
+            attachments_signal.set(api_result.details.clone());
         }
     });
 
@@ -107,10 +107,7 @@ pub fn Challenge(
 
             <Show when=move || editing.get()>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Event"</label>
-                <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="event_id" on:change=move |ev: Event| {
-                    let value = event_target_value(&ev);
-                    event_id_signal.set(value);
-                }>
+                <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="event_id" bind:value=event_id_signal>
                     <option value="">"-- Select Event --"</option>
                     <For
                         each=move || events.get()
@@ -129,10 +126,7 @@ pub fn Challenge(
                 </select>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="name" value=move || name_signal.get() on:change=move |ev: Event| {
-                    let value = event_target_value(&ev);
-                    name_signal.set(value);
-                }></input>
+                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="name" value=move || name_signal.get() bind:value=name_signal></input>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
                 <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="description" value=move || description_signal.get().unwrap_or_default() on:change=move |ev: Event| {
@@ -194,13 +188,10 @@ pub fn Challenge(
                 }></input>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Flag"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="flag" value=move || flag_signal.get() on:change=move |ev: Event| {
-                    let value = event_target_value(&ev);
-                    flag_signal.set(value);
-                }></input>
+                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="flag" value=move || flag_signal.get() bind:value=flag_signal></input>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Attachment"</label>
-                <input class="w-full text-sm" type="file" name="attachment" on:change=move |ev: Event| {
+                <input class="w-full text-sm" type="file" name="attachment" multiple on:change=move |ev: Event| {
                     let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                     if let Some(files) = input.files() && files.length() > 0 {
                         let file = files.get(0).unwrap();
@@ -217,15 +208,6 @@ pub fn Challenge(
                         class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 
                         on:click=move |_| {
                             spawn_local(async move {
-                                // id_signal.set(id);
-                                // event_id_signal.set(event_id);
-                                // name_signal.set(name.clone());
-                                // description_signal.set(description.clone());
-                                // category_signal.set(category.clone());
-                                // difficulty_signal.set(difficulty);
-                                // points_signal.set(points);
-                                // attachments_signal.set(attachments);
-                                // flag_signal.set("".to_string());
                                 editing.set(false);
                                 deleting.set(false);
                             });
@@ -246,7 +228,7 @@ pub fn Challenge(
                                     difficulty: difficulty_signal.get(), 
                                     points: points_signal.get(), 
                                     flag: flag_signal.get(), 
-                                    attachment: attachments_signal.get().first().cloned(),
+                                    attachments: Some(attachments_signal.get()),
                                 }
                             ).await {
                                 // update in ui

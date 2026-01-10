@@ -24,7 +24,7 @@ pub enum ChallengeAction {
         difficulty: i8, 
         points: u32, 
         flag: String,
-        attachment: Option<AttachmentWithoutBlob>
+        attachments: Option<Vec<AttachmentWithoutBlob>>
     },
     Delete {
         id: String
@@ -38,7 +38,7 @@ pub enum ChallengeAction {
         difficulty: i8, 
         points: u32, 
         flag: String,
-        attachment: Option<AttachmentWithoutBlob>
+        attachments: Option<Vec<AttachmentWithoutBlob>>
     }
 }
 
@@ -60,7 +60,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
             }
 
             match action {
-                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, attachment } => {
+                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, attachments } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
                     let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &mut *tx).await {
@@ -72,19 +72,21 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     };
 
-                    match attachment {
-                        Some(attachment) => {
-                            match db::structs::Attachment::edit_challenge(&attachment.id, &new_challenge_id, &mut *tx).await {
-                                Ok(_) => {
-                                    tx.commit().await?;
-                                    Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
-                                },
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    Err(AppError::InternalError(e.to_string()))
+                    match attachments {
+                        Some(attachments) => {
+                            for attachment in attachments {
+                                match db::structs::Attachment::edit_challenge(&attachment.id, &new_challenge_id, &mut *tx).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
                                 }
                             }
+
+                            tx.commit().await?;
+                            Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
                         }
                         None => {
                             tx.commit().await?;
@@ -119,7 +121,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
                 }
-                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, attachment } => {
+                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, attachments } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
                     match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &mut *tx).await {
@@ -131,18 +133,21 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
 
-                    match attachment {
-                        Some(attachment) => {
-                            match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
-                                Ok(_) => {
-                                    tx.commit().await?;
-                                    Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
-                                },
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    Err(AppError::InternalError(e.to_string()))
+                    match attachments {
+                        Some(attachments) => {
+                            for attachment in attachments {
+                                match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
                                 }
                             }
+
+                            tx.commit().await?;
+                            Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
                         }
                         None => {
                             tx.commit().await?;
@@ -286,8 +291,8 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
 }
 
 #[server(input=MultipartFormData, name=AdminUploadFile, prefix="/api/admin/file", endpoint="upload")]
-#[instrument(skip(file))]
-pub async fn upload_file(file: MultipartData) -> Result<ApiResult<AttachmentWithoutBlob>, AppError> {
+#[instrument(skip(files))]
+pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<AttachmentWithoutBlob>>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -299,35 +304,41 @@ pub async fn upload_file(file: MultipartData) -> Result<ApiResult<AttachmentWith
                 return Err(AppError::Forbidden);
             }
 
-            let mut file_name = String::new();
-            let mut file_blob = Vec::<u8>::new();
-            let mut mime_type = String::new();
+            let mut attachments: Vec<AttachmentWithoutBlob> = Vec::new();
 
-            let mut data = file.into_inner().unwrap();
+            let mut data = files.into_inner().unwrap();
             while let Ok(Some(mut field)) = data.next_field().await {
-                file_name = field.file_name().unwrap_or_default().to_string();
-                mime_type = field.content_type().unwrap().to_string();
+                let file_name = match field.file_name() {
+                    Some(n) => n.to_string(),
+                    None => continue,
+                };
 
+                let mime_type = field.content_type().map(|ct| ct.to_string()).unwrap_or_default();
+
+                let mut file_blob = Vec::<u8>::new();
                 while let Ok(Some(chunk)) = field.chunk().await {
-                    file_blob.append(&mut chunk.to_vec());
+                    file_blob.extend_from_slice(&chunk);
+                }
+
+                let insert_id = match db::structs::Attachment::add(&None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &auth.backend.pool).await {
+                    Ok(insert_id) => insert_id,
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        return Err(AppError::InternalError("internal error".to_string()));
+                    }
+                };
+
+                match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id.clone()), &auth.backend.pool).await {
+                    Ok(Some(attachment)) => attachments.push(attachment),
+                    Ok(None) => tracing::error!("file upload with insert id {} but could not fetch it from db", insert_id),
+                    Err(e) => {
+                        tracing::error!(error = ?e, "failed to fetch upload file from db");
+                        return Err(AppError::InternalError("internal error".to_string()));
+                    }
                 }
             }
 
-            let insert_id = match db::structs::Attachment::add(&None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &auth.backend.pool).await {
-                Ok(insert_id) => insert_id,
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
-
-            match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id), &auth.backend.pool).await {
-                Ok(attachment) => Ok(ApiResult { result: ResultStatus::Success, details: attachment.unwrap_or_default() }),
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
-                }
-            }
+            Ok(ApiResult { result: ResultStatus::Success, details: attachments })
         } else {
             Err(AppError::NoServerConnection)
         }

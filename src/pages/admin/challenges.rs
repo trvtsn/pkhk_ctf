@@ -7,7 +7,7 @@ use leptos_use::{UseTimeoutFnReturn, use_timeout_fn};
 use crate::server::db::structs::AttachmentWithoutBlob;
 use crate::server::enums::ResultStatus;
 use crate::server::structs::ApiResult;
-use crate::{components::admin::challenge::Challenge, server::{admin::{upload_file}, db, get_all_challenges_with_attachments}};
+use crate::{components::admin::challenge::Challenge, server::{admin::{upload_files}, db, get_all_challenges_with_attachments}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Actions {
@@ -30,7 +30,7 @@ pub fn Challenges() -> impl IntoView {
     let difficulty = RwSignal::new(0_i8);
     let points = RwSignal::new(0_u32);
     let flag = RwSignal::new("".to_string());
-    let attachment = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
+    let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
 
     let refresh = RwSignal::new(0);
 
@@ -43,12 +43,12 @@ pub fn Challenges() -> impl IntoView {
     let events_signal = RwSignal::<Vec<db::structs::Event>>::new(vec![]);
 
     let upload_action = Action::new_local(|data: &FormData| {
-        upload_file(data.clone().into())
+        upload_files(data.clone().into())
     });
 
     Effect::new(move |_| {
         if let Some(Ok(api_result)) = upload_action.value().get() {
-            attachment.set(Some(api_result.details.clone()));
+            attachments.set(Some(api_result.details.clone()));
         }
     });
 
@@ -179,7 +179,7 @@ pub fn Challenges() -> impl IntoView {
                         flag.set(value);
                     }/>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Attachment (Max 16 MiB)"</label>
-                <input class="w-full text-sm" type="file" name="attachment"
+                <input class="w-full text-sm" type="file" name="attachment" multiple
                     on:change=move |ev: Event| {
                         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                         if let Some(files) = input.files() && files.length() > 0 {
@@ -194,10 +194,11 @@ pub fn Challenges() -> impl IntoView {
                     { move || {
                         if upload_action.pending().get() {
                             "Uploading...".to_string()
-                        } else if let Some(Ok(val)) = upload_action.value().get() {
-                            format!("Uploaded: {}", val.details.file_name)
+                        // } else if let Some(Ok(val)) = upload_action.value().get() {
+                        //     format!("Uploaded: {}", val.details.file_name)
+                        // } else {
                         } else {
-                            "Choose a file".to_string()
+                            "".to_string()
                         }
                     }}
                 </p>
@@ -215,10 +216,10 @@ pub fn Challenges() -> impl IntoView {
                             let difficulty = difficulty.get();
                             let points = points.get();
                             let flag = flag.get();
-                            let attachment = attachment.get().clone();
+                            let attachments = attachments.get().clone();
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
-                                    crate::server::admin::ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, attachment } 
+                                    crate::server::admin::ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, attachments } 
                                 ).await && result == ResultStatus::Success {
                                     created.set(true);
                                     refresh.update(|n| *n += 1);
