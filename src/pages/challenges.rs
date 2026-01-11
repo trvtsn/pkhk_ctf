@@ -98,18 +98,20 @@ pub fn Challenges() -> impl IntoView {
         <NavBar />
         <div class="grid justify-center p-4">
             <h1 class="text-4xl text-center">"Challenges"</h1>
-            {move || {
-                match active_events.get() {
-                    Some(events) => {
-                        if !events.is_empty() {
-                            (challenges_view)().into_any()
-                        } else {
-                            view! { <p>"No events currently active"</p> }.into_any()
+            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+                {move || {
+                    match active_events.get() {
+                        Some(events) => {
+                            if !events.is_empty() {
+                                (challenges_view)().into_any()
+                            } else {
+                                view! { <p>"No events currently active"</p> }.into_any()
+                            }
                         }
+                        None => view! { <p>"Loading..."</p> }.into_any()
                     }
-                    None => view! { <p>"Loading..."</p> }.into_any()
-                }
-            }}
+                }}
+            </Suspense>
         </div>
     }
 }

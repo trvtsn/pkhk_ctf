@@ -31,7 +31,6 @@ pub fn Challenge(
     let incorrect = RwSignal::new(false);
     // let loading = RwSignal::new(false);
     //
-    let solved_challenges = solved_challenges.get();
     let button_classes = Memo::new(move |_| {
         let base = "inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition";
         if solved.get() {
@@ -55,12 +54,9 @@ pub fn Challenge(
 
     let open = RwSignal::new(false);
 
-    if solved_challenges.contains(&id) {
-        solved.set(true);
-    } 
-
+    let challenge_id = id.clone();
     let btn_text = Memo::new(move |_| {
-        if solved.get() { "Solved".to_string() } else { "Submit".to_string() }
+        if solved_challenges.get().contains(&challenge_id) { "Solved".to_string() } else { "Submit".to_string() }
     });
 
     view! {
