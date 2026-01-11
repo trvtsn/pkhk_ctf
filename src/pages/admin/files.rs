@@ -4,7 +4,8 @@ use leptos::{prelude::*, web_sys::{FormData, HtmlFormElement, SubmitEvent}, wasm
 /// Default Home Page
 #[component]
 pub fn Files() -> impl IntoView {
-    let all_files = Resource::new(move || (), move |_| async move {
+    let refresh = RwSignal::new(0);
+    let all_files = Resource::new(move || refresh.get(), move |_| async move {
         get_all_files().await.unwrap_or_default()
     });
 
@@ -46,7 +47,7 @@ pub fn Files() -> impl IntoView {
                 key=|file: &db::structs::AttachmentWithoutBlob| file.id.clone()
                 let(file)
             >
-                <File file />
+                <File file refresh/>
             </For>
         </div>
     }

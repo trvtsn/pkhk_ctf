@@ -397,3 +397,157 @@ pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
         }
     }
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UserAction {
+    Create {
+        username: String,  
+        email: String, 
+        password: String, 
+        confirm_password: String
+    },
+    Delete {
+        id: String
+    },
+    Edit {
+        id: String,
+        username: String,  
+        email: String, 
+        password: String, 
+        confirm_password: String
+    },
+    EditPassword {
+        id: String,
+        password: String, 
+        confirm_password: String
+    }
+}
+
+#[server(name=AdminUserApi, prefix="/api/admin", endpoint="user")]
+#[instrument]
+pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
+            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
+            // and it feels faster. Get the AuthSession.
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+
+            if user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+
+            match action {
+                UserAction::Create { username, email, password, confirm_password } => {
+                    if password != confirm_password {
+                        return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+                    }
+
+                    let hashed_pw = hash_string(password.clone())?;
+                    let new_user = DbUser { 
+                        id: "".to_string(), 
+                        username: username.clone(), 
+                        email: email.clone(), 
+                        pw_hash: hashed_pw, 
+                        created_at: chrono::Local::now(), 
+                        last_active_at: chrono::Local::now(), 
+                        role: UserRole::Competitor
+                    };
+                    match DbUser::add(&new_user, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created user".to_string()) }),
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                        }
+                    }
+                }
+                UserAction::Delete { id } => {
+                    match DbUser::delete(&id, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) }),
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                        }
+                    }
+                }
+                UserAction::Edit { id, username, email, password, confirm_password } => {
+                    if password != confirm_password {
+                        return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+                    }
+
+                    let hashed_pw = hash_string(password.clone())?;
+
+                    let mut tx = auth.backend.pool.begin().await?;
+                    match DbUser::edit_username(&id, &username, &mut *tx).await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            tx.rollback().await?;
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                        }
+                    }
+
+                    match DbUser::edit_email(&id, &email, &mut *tx).await {
+                        Ok(_) => {
+                            tx.commit().await?;
+                            Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) })
+                        },
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            tx.rollback().await?;
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                        }
+                    }
+                }
+                UserAction::EditPassword { id, password, confirm_password } => {
+                    if password != confirm_password {
+                        return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+                    }
+
+                    let hashed_pw = hash_string(password.clone())?;
+
+                    match DbUser::edit_password(&id, &hashed_pw, &auth.backend.pool).await {
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) }),
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                        }
+                    }
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AdminDeleteFile, prefix="/api/admin/file", endpoint="delete")]
+#[instrument]
+pub async fn delete_file(id: String) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+
+            if user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+
+            match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(id.clone()), &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted file".to_string()) }),
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}

@@ -6,6 +6,7 @@ use leptos::prelude::*;
 pub fn Register() -> impl IntoView {
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
+    let confirm_password = RwSignal::new("".to_string());
     let loading = RwSignal::new(false);
 
     let register: ServerAction<Register> = ServerAction::new();
@@ -31,11 +32,27 @@ pub fn Register() -> impl IntoView {
             {move || Suspend::new(async move {
                 match name_taken.await {
                     Ok(true) => view! { 
-                        <p>" E-mail already in use. "</p>// <a href="">"Forgot Password?"</a>
+                        <p>"E-mail already in use. "</p>// <a href="">"Forgot Password?"</a>
                     }.into_any(),
                     _ => view! {}.into_any(),
                 }
             })}
+        </Transition>
+    };
+
+    let confirm_password_ui = move || view! {
+        <Transition fallback=|| {
+            view! { "..." }
+        }>
+            {move || 
+                if password.get() != confirm_password.get() {
+                    view! {
+                        <p>"Must match with password"</p>
+                    }.into_any()
+                } else {
+                    view! {}.into_any()
+                }
+            }
         </Transition>
     };
 
@@ -52,8 +69,12 @@ pub fn Register() -> impl IntoView {
                 }/>
                     
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="password" bind:value=password />
+                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="password" bind:value=password/>
                 
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm Password"</label>
+                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="confirm_password" bind:value=confirm_password/>
+                {confirm_password_ui}
+
                 <input
                     type="submit"
                     class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50"

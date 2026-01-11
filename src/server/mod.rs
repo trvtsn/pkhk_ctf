@@ -361,15 +361,15 @@ pub async fn get_db_user(username: String) -> Result<Option<DbUser>, AppError> {
 /// which is in pages/register.rs.
 #[server(name=Register, prefix="/api", endpoint="register")]
 #[instrument(skip(password))]
-pub async fn register_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> {
+pub async fn register_user(email: String, password: String, confirm_password: String) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            // Extract the auth_session and session. You could also use `leptos_axum::extract().await` here,
-            // but this seems nicer.
             let mut auth_session: AuthSession = use_context().expect("auth-session not provided");
 
-            // The backend handles all of the password hashing and whatnot. Just call add_user and then go write
-            // the backend, and it's all done!
+            if password != confirm_password {
+                return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+            }
+
             let user: Option<User> = auth_session.backend.add_user(email.clone(), password).await?;
 
             if let Some(user) = user {

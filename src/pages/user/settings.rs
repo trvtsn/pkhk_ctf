@@ -11,6 +11,7 @@ pub fn Settings() -> impl IntoView {
     let edit_username = ServerAction::<EditUsername>::new();
     let edit_password = ServerAction::<EditPassword>::new();
     let set_mode = use_context::<WriteSignal<ColorMode>>().unwrap();
+    let changing_password = RwSignal::new(false);
 
     view! {
         <NavBar />
@@ -29,9 +30,12 @@ pub fn Settings() -> impl IntoView {
                     <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Submit" />
                 </label>
             </ActionForm>
-            <ActionForm action=edit_password>
-                <label>
-                    "Change Password" 
+            <button
+                class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                on:click=move |_| {if changing_password.get() {changing_password.set(false)} else {changing_password.set(true)}}
+            >"Change Password"</button>
+            <Show when=move || changing_password.get()>
+                <ActionForm action=edit_password>
                     <label>
                         "Old Password"
                         <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="old_password" />
@@ -44,9 +48,13 @@ pub fn Settings() -> impl IntoView {
                         "Confirm New Password"
                         <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="confirm_new_password" />
                     </label>
-                    <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Submit" /> // check if new_password == confirm_new_password
-                </label>
-            </ActionForm>
+                    <button 
+                        class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 
+                        on:click=move |_| {changing_password.set(false)}
+                    >"Cancel"</button>
+                    <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Submit" />
+                </ActionForm>
+            </Show>
             <label>
                 <b>"Change Avatar (Max 16 MiB)"</b>
                 <input class="bg-white shadow-sm rounded-lg p-2" type="file" name="file"

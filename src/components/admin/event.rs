@@ -70,12 +70,7 @@ pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -
                 <Show when=move || editing.get() || deleting.get()>
                     <button 
                         class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 
-                        on:click=move |_| {
-                            spawn_local(async move {
-                                editing.set(false);
-                                deleting.set(false);
-                            });
-                        }
+                        on:click=move |_| {editing.set(false); deleting.set(false);}
                     >"Cancel"</button>
                 </Show>
                 <button type="button" hidden=move || deleting.get() class="inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400" on:click=move |_| {
