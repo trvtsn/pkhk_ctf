@@ -17,7 +17,7 @@ pub fn NavBar() -> impl IntoView {
     let user_profile_path = RwSignal::new("".to_string());
 
     view! {
-        <div class="flex top-0 w-full items-center bg-white shadow-sm p-4">
+        <div class="flex top-0 w-full items-center bg-white/25 shadow-sm p-4">
             <div class="flex-1"></div>
 
             <nav class="flex items-center justify-center">

@@ -1,4 +1,4 @@
-use crate::{components::admin::event::Event, server::{admin::{AdminEventApi, get_all_events}, db, enums::ResultStatus, structs::ApiResult}, utils::offset_to_naive};
+use crate::{components::admin::event::Event, server::{admin::{AdminEventApi, get_all_events}, db, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use leptos::{prelude::*, task::{spawn, spawn_local}, web_sys::Event};
 use time::OffsetDateTime;
 
@@ -14,8 +14,12 @@ pub enum Actions {
 #[component]
 pub fn Events() -> impl IntoView {
     let section = RwSignal::new(Actions::None);
-    let event_action = ServerAction::<AdminEventApi>::new();
     let refresh = RwSignal::new(0);
+
+    let name_signal = RwSignal::new("".to_string());
+    let description_signal = RwSignal::new("".to_string());
+    let start_at_signal = RwSignal::new("".to_string());
+    let end_at_signal = RwSignal::new("".to_string());
     
     let events = Resource::new(move || refresh.get(), move |_| async move {
         get_all_events().await.unwrap_or_default()
@@ -38,28 +42,39 @@ pub fn Events() -> impl IntoView {
 
         <div class="flex flex-col gap-4">
             <Show when=move || section.get() == Actions::Create>
-                <ActionForm action=event_action>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
-                    <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="action[create][name]"/>
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
+                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="name" bind:value=name_signal/>
 
-                    <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
-                    <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="action[create][description]"/>
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
+                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="description" bind:value=description_signal/>
 
-                    <label class="block text-sm font-medium text-gray-700 mb-1">"Start Date"</label>
-                    <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="action[create][start_date]"/>
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Start Date"</label>
+                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="start_at" bind:value=start_at_signal/>
+            
+                <label class="block text-sm font-medium text-gray-700 mb-1">"End Date"</label>
+                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="end_at" bind:value=end_at_signal/>
                 
-                    <label class="block text-sm font-medium text-gray-700 mb-1">"End Date"</label>
-                    <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="action[create][end_date]"/>
-                    
-                    <div class="flex gap-3 mt-2">
-                        <button type="button" class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" on:click=move |_| {section.set(Actions::None)}>"Cancel"</button>
-                        <input
-                            type="submit"
-                            class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            value="Create"
-                        />
-                    </div>
-                </ActionForm>
+                <div class="flex gap-3 mt-2">
+                    <button type="button" class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" on:click=move |_| {section.set(Actions::None)}>"Cancel"</button>
+                    <button
+                        type="button"
+                        class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        on:click=move |_| {
+                            let name = name_signal.get().clone();
+                            let description = description_signal.get().clone();
+                            let start_at = html_local_to_datetime(start_at_signal.get().clone());
+                            let end_at = html_local_to_datetime(end_at_signal.get().clone());
+                            spawn_local(async move {
+                                tracing::debug!("creating event...");
+                                if let Ok(ApiResult { result, .. }) = crate::server::admin::event(
+                                    crate::server::admin::EventAction::Create { name, description, start_at, end_at }
+                                ).await && result == ResultStatus::Success {
+                                    refresh.update(|n| *n += 1);
+                                }
+                            });
+                        }
+                    >"Create"</button>
+                </div>
             </Show>
         </div>
 

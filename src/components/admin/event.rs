@@ -1,4 +1,4 @@
-use crate::{server::{admin::AdminEventApi, enums::ResultStatus, structs::ApiResult}, utils::offset_to_naive};
+use crate::{server::{admin::AdminEventApi, enums::ResultStatus, structs::ApiResult}, utils::{html_local_to_datetime, offset_to_naive}};
 use chrono::DateTime;
 use leptos::{prelude::*, task::spawn_local, web_sys::Event};
 use time::OffsetDateTime;
@@ -8,8 +8,8 @@ pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -
     let id_signal = RwSignal::new(event.id.clone());
     let name_signal = RwSignal::new(event.name.clone());
     let description_signal = RwSignal::new(event.description.clone());
-    let start_date_signal = RwSignal::new(event.start_date);
-    let end_date_signal = RwSignal::new(event.end_date);
+    let start_at_signal = RwSignal::new(event.start_at);
+    let end_at_signal = RwSignal::new(event.end_at);
 
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
@@ -35,10 +35,10 @@ pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -
                         view! {}.into_any()
                     }
                 }}
-                //<time datetime=move || start_date_signal.get()></time>
-                //<time datetime=move || end_date_signal.get()></time>
-                <p class="text-lg/8"><b>"Start Date: "</b> {move || start_date_signal.get().to_string()}</p>
-                <p class="text-lg/8"><b>"End Date: "</b> {move || end_date_signal.get().to_string()}</p>
+                //<time datetime=move || start_at_signal.get()></time>
+                //<time datetime=move || end_at_signal.get()></time>
+                <p class="text-lg/8"><b>"Start Date: "</b> {move || start_at_signal.get().to_string()}</p>
+                <p class="text-lg/8"><b>"End Date: "</b> {move || end_at_signal.get().to_string()}</p>
             </Show>
 
             <Show when=move || editing.get()>
@@ -52,15 +52,17 @@ pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -
                 }/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Start Date"</label>
-                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="start_date" value=move || start_date_signal.get().to_string() on:change=move |ev: Event| {
-                    let value = OffsetDateTime::from_event(&ev).unwrap();
-                    start_date_signal.set(value);
+                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="start_at" value=move || start_at_signal.get().to_string() on:change=move |ev: Event| {
+                    let value_string = event_target_value(&ev);
+                    let value = DateTime::from_event(&ev).unwrap_or(html_local_to_datetime(value_string));
+                    start_at_signal.set(value);
                 }/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"End Date"</label>
-                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="end_date" value=move || end_date_signal.get().to_string() on:change=move |ev: Event| {
-                    let value = OffsetDateTime::from_event(&ev).unwrap();
-                    end_date_signal.set(value);
+                <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="datetime-local" name="end_at" value=move || end_at_signal.get().to_string() on:change=move |ev: Event| {
+                    let value_string = event_target_value(&ev);
+                    let value = DateTime::from_event(&ev).unwrap_or(html_local_to_datetime(value_string));
+                    end_at_signal.set(value);
                 }/>
             </Show>
 
@@ -80,15 +82,13 @@ pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -
                     if editing.get() {
                         spawn_local(async move {
                             tracing::debug!("editing event: {}", id_signal.get().clone());
-                            let start_date_naive = offset_to_naive(start_date_signal.get());
-                            let end_date_naive = offset_to_naive(end_date_signal.get());
                             if let Ok(ApiResult { result, .. }) = crate::server::admin::event(
                                 crate::server::admin::EventAction::Edit { 
                                     id: id_signal.get().clone(), 
                                     name: name_signal.get().clone(), 
                                     description: description_signal.get().clone().unwrap_or_default(), 
-                                    start_date: start_date_naive, 
-                                    end_date: end_date_naive
+                                    start_at: start_at_signal.get(), 
+                                    end_at: end_at_signal.get()
                                 }
                             ).await && result == ResultStatus::Success {
                                 refresh.update(|n| *n += 1);

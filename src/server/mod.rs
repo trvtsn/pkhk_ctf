@@ -1,16 +1,15 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}};
-use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}};
+use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::extract::Path;
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
-use time::OffsetDateTime;
 use tracing::instrument;
 use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
@@ -26,9 +25,10 @@ pub mod backend;
 pub mod db;
 pub mod structs {
     use crate::server::{UserRole, enums::ResultStatus};
-    use chrono::{DateTime, Utc};
+    use chrono::{DateTime, Local};
     use leptos::prelude::LeptosOptions;
     use serde::{Deserialize, Serialize};
+    use time::OffsetDateTime;
     use std::collections::HashMap;
 
     cfg_if::cfg_if! {
@@ -71,15 +71,15 @@ pub mod structs {
 
     #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
     pub struct PivotRow {
-        pub ts: DateTime<Utc>,
+        pub ts: DateTime<Local>,
         pub values: HashMap<String, f64>,
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
     pub struct LeaderboardData {
         pub event_name: String,
-        pub x_min: DateTime<Utc>,
-        pub x_max: DateTime<Utc>,
+        pub x_min: DateTime<Local>,
+        pub x_max: DateTime<Local>,
         pub y_max: f64,
         pub users: Vec<String>,
         pub rows: Vec<PivotRow>,
@@ -135,7 +135,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
 pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let pool = &pool()?;
+            let auth = use_context::<AuthSession>().unwrap();
             let active_event_id = match get_active_events().await {
                 Ok(active_events) => active_events.first().unwrap().id.clone(),
                 Err(e) => {
@@ -144,24 +144,24 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 }
             };
 
-            let meta = match db::structs::Event::get_metadata(&active_event_id, pool).await {
+            let meta = match db::structs::Event::get_metadata(&active_event_id, &auth.backend.pool).await {
                 Ok(meta) => meta,
                 Err(e) => Err(e)?
             };
 
             let event_name = meta.name.unwrap_or("".to_string());
-            let x_min = DateTime::from_timestamp(meta.first_submission.unwrap().unix_timestamp(), meta.first_submission.unwrap().nanosecond()).unwrap();
-            let x_max = DateTime::from_timestamp(meta.last_submission.unwrap().unix_timestamp(), meta.last_submission.unwrap().nanosecond()).unwrap();
+            let x_min = offset_to_datetime(meta.first_submission.unwrap());
+            let x_max = offset_to_datetime(meta.last_submission.unwrap());
 
-            let y_max = db::structs::Event::get_total_possible_points(&active_event_id, pool).await.unwrap();
+            let y_max = db::structs::Event::get_total_possible_points(&active_event_id, &auth.backend.pool).await.unwrap();
 
             let solves = sqlx::query!(
                 r#"
                 WITH first_solves AS (
-                SELECT user_id, challenge_id, MIN(solved_at) AS solved_at
-                FROM submissions
-                WHERE event_id = ?
-                GROUP BY user_id, challenge_id
+                    SELECT user_id, challenge_id, MIN(solved_at) AS solved_at
+                    FROM submissions
+                    WHERE event_id = ?
+                    GROUP BY user_id, challenge_id
                 )
                 SELECT fs.user_id, u.username, fs.solved_at, c.points
                 FROM first_solves fs
@@ -171,7 +171,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 "#,
                 active_event_id
             )
-            .fetch_all(pool)
+            .fetch_all(&auth.backend.pool)
             .await?;
 
             let users: Vec<String> = solves.iter().map(|r| r.username.clone()).collect();
@@ -179,23 +179,13 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
             let mut timestamps = BTreeSet::new();
 
             #[derive(Debug)]
-            struct Solve { username: String, ts: DateTime<Utc>, points: f64 }
+            struct Solve { username: String, ts: DateTime<Local>, points: f64 }
 
             let mut solves_parsed: Vec<Solve> = Vec::new();
             for r in solves {
-                let unix_timestamp = match r.solved_at {
-                    Some(timestamp) => timestamp.unix_timestamp(),
-                    None => 0_i64
-                };
-
-                let nanoseconds = match r.solved_at {
-                    Some(timestamp) => timestamp.nanosecond(),
-                    None => 0_u32
-                };
-
-                let ts = match DateTime::from_timestamp(unix_timestamp, nanoseconds) {
-                    Some(ts) => ts,
-                    None => chrono::Local::now().to_utc()
+                let ts = match r.solved_at {
+                    Some(ts) => offset_to_datetime(ts),
+                    None => chrono::Local::now()
                 };
                 timestamps.insert(ts);
                 solves_parsed.push(Solve {
@@ -205,11 +195,11 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 });
             }
 
-            let mut times: Vec<DateTime<Utc>> = timestamps.into_iter().collect();
+            let mut times: Vec<DateTime<Local>> = timestamps.into_iter().collect();
             times.sort();
 
             let mut user_cumulative: HashMap<String, f64> = users.iter().map(|u| (u.clone(), 0.0)).collect();
-            let mut solves_by_ts: HashMap<DateTime<Utc>, Vec<&Solve>> = HashMap::new();
+            let mut solves_by_ts: HashMap<DateTime<Local>, Vec<&Solve>> = HashMap::new();
             for s in &solves_parsed {
                 solves_by_ts.entry(s.ts).or_default().push(s);
             }
@@ -432,15 +422,15 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                 }
             };
 
-            let hash = hash_string(challenge_flag_hash.clone())?;
-            if let Ok(()) = verify_hash(flag.clone(), hash) {
-                match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &OffsetDateTime::now_utc(), &auth.backend.pool).await {
+            if let Ok(()) = verify_hash(flag.clone(), challenge_flag_hash) {
+                match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &auth.backend.pool).await {
                     Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() }),
                     Err(e) => Err(e.into())
                 }
             } else {
                 Ok(ApiResult { result: ResultStatus::Fail, details: "incorrect solution".to_string() })
             }
+
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -607,9 +597,9 @@ pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
             };
 
             let mut active_events = Vec::new();
-            let now = OffsetDateTime::now_utc();
+            let now = chrono::Local::now();
             for event in events.into_iter() {
-                if now >= event.start_date && now <= event.end_date {
+                if now >= event.start_at && now <= event.end_at {
                     active_events.push(event);
                 } 
             }

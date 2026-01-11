@@ -2,7 +2,7 @@
 use crate::server::{AuthSession, hash_string};
 use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
 use cfg_if::cfg_if;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Local};
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
@@ -168,8 +168,8 @@ pub enum EventAction {
     Create {
         name: String,  
         description: String, 
-        start_date: NaiveDateTime, 
-        end_date: NaiveDateTime
+        start_at: DateTime<Local>, 
+        end_at: DateTime<Local>
     },
     Delete {
         id: String
@@ -178,8 +178,8 @@ pub enum EventAction {
         id: String,
         name: String,  
         description: String, 
-        start_date: NaiveDateTime, 
-        end_date: NaiveDateTime
+        start_at: DateTime<Local>, 
+        end_at: DateTime<Local>
     }
 }
 
@@ -201,8 +201,8 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
             }
 
             match action {
-                EventAction::Create { name, description, start_date, end_date } => {
-                    match db::structs::Event::add(&name, &description, &start_date, &end_date, &auth.backend.pool).await {
+                EventAction::Create { name, description, start_at, end_at } => {
+                    match db::structs::Event::add(&name, &description, &start_at, &end_at, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created event".to_string()) }),
                         Err(e) => {
                             tracing::error!(error = ?e);
@@ -219,8 +219,8 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                         }
                     }
                 }
-                EventAction::Edit { id, name, description, start_date, end_date } => {
-                    match db::structs::Event::edit(&id, &name, &description, &start_date, &end_date, &auth.backend.pool).await {
+                EventAction::Edit { id, name, description, start_at, end_at } => {
+                    match db::structs::Event::edit(&id, &name, &description, &start_at, &end_at, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string()) }),
                         Err(e) => {
                             tracing::error!(error = ?e);

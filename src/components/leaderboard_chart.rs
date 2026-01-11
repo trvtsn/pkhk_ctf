@@ -1,12 +1,12 @@
 use crate::server::structs::{LeaderboardData, PivotRow};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use leptos::prelude::*;
 use leptos_chartistry::*;
 // use thaw::*;
 
 #[component]
 pub fn LeaderboardChart(
-    series: RwSignal<Series<PivotRow, DateTime<Utc>, f64>>,
+    series: RwSignal<Series<PivotRow, DateTime<Local>, f64>>,
     data: RwSignal<LeaderboardData>,
 ) -> impl IntoView {
     view! {

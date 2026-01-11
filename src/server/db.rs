@@ -1,7 +1,7 @@
 use crate::{constants, error_template::AppError, server::{db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier}, structs::{AttachmentWithoutBlob, EventMetadata}}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Local};
 use leptos::prelude::ServerFnError;
 
 cfg_if! {
@@ -65,23 +65,20 @@ cfg_if! {
 
 pub mod structs {
     use crate::server::db::enums::{FileType, UserRole};
-    use chrono::{DateTime, Utc};
-    use time::OffsetDateTime;
+    use chrono::{DateTime, Local};
     use serde::{Deserialize, Serialize};
-    #[cfg(feature = "ssr")]
-    use sqlx::prelude::FromRow;
+    use time::OffsetDateTime;
 
     pub type DbUser = User;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-    #[cfg_attr(feature = "ssr", derive(FromRow))]
     pub struct User {
         pub id: String,
         pub username: String,
         pub email: String,
         pub pw_hash: String,
-        pub created_at: OffsetDateTime,
-        pub last_active_at: OffsetDateTime,
+        pub created_at: DateTime<Local>,
+        pub last_active_at: DateTime<Local>,
         pub role: UserRole
     }
 
@@ -132,8 +129,8 @@ pub mod structs {
         pub id: String,
         pub name: String,
         pub description: Option<String>,
-        pub start_date: OffsetDateTime,
-        pub end_date: OffsetDateTime
+        pub start_at: DateTime<Local>,
+        pub end_at: DateTime<Local>
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -152,7 +149,7 @@ pub mod structs {
         pub user: User,
         pub event: Event,
         pub challenge: Challenge,
-        pub solved_at: DateTime<Utc>
+        pub solved_at: OffsetDateTime
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -267,8 +264,8 @@ cfg_if! {
                     username,
                     email,
                     pw_hash,
-                    sqlx::types::time::OffsetDateTime::now_utc(),
-                    sqlx::types::time::OffsetDateTime::now_utc(),
+                    sqlx::types::chrono::Local::now(),
+                    sqlx::types::chrono::Local::now(),
                     "admin"
                 )
                     .execute(executor)
@@ -353,7 +350,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at, last_active_at, role
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -372,7 +369,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at, last_active_at, role
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -392,7 +389,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at, last_active_at, role
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
                             FROM users 
                             WHERE username LIKE ?
                             ", 
@@ -414,7 +411,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, username, email, pw_hash, created_at, last_active_at, role
+                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
                     FROM users 
                     "
                 )
@@ -1844,23 +1841,23 @@ cfg_if! {
             pub async fn add(
                 name: &String, 
                 description: &String, 
-                start_date: &NaiveDateTime, 
-                end_date: &NaiveDateTime, 
+                start_at: &DateTime<Local>, 
+                end_at: &DateTime<Local>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO events
-                    (id, name, description, start_date, end_date)
+                    (id, name, description, start_at, end_at)
                     VALUES 
                     (?, ?, ?, ?, ?)
                     ", 
                     id.to_string(), 
                     name,
                     description,
-                    start_date,
-                    end_date
+                    start_at,
+                    end_at
                 )
                     .execute(executor)
                     .await {
@@ -1895,20 +1892,20 @@ cfg_if! {
                 id: &String,
                 name: &String, 
                 description: &String, 
-                start_date: &NaiveDateTime, 
-                end_date: &NaiveDateTime, 
+                start_at: &DateTime<Local>, 
+                end_at: &DateTime<Local>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE events
-                    SET name = ?, description = ?, start_date = ?, end_date = ?
+                    SET name = ?, description = ?, start_at = ?, end_at = ?
                     WHERE id = ?
                     ", 
                     name,
                     description,
-                    start_date,
-                    end_date,
+                    start_at,
+                    end_at,
                     id
                 )
                     .execute(executor)
@@ -1925,7 +1922,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, name, description, start_date, end_date
+                    SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
                     FROM events 
                     WHERE id = ?
                     ", 
@@ -1945,7 +1942,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, name, description, start_date, end_date
+                    SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
                     FROM events 
                     "
                 )
@@ -1964,8 +1961,8 @@ cfg_if! {
                     EventMetadata,
                     "
                     SELECT events.name,
-                        COALESCE(MIN(submissions.solved_at), events.start_date) AS first_submission,
-                        COALESCE(MAX(submissions.solved_at), events.end_date)   AS last_submission
+                        COALESCE(MIN(submissions.solved_at), events.start_at) AS first_submission,
+                        COALESCE(MAX(submissions.solved_at), events.end_at) AS last_submission
                     FROM events
                     LEFT JOIN submissions ON submissions.event_id = events.id
                     WHERE events.id = ?
@@ -2002,7 +1999,7 @@ cfg_if! {
                 event_id: &String, 
                 user_id: &String, 
                 points: &u32, 
-                solved_at: &time::OffsetDateTime, 
+                solved_at: &DateTime<Local>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();

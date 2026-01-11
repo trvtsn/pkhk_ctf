@@ -8,7 +8,6 @@ use password_hash::SaltString;
 use password_hash::rand_core::OsRng;
 #[cfg(feature = "ssr")]
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use time::OffsetDateTime;
 use tracing::instrument;
 
 #[cfg(feature = "ssr")]
@@ -101,8 +100,8 @@ cfg_if! {
                     username: username.clone(), 
                     email, 
                     pw_hash: pw_hash_str, 
-                    created_at: OffsetDateTime::now_utc(), 
-                    last_active_at: OffsetDateTime::now_utc(), 
+                    created_at: chrono::Local::now(), 
+                    last_active_at: chrono::Local::now(), 
                     role: UserRole::Competitor
                 };
                 let new_user_id = new_user.add(&self.pool).await?;

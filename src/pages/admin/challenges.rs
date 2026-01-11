@@ -4,10 +4,10 @@ use leptos::prelude::*;
 use leptos::{web_sys::{FormData, HtmlInputElement, Event, HtmlSelectElement}, wasm_bindgen::JsCast, task::spawn_local};
 use leptos_use::{UseTimeoutFnReturn, use_timeout_fn};
 
-use crate::server::db::structs::AttachmentWithoutBlob;
+use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments};
 use crate::server::enums::ResultStatus;
 use crate::server::structs::ApiResult;
-use crate::{components::admin::challenge::Challenge, server::{admin::{upload_files}, db, get_all_challenges_with_attachments}};
+use crate::{components::admin::challenge::Challenge, server::{admin::{upload_files, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Actions {
@@ -33,14 +33,23 @@ pub fn Challenges() -> impl IntoView {
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
 
     let refresh = RwSignal::new(0);
-
-    // load once on mount
-    let cwa = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_challenges_with_attachments().await.unwrap_or_default()
-    });
-
+    let cwa_signal = RwSignal::<Vec<ChallengeWithAttachments>>::new(vec![]);
     let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
     let events_signal = RwSignal::<Vec<db::structs::Event>>::new(vec![]);
+
+    // load once on mount
+    Resource::new(move || refresh.get(), move |_| async move {
+        let cwa = get_all_challenges_with_attachments().await.unwrap_or_default();
+        cwa_signal.set(cwa);
+    });
+    Resource::new(move || refresh.get(), move |_| async move {
+        let all_categories = get_all_challenge_categories().await.unwrap_or_default();
+        categories_signal.set(all_categories);
+    });
+    Resource::new(move || refresh.get(), move |_| async move {
+        let all_events = get_all_events().await.unwrap_or_default();
+        events_signal.set(all_events);
+    });
 
     let upload_action = Action::new_local(|data: &FormData| {
         upload_files(data.clone().into())
@@ -238,12 +247,12 @@ pub fn Challenges() -> impl IntoView {
         <div class="challenges">
             <Suspense fallback=move || view! { <div>"Loading..."</div> }>
                 {move || {
-                    let mut map = HashMap::<Option<String>, Vec<db::structs::ChallengeWithAttachments>>::new();
-                    for ch in cwa.get().unwrap_or_default().into_iter() {
+                    let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
+                    for ch in cwa_signal.get().into_iter() {
                         map.entry(ch.challenge.category.clone()).or_default().push(ch);
                     }
 
-                    let mut groups = map.into_iter().collect::<Vec<(Option<String>, Vec<db::structs::ChallengeWithAttachments>)>>();
+                    let mut groups = map.into_iter().collect::<Vec<(Option<String>, Vec<ChallengeWithAttachments>)>>();
 
                     // alphabetical sort, there's probably a better way to do this
                     groups.sort_by(|(a, _), (b, _)| a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or("")));
@@ -251,7 +260,7 @@ pub fn Challenges() -> impl IntoView {
                     view! {
                         <For
                             each=move || groups.clone()
-                            key=|group: &(Option<String>, Vec<db::structs::ChallengeWithAttachments>)| group.0.clone()
+                            key=|group: &(Option<String>, Vec<ChallengeWithAttachments>)| group.0.clone()
                             let(group)
                         >
                             <div class="challenge-category p-2">
@@ -262,7 +271,7 @@ pub fn Challenges() -> impl IntoView {
                                 <div class="m-4 grid grid-cols-4 content-stretch">
                                     <For
                                         each=move || group.1.clone()
-                                        key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id.clone()
+                                        key=|challenge: &ChallengeWithAttachments| challenge.challenge.id.clone()
                                         let(challenge)
                                     >
                                         <div class="challenge p-2">
