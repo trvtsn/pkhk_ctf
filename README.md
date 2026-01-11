@@ -31,6 +31,7 @@ cargo leptos watch
 - [x] Add dark mode toggle in user settings
 - [x] Add attachments download button to challenges
 - [x] Add "Change Password" function for user
+- [ ] Properly handle all errors, remove all .unwrap()'s where necessary
 
 ### Security
 - [x] Restrict access to admin endpoints and API
