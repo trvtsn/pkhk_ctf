@@ -2,10 +2,8 @@
 
 # PKHK CTF Platform
 
-Very early prototype of the CTF platform for [Pärnumaa Kutsehariduskeskus](https://hariduskeskus.ee/).
+Early prototype of the CTF platform for [Pärnumaa Kutsehariduskeskus](https://hariduskeskus.ee/).
 Full-stack project using Leptos SSR, Axum and Tailwind v4.
-
-Focus lies on functionality first, then styling and visual acuity.
 
 ## Running the project
 
@@ -16,37 +14,24 @@ Focus lies on functionality first, then styling and visual acuity.
 cargo leptos watch
 ```
 
+## Updates
+
+### 11. January 2026
+
+- Project is nearing "beta" status. With the core functionalities and site structure having been implemented, we can begin placing our focus on additional UI/UX design along with the identification and mitigation of any potential bugs and performance optimization. Most features have already been implemented, so any work relating to new feature additions can be, for now, safely set aside.
+
 ## To-Do List
 
 ### Functionality
 - [ ] Add both MySQL and SurrealDB database options to .env
 - [ ] Mitigate any unnecessary hydration/data-processing loops or cycles (to save resources)
-- [x] Server-side flag checking
-- [x] Create challenge categories
 - [ ] Clean up code for better readability, get rid of placeholder code
-- [x] Add "Change Username" function for user
-- [x] Add "Change Avatar" function for user
-- [x] Actually make challenge solves work on "submit" button press
-- [x] Fit correct HTTP status codes to matching API responses
-- [x] Add dark mode toggle in user settings
-- [x] Add attachments download button to challenges
-- [x] Add "Change Password" function for user
 - [ ] Properly handle all errors, remove all .unwrap()'s where necessary
+- [ ] Actually make dark mode work
 
 ### Security
-- [x] Restrict access to admin endpoints and API
-- [x] Hashing of flags
-- [x] Generalize/structurize API endpoint names (e.g. **GET /api/build_leaderboard_data** -> **POST /api/leaderboard** and **GET /api/get_db_user** -> **POST /api/user**)
-- [x] Persist challenge solves, progress after reloads (Make sure users can't solve one challenge many times)
-- [x] Replace all ID's with UUID's
 
 ### Styling
-- [x] Display challenges and users in uniform boxes
-- [x] Add custom site favicon
-- [x] Add icons
-- [x] Add "Points" indicator to user on navbar and profile
-- [x] Format log messages in Admin "Log" section
-- [x] Add dark mode styling
 
 ### Project Longevity
 - [ ] Add doc comments to pages and components

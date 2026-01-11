@@ -73,7 +73,7 @@ pub fn NavBar() -> impl IntoView {
                                 view! {
                                     <li class="flex items-center gap-2">
                                         <a
-                                            class="inline-flex items-center gap-2 m-1  cursor-pointe"
+                                            class="inline-flex items-center gap-2 m-1 cursor-pointer"
                                             on:click=move |_| {
                                                 open.set(!open.get());
                                             }
@@ -107,21 +107,21 @@ pub fn NavBar() -> impl IntoView {
                         })}
                     </Suspense>
                     <Show when=move || open.get() fallback=|| ()>
-                        <nav class="flex-col w-inherit">
-                            <ul>
-                                <li>
+                        <nav class="flex-col fixed bg-white/25 rounded-md p-4 z-50 mt-[15rem] shadow-sm" on:blur=move |_| {open.set(false)}>
+                            <ul class="flex flex-col items-center gap-4">
+                                <li class="w-full">
                                     <a href=user_profile_path.get()>
                                         <Icon icon=i::LuCircleUser />
                                         "Profile"
                                     </a>
                                 </li>
-                                <li>
+                                <li class="w-full">
                                     <a href="/settings">
                                         <Icon icon=i::LuUserCog />
                                         "Settings"
                                     </a>
                                 </li>
-                                <li>
+                                <li class="w-full">
                                     <button
                                         class="cursor-pointer" 
                                         on:click=move |_| {

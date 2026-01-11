@@ -60,6 +60,7 @@ pub fn Register() -> impl IntoView {
         <NavBar />
         <div class="p-8 justify-center grid grid-col">
             <h3 class="text-4xl text-center">"Register"</h3>
+            <br/>
             <ActionForm action=register>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Email"</label>
                 {available_ui}
