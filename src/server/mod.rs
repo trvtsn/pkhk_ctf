@@ -16,7 +16,7 @@ use std::collections::{BTreeSet, HashMap};
 use sqlx::MySqlPool;
 #[cfg(feature = "ssr")]
 use axum::{response::IntoResponse, http::{StatusCode, header}};
-use crate::server::db::enums::AttachmentIdentifier;
+use crate::server::{enums::AdminEventPayloadKind, db::enums::AttachmentIdentifier};
 
 pub mod admin;
 #[cfg(feature = "ssr")]
@@ -87,12 +87,47 @@ pub mod structs {
 }
 pub mod enums {
     use serde::{Deserialize, Serialize};
+    use std::str::FromStr;
     
     #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
     #[serde(rename_all = "lowercase")]
     pub enum ResultStatus {
         Success,
         Fail
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub enum AdminEventPayloadKind {
+        ChallengeDeleted,
+        ChallengeEdited,
+        NewChallengeCreated,
+        NewEventCreated,
+        EventDeleted,
+        EventEdited,
+        UserCreated,
+        UserDeleted,
+        UserEdited,
+        ChallengeSolved
+    }
+
+    impl FromStr for AdminEventPayloadKind {
+        type Err = ();
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "ChallengeDeleted" => Ok(AdminEventPayloadKind::ChallengeDeleted),
+                "ChallengeEdited"  => Ok(AdminEventPayloadKind::ChallengeEdited),
+                "NewChallengeCreated" => Ok(AdminEventPayloadKind::NewChallengeCreated),
+                "NewEventCreated" => Ok(AdminEventPayloadKind::NewEventCreated),
+                "EventDeleted" => Ok(AdminEventPayloadKind::EventDeleted),
+                "EventEdited" => Ok(AdminEventPayloadKind::EventEdited),
+                "UserCreated" => Ok(AdminEventPayloadKind::UserCreated),
+                "UserDeleted" => Ok(AdminEventPayloadKind::UserDeleted),
+                "UserEdited" => Ok(AdminEventPayloadKind::UserEdited),
+                "ChallengeSolved" => Ok(AdminEventPayloadKind::ChallengeSolved),
+                _ => Err(()),
+            }
+        }
     }
 }
 
@@ -424,7 +459,10 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
 
             if let Ok(()) = verify_hash(flag.clone(), challenge_flag_hash) {
                 match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &auth.backend.pool).await {
-                    Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() }),
+                    Ok(_) => {
+                        _ = build_and_broadcast(AdminEventPayloadKind::ChallengeSolved).await;
+                        Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() })
+                    }
                     Err(e) => Err(e.into())
                 }
             } else {
@@ -662,3 +700,58 @@ pub async fn logout_user() -> Result<(), AppError> {
     }
 }
 
+cfg_if! {
+    if #[cfg(feature = "ssr")] {
+        use axum::response::sse;
+        // use chrono::{Local, DateTime};
+        use futures::stream::{Stream, StreamExt};
+        use once_cell::sync::Lazy;
+        use serde::{Serialize, Deserialize};
+        use std::{convert::Infallible, fmt::Debug};
+        use tokio::sync::broadcast;
+        use tokio_stream::wrappers::BroadcastStream;
+
+        pub static ADMIN_TX: Lazy<broadcast::Sender<String>> = Lazy::new(|| {
+            broadcast::channel::<String>(1024).0
+        });
+
+        #[derive(Debug, Serialize, Deserialize)]
+        pub struct AdminEventPayload {
+            kind: AdminEventPayloadKind,
+            // timestamp: DateTime<Local>
+        }
+
+        #[instrument]
+        pub async fn admin_sse() -> sse::Sse<impl Stream<Item = Result<sse::Event, Infallible>>> {
+            let rx = ADMIN_TX.subscribe();
+
+            let stream = BroadcastStream::new(rx)
+                .filter_map(|res| async move { res.ok() })
+                .map(|msg: String| sse::Event::default().data(msg))
+                .map(Ok);
+
+            sse::Sse::new(stream)
+        }
+
+        #[instrument]
+        pub async fn build_and_broadcast(payload_kind: AdminEventPayloadKind) -> Result<(), AppError> {
+            let payload = AdminEventPayload {
+                kind: payload_kind,
+            };
+            match serde_json::to_string(&payload) {
+                Ok(json) => {
+                    if let Err(e) = ADMIN_TX.send(json) {
+                        tracing::warn!(error = ?e, "admin event broadcast failed");
+                        return Err(AppError::InternalError(e.to_string()));
+                    }
+
+                    Ok(())
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e, "serializing admin event failed");
+                    Err(AppError::InternalError(e.to_string()))
+                }
+            }
+        }
+    }
+}

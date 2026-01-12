@@ -3,7 +3,7 @@ use cfg_if::cfg_if;
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         use axum::response::sse::{Event, Sse};
-        use chrono::Utc;
+        use chrono::Local;
         use futures::stream::{Stream, StreamExt};
         use once_cell::sync::Lazy;
         use std::{convert::Infallible, fmt::Debug};
@@ -72,7 +72,7 @@ cfg_if! {
                     meta.name().to_string()
                 };
 
-                let line = format!("{} {} {} - {}", Utc::now().to_rfc3339(), level, target, message);
+                let line = format!("{} {} {} - {}", Local::now().to_rfc3339(), level, target, message);
 
                 let _ = self.tx.send(line);
             }

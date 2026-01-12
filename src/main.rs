@@ -12,7 +12,7 @@ cfg_if! {
         use leptos::prelude::provide_context;
         use leptos_axum::handle_server_fns_with_context;
         use pkhk_ctf::{app::shell, logging::{init_tracing, logs_sse}};
-        use pkhk_ctf::server::{download_blob, backend::structs::Backend, db::get_db, structs::AppState, init_env};
+        use pkhk_ctf::server::{download_blob, backend::structs::Backend, db::get_db, structs::AppState, init_env, admin_sse};
 
         pub type AuthSession = axum_login::AuthSession<Backend>;
     }
@@ -102,10 +102,10 @@ async fn main() {
             "/api/{*fn_name}",
             get(server_fn_handler).post(server_fn_handler),
         )
-        // .route(
-        //     "/login",
-        //     post(login_handler)
-        // )
+        .route(
+            "/admin_sse",
+            get(admin_sse)
+        )
         .route(
             "/admin/logs", 
             get(logs_sse)

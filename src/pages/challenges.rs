@@ -1,19 +1,21 @@
 use crate::{
     components::{challenge::Challenge, navbar::NavBar},
-    server::{db, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
+    server::{enums::AdminEventPayloadKind, db, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
 };
 use leptos::prelude::*;
+use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
+use leptos::server::codee::string::FromToStringCodec;
 use std::collections::HashMap;
 
 /// Default Home Page
 #[component]
 pub fn Challenges() -> impl IntoView {
-    // load once on mount
-    let challenges = Resource::new(move || (), move |_| async move {
+    let refresh = RwSignal::new(0);
+    let challenges = Resource::new(move || refresh.get(), move |_| async move {
         get_all_challenges_with_attachments().await.unwrap_or_default()
     });
 
-    let active_events = Resource::new(move || (), move |_| async move {
+    let active_events = Resource::new(move || refresh.get(), move |_| async move {
         get_active_events().await.unwrap_or_default()
     });
 
@@ -29,9 +31,46 @@ pub fn Challenges() -> impl IntoView {
         }
     });
 
+    let UseEventSourceReturn { message, .. } = 
+        use_event_source_with_options::<String, FromToStringCodec>(
+            "/admin_sse".to_string(), 
+            UseEventSourceOptions::default().immediate(true)
+        );
+
+    Effect::new(move |_| {
+        if let Some(msg) = message.get() {
+            // fallback for debugging for now
+            refresh.update(|n| *n += 1);
+            match serde_json::from_str::<AdminEventPayloadKind>(&msg.data) {
+                Ok(AdminEventPayloadKind::NewChallengeCreated) | 
+                Ok(AdminEventPayloadKind::ChallengeEdited) |
+                Ok(AdminEventPayloadKind::ChallengeDeleted) |
+                Ok(AdminEventPayloadKind::EventEdited) |
+                Ok(AdminEventPayloadKind::EventDeleted) |
+                Ok(AdminEventPayloadKind::NewEventCreated) => {
+                    refresh.update(|n| *n += 1);
+                }
+                Ok(_) => {},
+                Err(e) => tracing::warn!("failed to parse AdminEventPayloadKind: {}", e)
+            }
+
+            // if let Ok(kind) = msg.data.parse::<AdminEventPayloadKind>() {
+            //     match kind {
+            //         AdminEventPayloadKind::NewChallengeCreated
+            //         | AdminEventPayloadKind::ChallengeEdited
+            //         | AdminEventPayloadKind::ChallengeDeleted => {
+            //             refresh.update(|n| *n += 1)
+            //         }
+            //         _ => {}
+            //     }
+            // }
+        }
+    });
+
+
     let challenges_view = move || { view! { 
         <div class="challenges">
-            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+            <Transition fallback=move || view! { <div>"Loading..."</div> }>
                 {move || {
                     let challenges = match challenges.get() {
                         Some(challenges) => {
@@ -90,7 +129,7 @@ pub fn Challenges() -> impl IntoView {
                         {challenges}
                     }
                 }}
-            </Suspense>
+            </Transition>
         </div>
     }.into_any()};
 
@@ -98,7 +137,7 @@ pub fn Challenges() -> impl IntoView {
         <NavBar />
         <div class="grid justify-center p-4">
             <h1 class="text-4xl text-center">"Challenges"</h1>
-            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+            <Transition fallback=move || view! { <div>"Loading..."</div> }>
                 {move || {
                     match active_events.get() {
                         Some(events) => {
@@ -111,7 +150,7 @@ pub fn Challenges() -> impl IntoView {
                         None => view! { <p>"Loading..."</p> }.into_any()
                     }
                 }}
-            </Suspense>
+            </Transition>
         </div>
     }
 }

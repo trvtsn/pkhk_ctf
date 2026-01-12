@@ -65,7 +65,7 @@ pub fn NavBar() -> impl IntoView {
 
             <nav class="flex-1 flex justify-end items-center p-2 gap-2">
                 <ul class="flex items-center gap-4 list-none p-0 m-0">
-                    <Suspense fallback=move || view! { <p>"Loading..."</p> }>
+                    <Transition fallback=move || view! { <p>"Loading..."</p> }>
                         {move || user.get().map(|j| match j {
                             Some(user) => {
                                 username.set(user.username);
@@ -105,7 +105,7 @@ pub fn NavBar() -> impl IntoView {
                                 }.into_any()
                             }
                         })}
-                    </Suspense>
+                    </Transition>
                     <Show when=move || open.get() fallback=|| ()>
                         <nav class="flex-col fixed bg-white/25 rounded-md p-4 z-50 mt-[15rem] shadow-sm" on:blur=move |_| {open.set(false)}>
                             <ul class="flex flex-col items-center gap-4">

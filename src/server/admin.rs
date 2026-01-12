@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
-use crate::server::{AuthSession, hash_string};
-use crate::{error_template::AppError, server::{UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
+use crate::server::{AuthSession, hash_string, build_and_broadcast};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
@@ -86,10 +86,12 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             }
 
                             tx.commit().await?;
+                            _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
                             Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
                         }
                         None => {
                             tx.commit().await?;
+                            _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
                             Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
                         }
                     }
@@ -112,6 +114,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     match db::structs::Challenge::delete(&id, &mut *tx).await {
                         Ok(_) => {
                             tx.commit().await?;
+                            _ = build_and_broadcast(AdminEventPayloadKind::ChallengeDeleted).await;
                             Ok(ApiResult { result: ResultStatus::Success, details: "deleted challenge".to_string() })
                         },
                         Err(e) => {
@@ -147,10 +150,12 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             }
 
                             tx.commit().await?;
+                            _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
                             Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
                         }
                         None => {
                             tx.commit().await?;
+                            _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
                             Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
                         }
                     }
@@ -203,7 +208,10 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
             match action {
                 EventAction::Create { name, description, start_at, end_at } => {
                     match db::structs::Event::add(&name, &description, &start_at, &end_at, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created event".to_string()) }),
+                        Ok(_) => {
+                            _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                            Ok(ApiResult { result: ResultStatus::Success, details: Some("created event".to_string()) })
+                        }
                         Err(e) => {
                             tracing::error!(error = ?e);
                             Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
@@ -212,7 +220,10 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                 }
                 EventAction::Delete { id } => {
                     match db::structs::Event::delete(&id, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) }),
+                        Ok(_) => {
+                            _ = build_and_broadcast(AdminEventPayloadKind::EventDeleted).await;
+                            Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) })
+                        },
                         Err(e) => {
                             tracing::error!(error = ?e);
                             Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
@@ -221,7 +232,10 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                 }
                 EventAction::Edit { id, name, description, start_at, end_at } => {
                     match db::structs::Event::edit(&id, &name, &description, &start_at, &end_at, &auth.backend.pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string()) }),
+                        Ok(_) => {
+                            _ = build_and_broadcast(AdminEventPayloadKind::EventEdited).await;
+                            Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string()) })
+                        },
                         Err(e) => {
                             tracing::error!(error = ?e);
                             Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })

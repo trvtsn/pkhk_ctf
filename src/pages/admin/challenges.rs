@@ -2,10 +2,11 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 use leptos::{web_sys::{FormData, HtmlInputElement, Event, HtmlSelectElement}, wasm_bindgen::JsCast, task::spawn_local};
-use leptos_use::{UseTimeoutFnReturn, use_timeout_fn};
+use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, UseTimeoutFnReturn, use_event_source_with_options, use_timeout_fn};
+use leptos::server::codee::string::FromToStringCodec;
 
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments};
-use crate::server::enums::ResultStatus;
+use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
 use crate::server::structs::ApiResult;
 use crate::{components::admin::challenge::Challenge, server::{admin::{upload_files, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
 
@@ -58,6 +59,33 @@ pub fn Challenges() -> impl IntoView {
     Effect::new(move |_| {
         if let Some(Ok(api_result)) = upload_action.value().get() {
             attachments.set(Some(api_result.details.clone()));
+        }
+    });
+
+    let UseEventSourceReturn { message, .. } = 
+        use_event_source_with_options::<String, FromToStringCodec>(
+            "/admin_sse".to_string(), 
+            UseEventSourceOptions::default().immediate(true)
+        );
+
+    Effect::new(move |_| {
+        if let Some(msg) = message.get() {
+            // fallback for debugging for now
+            refresh.update(|n| *n += 1);
+            match serde_json::from_str::<AdminEventPayloadKind>(&msg.data) {
+                Ok(AdminEventPayloadKind::ChallengeEdited)  => refresh.update(|n| *n += 1),
+                Ok(_) => {},
+                Err(e) => tracing::warn!("failed to parse AdminEventPayloadKind: {}", e)
+            }
+
+            // if let Ok(kind) = msg.data.parse::<AdminEventPayloadKind>() {
+            //     match kind {
+            //         AdminEventPayloadKind::ChallengeSolved => {
+            //             refresh.update(|n| *n += 1)
+            //         }
+            //         _ => {}
+            //     }
+            // }
         }
     });
 
