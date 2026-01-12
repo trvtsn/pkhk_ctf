@@ -303,7 +303,7 @@ pub fn Challenges() -> impl IntoView {
                                         let(challenge)
                                     >
                                         <div class="challenge p-2">
-                                            <Challenge cwa=RwSignal::new(challenge) refresh categories=categories_signal events=events_signal/>
+                                            <Challenge cwa=challenge refresh categories=categories_signal events=events_signal/>
                                         </div>
                                     </For>
                                 </div>

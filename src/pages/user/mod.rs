@@ -13,14 +13,15 @@ use leptos_router::hooks::use_params_map;
 #[component]
 pub fn User() -> impl IntoView {
     let params = use_params_map();
-    let username = move || params.read().get("username").unwrap_or_default();
     
-    let user_res = Resource::new(move || (), move |_| async move {
-        get_db_user(username()).await.unwrap_or_default()
+    let user_res = Resource::new(move || (), move |_| {
+        let username = params.read().get("username").unwrap_or_default();
+        async move { get_db_user(username).await.unwrap_or_default() }
     });
 
-    let user_avatar = Resource::new(move || (), move |_| async move {
-        get_avatar(username()).await.unwrap_or_default()
+    let user_avatar = Resource::new(move || (), move |_| {
+        let username = params.read().get("username").unwrap_or_default();
+        async move { get_avatar(username).await.unwrap_or_default() }
     });
 
     view! {
