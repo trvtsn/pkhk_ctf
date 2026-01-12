@@ -2,7 +2,6 @@ use crate::server::structs::{LeaderboardData, PivotRow};
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
 use leptos_chartistry::*;
-// use thaw::*;
 
 #[component]
 pub fn LeaderboardChart(

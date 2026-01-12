@@ -1,3 +1,5 @@
+use crate::components::utils::TruncatedDesc;
+use crate::server::db::structs::ChallengeWithAttachments;
 use crate::server::{check_flag, db::structs::{AttachmentWithoutBlob, Challenge}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
@@ -5,32 +7,17 @@ use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 
 #[component]
 pub fn Challenge(
-    id: String,
-    name: String,
-    description: Option<String>,
-    event_id: String,
-    category: Option<String>,
-    #[prop(default = 3)] difficulty: i8,
-    points: u32,
-    #[prop(optional)] attachments: Vec<AttachmentWithoutBlob>,
+    cwa: ChallengeWithAttachments,
     solved_challenges: RwSignal<Vec<String>>
 ) -> impl IntoView {
-    let full_desc = description.clone().unwrap_or_default();
-    let desc_max_len = 200usize;
-    let desc_expanded = RwSignal::new(false);
-    let needs_truncate = full_desc.chars().count() > desc_max_len;
-    let truncated_desc = if needs_truncate {
-        full_desc.chars().take(desc_max_len).collect::<String>()
-    } else {
-        full_desc.clone()
-    };
-    let flag = RwSignal::new("".to_string());
-    // let check_flag: ServerAction<CheckFlag> = ServerAction::<CheckFlag>::new();
-    // let input_flag = RwSignal::new("".to_string());
+    let ChallengeWithAttachments { challenge, attachments } = cwa;
+    let challenge_signal = RwSignal::new(challenge.clone());
+    let description_signal = RwSignal::new(challenge.description.clone());
+    let flag_signal = RwSignal::new("".to_string());
+
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
-    // let loading = RwSignal::new(false);
-    //
+
     let button_classes = Memo::new(move |_| {
         let base = "inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition";
         if solved.get() {
@@ -54,9 +41,8 @@ pub fn Challenge(
 
     let open = RwSignal::new(false);
 
-    let challenge_id = id.clone();
     let btn_text = Memo::new(move |_| {
-        if solved_challenges.get().contains(&challenge_id) { "Solved".to_string() } else { "Submit".to_string() }
+        if solved_challenges.get().contains(&challenge_signal.get().id) { "Solved".to_string() } else { "Submit".to_string() }
     });
 
     view! {
@@ -66,59 +52,24 @@ pub fn Challenge(
                 open.set(true);
             }
         >
-            <h3 class="text-3xl/8">{name.clone()}</h3>
-            <p class="text-lg/8">{
-                move || {
-                    if desc_expanded.get() || !needs_truncate {
-                        full_desc.clone()
-                    } else {
-                        format!("{}...", truncated_desc)
-                    }
-                }
-            }
-            {
-                if needs_truncate {
-                    view! {
-                        <button
-                            class="ml-2 text-base underline text-blue-600 cursor-pointer"
-                            on:click=move |_| {
-                                desc_expanded.set(!desc_expanded.get());
-                            }
-                        >
-                            { move || if desc_expanded.get() { "Show Less" } else { "Show More" } }
-                        </button>
-                    }.into_any()
-                } else {
-                    view! {}.into_any()
-                }
-            }
+            <h3 class="text-3xl/8">{move || challenge_signal.get().name.clone()}</h3>
+            <p class="text-lg/8">
+                <TruncatedDesc description_signal/>
             </p>
-
-            <Difficulty rating=difficulty />
-            <p class="text-lg/8"><b>"Points: "</b> {points}</p>
+            <Difficulty rating=challenge_signal.get().difficulty />
+            <p class="text-lg/8"><b>"Points: "</b> {challenge_signal.get().points}</p>
             <br />
+                
             <label for="flag"><b>"Flag: "</b></label>
-            <input
-                class="border-black border-1 rounded-sm bg-white m-1"
-                on:input=move |ev| {
-                    let val = event_target_value(&ev);
-                    flag.set(val);
-                }
-            />
+            <input class="border-black border-1 rounded-sm bg-white m-1" bind:value=flag_signal/>
             <button
                 class=move || button_classes.get()
                 disabled=move || solved.get() || incorrect.get()
                 on:click=move |_| {
-                    let id = id.clone();
-                    let event_id = event_id.clone();
-                    let flag = flag.get().clone();
-                    let name = name.clone();
-                    let description = description.clone();
-                    let category = category.clone();
                     let start = start.clone();
                     let stop = stop.clone();
                     spawn_local(async move {
-                        if let Ok(ApiResult { result, details }) = check_flag(flag, Challenge { id, event_id, name, description, category, difficulty, points }).await {
+                        if let Ok(ApiResult { result, details }) = check_flag(flag_signal.get(), challenge_signal.get()).await {
                             // change button appearance to red, incorrect
                             if result == ResultStatus::Fail && details == "incorrect solution" {
                                 incorrect.set(true);

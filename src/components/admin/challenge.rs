@@ -1,3 +1,4 @@
+use crate::components::utils::TruncatedDesc;
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
 
@@ -11,33 +12,17 @@ pub fn Challenge(
     let ChallengeWithAttachments { challenge, attachments } = cwa;
     let Challenge { id, event_id, name, description, category, difficulty, points } = challenge;
 
-    let desc_max_len = 200usize;
-    let description_plain = description.clone().unwrap_or_default();
-    let needs_truncate = description_plain.chars().count() > desc_max_len;
-
     let id_signal = RwSignal::new(id);
     let event_id_signal = RwSignal::new(event_id);
     let name_signal = RwSignal::new(name.clone());
-    let description_signal = RwSignal::new(Some(description_plain.clone()));
+    let description_signal = RwSignal::new(description.clone());
     let category_signal = RwSignal::new(category.clone());
     let difficulty_signal = RwSignal::new(difficulty);
     let points_signal = RwSignal::new(points);
     let attachments_signal = RwSignal::new(attachments.clone());
     let flag_signal = RwSignal::new("".to_string());
 
-    let full_desc = move || description_signal.get().clone().unwrap_or_default();
-    let desc_expanded = RwSignal::new(false);
-
-    let truncated_desc = Memo::new(move |_| {
-        if needs_truncate && !desc_expanded.get() {
-            description_plain.chars().take(desc_max_len).collect::<String>()
-        } else {
-            full_desc()
-        }
-    });
-
     let category_add_new_selected = RwSignal::new(false);
-
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
@@ -65,39 +50,13 @@ pub fn Challenge(
                 <h3 class="text-3xl/8">{move || name_signal.get().clone()}</h3>
                 <p class="text-lg/8"><b>"ID: "</b>{move || id_signal.get().clone()}</p>
                 <p class="text-lg/8"><b>"Event ID: "</b>{move || event_id_signal.get().clone()}</p>
-
                 <p class="text-lg/8">
-                {move || {
-                    if desc_expanded.get() || !needs_truncate {
-                        full_desc().clone()
-                    } else {
-                        format!("{}...", truncated_desc.get())
-                    }
-                }}
-
-                { move || {
-                        if needs_truncate {
-                            view! {
-                                <button
-                                    class="ml-2 text-base underline text-blue-600"
-                                    on:click=move |_| {
-                                        desc_expanded.set(!desc_expanded.get());
-                                    }
-                                >
-                                    { move || if desc_expanded.get() { "Show Less" } else { "Show More" } }
-                                </button>
-                            }.into_any()
-                        } else {
-                            view! {}.into_any()
-                        }
-                    }
-                }
+                    <TruncatedDesc description_signal/>
                 </p>
-
                 <Difficulty rating=difficulty_signal.get() />
                 <p class="text-lg/8"><b>"Points: "</b> {points_signal.get()}</p>
                 <br />
-
+                
                 <For
                     each=move || attachments_signal.get().clone()
                     key=|a: &AttachmentWithoutBlob| a.id.clone()

@@ -103,14 +103,7 @@ pub fn Challenges() -> impl IntoView {
                                             >
                                                 <div class="challenge p-2">
                                                     <Challenge
-                                                        id=challenge.challenge.id.clone()
-                                                        name=challenge.challenge.name.clone()
-                                                        description=challenge.challenge.description.clone()
-                                                        event_id=challenge.challenge.event_id.clone()
-                                                        category=challenge.challenge.category.clone()
-                                                        difficulty=challenge.challenge.difficulty
-                                                        points=challenge.challenge.points
-                                                        attachments=challenge.attachments.clone()
+                                                        cwa=challenge
                                                         solved_challenges=solved_challenge_ids
                                                     />
                                                 </div>
