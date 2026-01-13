@@ -7,29 +7,29 @@ use leptos_router::hooks::use_navigate;
 #[component]
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
-    let user = RwSignal::<Option<User>>::new(None);
-    let points = RwSignal::new(0_u32);
+    let user = RwSignal::<(Option<User>, u32)>::new((None, 0_u32)); // add points column to user table, simpler
 
     let user_resource = Resource::new(move || (), move |_| async move {
-        get_user().await.unwrap_or(None)
-    });
-    let user_points_resource = Resource::new(move || (), move |_| async move {
-        get_user_points().await.unwrap_or_default()
+        let user = get_user().await.unwrap_or(None);
+        if user.is_some() {
+            let points = get_user_points().await.unwrap_or_default();
+            (user, points)
+        } else {
+            (user, 0_u32)
+        }
     });
 
     Effect::new(move |_| {
-        let user_result = user_resource.get().unwrap_or(None);
-        let user_points_result = user_points_resource.get().unwrap_or_default();
+        let user_result = user_resource.get().unwrap_or_default();
         user.set(user_result);
-        points.set(user_points_result);
     });
 
     let role = Memo::new(move |_| {
-        if let Some(user) = user.get() { user.role } else { UserRole::Competitor }
+        if let Some(user) = user.get().0 { user.role } else { UserRole::Competitor }
     });
 
     let username = Memo::new(move |_| {
-        if let Some(user) = user.get() { user.username } else { "".to_string() }
+        if let Some(user) = user.get().0 { user.username } else { "".to_string() }
     });
 
     view! {
@@ -57,7 +57,7 @@ pub fn NavBar() -> impl IntoView {
                         </a>
                     </li>
                     <Transition fallback=move || view! { <p>"Loading..."</p> }>
-                        <Show when=move || user.get().is_some() && role.get() == UserRole::Admin>
+                        <Show when=move || user.get().0.is_some() && role.get() == UserRole::Admin>
                             <a href="/admin" class="inline-flex items-center gap-2 m-1">
                                 <Icon icon=i::LuSettings />
                                 "Admin"
@@ -70,7 +70,7 @@ pub fn NavBar() -> impl IntoView {
             <nav class="flex-1 flex justify-end items-center p-2 gap-2">
                 <ul class="flex items-center gap-4 list-none p-0 m-0">
                     <Transition fallback=move || view! { <p>"Loading..."</p> }>
-                        <Show when=move || user.get().is_some()>
+                        <Show when=move || user.get().0.is_some()>
                             <li class="flex items-center gap-2">
                                 <a class="inline-flex items-center gap-2 m-1 cursor-pointer" on:click=move |_| {
                                     open.set(!open.get());
@@ -79,10 +79,10 @@ pub fn NavBar() -> impl IntoView {
                                     {username.get()}
                                 </a>
                             </li>
-                            <b>"Points: "{points.get()}</b>
+                            <b>"Points: "{move || user.get().1}</b>
                         </Show>
 
-                        <Show when=move || user.get().is_none()>
+                        <Show when=move || user.get().0.is_none()>
                             <li class="flex items-center gap-2">
                                 <a href="/login" class="inline-flex items-center gap-2 m-1">
                                     <Icon icon=i::LuLogIn />
