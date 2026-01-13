@@ -4,7 +4,7 @@ cfg_if! {
     if #[cfg(feature = "ssr")] {
         use axum::{
             body::Body as AxumBody, 
-            extract::{Path, State}, 
+            extract::State, 
             http::Request, 
             response::{IntoResponse, Response}, 
             routing::get

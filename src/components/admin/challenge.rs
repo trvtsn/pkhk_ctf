@@ -62,101 +62,127 @@ pub fn Challenge(
                     key=|a: &AttachmentWithoutBlob| a.id.clone()
                     let(a)
                 >
-                    { 
-                        let file_name = a.file_name.clone();
-                        let href = format!("/file/{}", a.id.clone());
-                        view! {
-                            <a download href=move || href.clone() class="underline text-blue-600">
-                                { file_name }
-                            </a>
-                        }.into_any()
-                    }
+                    <a 
+                        download 
+                        href=move || format!("/file/{}", a.id.clone()) 
+                        class="underline text-blue-600"
+                    >{ a.file_name.clone() }</a>
                 </For>
             </Show>
 
             <Show when=move || editing.get()>
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Event"</label>
-                <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="event_id" bind:value=event_id_signal>
+                <select 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    name="event_id" 
+                    bind:value=event_id_signal
+                >
                     <option value="">"-- Select Event --"</option>
                     <For
                         each=move || events.get()
                         key=|e: &crate::server::db::structs::Event| e.id.clone()
                         let(e: crate::server::db::structs::Event)
                     >
-                        {move || {
-                            let id = e.id.clone();
-                            let name = e.name.clone();
-                            view! {
-                                <option value={id.clone()}>{move || name.clone()} " (ID: " {id.clone()} ")"</option>
-                            }.into_any()
-                        }}
+                        <option value={e.id.clone()}>{e.name.clone()} " (ID: " {e.id.clone()} ")"</option>
                     </For>
                 </select>
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="name" bind:value=name_signal></input>
+                <input 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    name="name" 
+                    bind:value=name_signal
+                />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="description" value=move || description_signal.get().unwrap_or_default() on:change=move |ev: Event| {
-                    let value = event_target_value(&ev);
-                    description_signal.set(Some(value));
-                }></input>
+                <input 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    name="description" 
+                    value=move || description_signal.get().unwrap_or_default() 
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        description_signal.set(Some(value));
+                    }
+                />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Category"</label>
-                <select class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="category" on:change=move |ev: Event| {
-                    let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                    let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                    let new_input = doc
-                        .get_element_by_id("action_edit_category_input")
-                        .unwrap()
-                        .unchecked_into::<HtmlInputElement>();
+                <select 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    name="category" 
+                    on:change=move |ev: Event| {
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let doc = leptos::web_sys::window().unwrap().document().unwrap();
+                        let new_input = doc
+                            .get_element_by_id("action_edit_category_input")
+                            .unwrap()
+                            .unchecked_into::<HtmlInputElement>();
 
-                    if sel.value() == "__new__" {
-                        let _ = sel.remove_attribute("name");
-                        let _ = new_input.set_attribute("name", "category");
-                        category_add_new_selected.set(true);
-                    } else {
-                        let _ = sel.set_attribute("name", "category");
-                        let _ = new_input.remove_attribute("name");
-                        category_add_new_selected.set(false);
+                        if sel.value() == "__new__" {
+                            let _ = sel.remove_attribute("name");
+                            let _ = new_input.set_attribute("name", "category");
+                            category_add_new_selected.set(true);
+                        } else {
+                            let _ = sel.set_attribute("name", "category");
+                            let _ = new_input.remove_attribute("name");
+                            category_add_new_selected.set(false);
+                        }
+
+                        category_signal.set(Some(sel.value()));
                     }
-
-                    category_signal.set(Some(sel.value()));
-                }>
+                >
                     <option value="">"-- Select Category --"</option>
                     <For
                         each=move || categories.get()
                         key=|category: &String| category.clone()
                         let(category)
                     >
-                        {move || {
-                            let c = category.clone();
-                            view! {
-                                <option value={c.clone()}>{c.clone()}</option>
-                            }.into_any()
-                        }}
+                        <option value={category.clone()}>{category.clone()}</option>
                     </For>
                     <option value="__new__">"-- Add New --"</option>
                 </select>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" hidden=move || !category_add_new_selected.get() type="text" id="action_edit_category_input" on:change=move |ev: Event| {
-                    let value = event_target_value(&ev);
-                    category_signal.set(Some(value));
-                }/>
+                <input 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    hidden=move || !category_add_new_selected.get() 
+                    type="text" 
+                    id="action_edit_category_input" 
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        category_signal.set(Some(value));
+                    }
+                />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Difficulty"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="difficulty" min=0 max=5 value=move || difficulty_signal.get() on:change=move |ev: Event| {
-                    let value = event_target_value(&ev);
-                    difficulty_signal.set(value.parse::<i8>().unwrap_or_default());
-                }></input>
+                <input 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    type="number" 
+                    name="difficulty" 
+                    min=0 
+                    max=5 
+                    value=move || difficulty_signal.get() 
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        difficulty_signal.set(value.parse::<i8>().unwrap_or_default());
+                    }
+                />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Points"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" name="points" value=move || points_signal.get() on:change=move |ev: Event| {
-                    let value = event_target_value(&ev);
-                    points_signal.set(value.parse::<u32>().unwrap_or_default());
-                }></input>
+                <input 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    type="number" 
+                    name="points" 
+                    value=move || points_signal.get() 
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        points_signal.set(value.parse::<u32>().unwrap_or_default());
+                    }
+                />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Flag"</label>
-                <input class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" name="flag" bind:value=flag_signal></input>
+                <input 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    name="flag" 
+                    bind:value=flag_signal
+                />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Attachment"</label>
                 <input class="w-full text-sm" type="file" name="attachment" multiple on:change=move |ev: Event| {
@@ -182,34 +208,42 @@ pub fn Challenge(
                         }
                     >"Cancel"</button>
                 </Show>
-                <button type="button" hidden=move || deleting.get() class="inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400" on:click=move |_| {
-                    if editing.get() {
-                        spawn_local(async move {
-                            // update in db
-                            if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
-                                crate::server::admin::ChallengeAction::Edit { 
-                                    id: id_signal.get().clone(), 
-                                    event_id: event_id_signal.get().clone(), 
-                                    name: name_signal.get().to_string(), 
-                                    description: description_signal.get().unwrap_or_default(), 
-                                    category: category_signal.get().unwrap_or_default(), 
-                                    difficulty: difficulty_signal.get(), 
-                                    points: points_signal.get(), 
-                                    flag: flag_signal.get(), 
-                                    attachments: Some(attachments_signal.get()),
+                <button 
+                    type="button" 
+                    hidden=move || deleting.get() 
+                    class=r#"inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm 
+                    font-medium focus:outline-none focus:ring-2 active:scale-95 transition bg-indigo-600 
+                    hover:bg-indigo-700 focus:ring-indigo-400"#
+                    on:click=move |_| {
+                        if editing.get() {
+                            spawn_local(async move {
+                                // update in db
+                                if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
+                                    crate::server::admin::ChallengeAction::Edit { 
+                                        id: id_signal.get().clone(), 
+                                        event_id: event_id_signal.get().clone(), 
+                                        name: name_signal.get().to_string(), 
+                                        description: description_signal.get().unwrap_or_default(), 
+                                        category: category_signal.get().unwrap_or_default(), 
+                                        difficulty: difficulty_signal.get(), 
+                                        points: points_signal.get(), 
+                                        flag: flag_signal.get(), 
+                                        attachments: Some(attachments_signal.get()),
+                                    }
+                                ).await && result == ResultStatus::Success {
+                                    refresh.update(|n| *n += 1);
+                                    editing.set(false)
                                 }
-                            ).await && result == ResultStatus::Success {
-                                refresh.update(|n| *n += 1);
-                            }
-                        });
-                        editing.set(false)
-                    } else {
-                        editing.set(true)
+                            });
+                        } else {
+                            editing.set(true)
+                        }
                     }
-                }>{ move || edit_submit_btn_text.get() }</button>
+                >{move || edit_submit_btn_text.get()}</button>
                 <button
                     hidden=move || editing.get()
-                    class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm font-semibold shadow-sm hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm 
+                    font-semibold shadow-sm hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"#
                     on:click=move |_| {
                         if deleting.get() {
                             let challenge_id = id_signal.get().clone();
@@ -218,17 +252,17 @@ pub fn Challenge(
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
                                     crate::server::admin::ChallengeAction::Delete { id: challenge_id.clone() } 
                                 ).await && result == ResultStatus::Success {
+                                    deleting.set(false);
                                     deleted.set(true);
                                     refresh.update(|n| *n += 1);
                                 }
                             });
-                            deleting.set(false);
                         } else {
                             deleting.set(true);
                         }
                     }
                 >
-                    { move || delete_submit_btn_text.get() }
+                    {move || delete_submit_btn_text.get()}
                 </button>
             </div>
         </div>

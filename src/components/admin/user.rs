@@ -32,15 +32,13 @@ pub fn User(
         <Transition fallback=|| {
             view! { "..." }
         }>
-            {move || 
+            <p>{move || 
                 if new_password_signal.get() != confirm_new_password_signal.get() {
-                    view! {
-                        <p>"Must match with password"</p>
-                    }.into_any()
+                    "Must match with password".into_any()
                 } else {
-                    view! {}.into_any()
+                   "".into_any()
                 }
-            }
+            }</p>
         </Transition>
     };
     

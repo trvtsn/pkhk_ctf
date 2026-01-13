@@ -1,4 +1,4 @@
-use crate::server::{db::enums::UserRole, get_user, get_user_points, logout_user};
+use crate::server::{db::enums::UserRole, get_user, get_user_points, logout_user, structs::User};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 use leptos_icons::Icon;
@@ -7,14 +7,30 @@ use leptos_router::hooks::use_navigate;
 #[component]
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
-    let user = Resource::new(move || (), async move |_| {
+    let user = RwSignal::<Option<User>>::new(None);
+    let points = RwSignal::new(0_u32);
+
+    let user_resource = Resource::new(move || (), move |_| async move {
         get_user().await.unwrap_or(None)
     });
-    let user_points = Resource::new(move || (), async move |_| {
-        get_user_points().await
+    let user_points_resource = Resource::new(move || (), move |_| async move {
+        get_user_points().await.unwrap_or_default()
     });
-    let username = RwSignal::new("".to_string());
-    let user_profile_path = RwSignal::new("".to_string());
+
+    Effect::new(move |_| {
+        let user_result = user_resource.get().unwrap_or(None);
+        let user_points_result = user_points_resource.get().unwrap_or_default();
+        user.set(user_result);
+        points.set(user_points_result);
+    });
+
+    let role = Memo::new(move |_| {
+        if let Some(user) = user.get() { user.role } else { UserRole::Competitor }
+    });
+
+    let username = Memo::new(move |_| {
+        if let Some(user) = user.get() { user.username } else { "".to_string() }
+    });
 
     view! {
         <div class="flex top-0 w-full items-center bg-white/25 shadow-sm p-4">
@@ -23,94 +39,72 @@ pub fn NavBar() -> impl IntoView {
             <nav class="flex items-center justify-center">
                 <ul class="flex items-center gap-6 list-none p-0 m-0">
                     <li class="flex items-center gap-2">
-                        
                         <a href="/" class="inline-flex items-center gap-2 m-1">
                             <Icon icon=i::LuHouse />
                             "Home"
                         </a>
                     </li>
                     <li class="flex items-center gap-2">
-                        
                         <a href="/challenges" class="inline-flex items-center gap-2 m-1">
                             <Icon icon=i::MdiBullseyeArrow />
                             "Challenges"
                         </a>
                     </li>
                     <li class="flex items-center gap-2">
-                        
                         <a href="/leaderboard" class="inline-flex items-center gap-2 m-1">
                             <Icon icon=i::LuChartLine />
                             "Leaderboard"
                         </a>
                     </li>
-                    <Suspense fallback=move || view! { <p>"Loading..."</p> }>
-                        {move || user.get().map(|user| match user {
-                            Some(user) => {
-                                view! {
-                                    <Show when=move || user.role == UserRole::Admin >
-                                        <a href="/admin" class="inline-flex items-center gap-2 m-1">
-                                            <Icon icon=i::LuSettings />
-                                            "Admin"
-                                        </a>
-                                    </Show>
-                                }.into_any()
-                            }
-                            None => {
-                                view! {}.into_any()
-                            }
-                        })}
-                    </Suspense>
+                    <Transition fallback=move || view! { <p>"Loading..."</p> }>
+                        <Show when=move || user.get().is_some() && role.get() == UserRole::Admin>
+                            <a href="/admin" class="inline-flex items-center gap-2 m-1">
+                                <Icon icon=i::LuSettings />
+                                "Admin"
+                            </a>
+                        </Show>
+                    </Transition>
                 </ul>
             </nav>
 
             <nav class="flex-1 flex justify-end items-center p-2 gap-2">
                 <ul class="flex items-center gap-4 list-none p-0 m-0">
                     <Transition fallback=move || view! { <p>"Loading..."</p> }>
-                        {move || user.get().map(|j| match j {
-                            Some(user) => {
-                                username.set(user.username);
-                                user_profile_path.set(format!("/profile/{}", username.get()));
-                                view! {
-                                    <li class="flex items-center gap-2">
-                                        <a
-                                            class="inline-flex items-center gap-2 m-1 cursor-pointer"
-                                            on:click=move |_| {
-                                                open.set(!open.get());
-                                            }
-                                        >
-                                            <Icon icon=i::LuUser />
-                                            {username.get()}
-                                        </a>
-                                    </li>
-                                    <b>"Points: "{move || user_points.get().map(|user_points| match user_points {
-                                        Ok(user_points) => user_points,
-                                        Err(_e) => 0_u32
-                                    })}</b>
-                                }.into_any()
-                            }
-                            None => {
-                                view! {
-                                    <li class="flex items-center gap-2">
-                                        <a href="/login" class="inline-flex items-center gap-2 m-1">
-                                            <Icon icon=i::LuLogIn />
-                                            "Login"
-                                        </a>
-                                    </li>
-                                    <li class="flex items-center gap-2">
-                                        <a href="/register" class="inline-flex items-center gap-2 m-1">
-                                            <Icon icon=i::LuUserPlus />
-                                            "Register"
-                                        </a>
-                                    </li>
-                                }.into_any()
-                            }
-                        })}
+                        <Show when=move || user.get().is_some()>
+                            <li class="flex items-center gap-2">
+                                <a class="inline-flex items-center gap-2 m-1 cursor-pointer" on:click=move |_| {
+                                    open.set(!open.get());
+                                }>
+                                    <Icon icon=i::LuUser />
+                                    {username.get()}
+                                </a>
+                            </li>
+                            <b>"Points: "{points.get()}</b>
+                        </Show>
+
+                        <Show when=move || user.get().is_none()>
+                            <li class="flex items-center gap-2">
+                                <a href="/login" class="inline-flex items-center gap-2 m-1">
+                                    <Icon icon=i::LuLogIn />
+                                    "Login"
+                                </a>
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <a href="/register" class="inline-flex items-center gap-2 m-1">
+                                    <Icon icon=i::LuUserPlus />
+                                    "Register"
+                                </a>
+                            </li>
+                        </Show>
                     </Transition>
+
                     <Show when=move || open.get() fallback=|| ()>
-                        <nav class="flex-col fixed bg-white/25 rounded-md p-4 z-50 mt-[15rem] shadow-sm" on:blur=move |_| {open.set(false)}>
+                        <nav class="flex-col fixed bg-white/25 rounded-md p-4 z-50 mt-[15rem] shadow-sm" on:blur=move |_| {
+                            open.set(false)
+                        }>
                             <ul class="flex flex-col items-center gap-4">
                                 <li class="w-full">
-                                    <a href=user_profile_path.get()>
+                                    <a href=move || format!("/profile/{}", username.get())>
                                         <Icon icon=i::LuCircleUser />
                                         "Profile"
                                     </a>

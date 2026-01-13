@@ -10,8 +10,6 @@ use crate::{components::navbar::NavBar};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
-// use std::fmt::Display;
-// use thaw::*;
 
 #[derive(Clone, PartialEq)]
 pub enum AdminSections {
@@ -78,48 +76,60 @@ pub fn AdminNavBar() -> impl IntoView {
             <ul class="flex flex-col gap-1" role="menu" aria-label="Admin navigation">
                 <li>
                     <p 
-                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        on:click=move |_| selected.set(AdminSections::SiteSettings)>
+                        class=r#"flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 
+                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"#
+                        on:click=move |_| selected.set(AdminSections::SiteSettings)
+                    >
                         <Icon icon=i::LuSettings/>
                         "Site Settings"
                     </p>
                 </li>
                 <li>
                     <p 
-                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        on:click=move |_| selected.set(AdminSections::Events)>
+                        class=r#"flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 
+                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                        on:click=move |_| selected.set(AdminSections::Events)
+                    >
                         <Icon icon=i::LuCalendarRange/>
                         "Events"
                     </p>
                 </li>
                 <li>
                     <p 
-                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        on:click=move |_| selected.set(AdminSections::Challenges)>
+                        class=r#"flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 
+                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                        on:click=move |_| selected.set(AdminSections::Challenges)
+                    >
                         <Icon icon=i::MdiBullseyeArrow/>
                         "Challenges"
                     </p>
                 </li>
                 <li>
                     <p 
-                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        on:click=move |_| selected.set(AdminSections::Files)>
+                        class=r#"flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 
+                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                        on:click=move |_| selected.set(AdminSections::Files)
+                    >
                         <Icon icon=i::LuFiles/>
                         "Files"
                     </p>
                 </li>
                 <li>
                     <p 
-                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        on:click=move |_| selected.set(AdminSections::Users)>
+                        class=r#"flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 
+                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                        on:click=move |_| selected.set(AdminSections::Users)
+                    >
                         <Icon icon=i::LuUsers/>
                         "Users"
                     </p>
                 </li>
                 <li>
                     <p 
-                        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        on:click=move |_| selected.set(AdminSections::Log)>
+                        class=r#"flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 
+                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                        on:click=move |_| selected.set(AdminSections::Log)
+                    >
                         <Icon icon=i::LuLogs/>
                         "Log"
                     </p>

@@ -29,17 +29,17 @@ pub fn Log() -> impl IntoView {
 
     view! {
         <textarea class="server-logs w-full rounded-lg shadow-sm p-4" readonly rows="20">
-        {move || {
-            logs.get()
-        }}
+            {move || logs.get()}
         </textarea>
         <div class="flex gap-3 mt-2">
             <button 
-                class="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition" 
+                class=r#"bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg 
+                text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition"# 
                 on:click=move |_| logs.set(Vec::new())
                 >"Clear"</button>
             <button 
-                class="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition"
+                class=r#"bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg 
+                text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition"#
                 on:click=move |_| {
                     let text = logs.get().join("");
 

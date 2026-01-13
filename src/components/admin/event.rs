@@ -1,7 +1,6 @@
-use crate::{server::{admin::AdminEventApi, enums::ResultStatus, structs::ApiResult}, utils::{html_local_to_datetime, offset_to_naive}};
+use crate::{server::{enums::ResultStatus, structs::ApiResult}, utils::{html_local_to_datetime}};
 use chrono::DateTime;
 use leptos::{prelude::*, task::spawn_local, web_sys::Event};
-use time::OffsetDateTime;
 
 #[component]
 pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView {
@@ -25,20 +24,18 @@ pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -
         <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center">
             <Show when=move || !editing.get()>
                 <h3 class="text-3xl/8 font-bold">{move || name_signal.get().clone()}</h3>
-                <p class="text-lg/8"><b>"ID: "</b> {move || id_signal.get().clone()}</p>
-                {move || {
+                <p class="text-lg/8"><b>"ID: "</b>{move || id_signal.get().clone()}</p>
+                <p class="text-lg/8"><b>"Description: "</b>{move || {
                     if let Some(description) = description_signal.get() {
-                        view! {
-                            <p class="text-lg/8"><b>"Description: "</b>{description.clone()}</p>
-                        }.into_any()
+                        description.clone().into_any()
                     } else {
-                        view! {}.into_any()
+                        "".into_any()
                     }
-                }}
+                }}</p>
                 //<time datetime=move || start_at_signal.get()></time>
                 //<time datetime=move || end_at_signal.get()></time>
-                <p class="text-lg/8"><b>"Start Date: "</b> {move || start_at_signal.get().to_string()}</p>
-                <p class="text-lg/8"><b>"End Date: "</b> {move || end_at_signal.get().to_string()}</p>
+                <p class="text-lg/8"><b>"Start Date: "</b>{move || start_at_signal.get().to_string()}</p>
+                <p class="text-lg/8"><b>"End Date: "</b>{move || end_at_signal.get().to_string()}</p>
             </Show>
 
             <Show when=move || editing.get()>
@@ -107,9 +104,9 @@ pub fn Event(event: crate::server::db::structs::Event, refresh: RwSignal<i32>) -
                                     crate::server::admin::EventAction::Delete { id: event_id.clone() } 
                                 ).await && result == ResultStatus::Success {
                                     refresh.update(|n| *n += 1);
+                                    deleting.set(false);
                                 }
                             });
-                            deleting.set(false);
                         } else {
                             deleting.set(true);
                         }

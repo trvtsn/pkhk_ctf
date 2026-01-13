@@ -13,46 +13,76 @@ pub fn Settings() -> impl IntoView {
     let set_mode = use_context::<WriteSignal<ColorMode>>().unwrap();
     let changing_password = RwSignal::new(false);
 
+    let edit_avatar_action_text = Memo::new(move |_| {
+        if edit_avatar_action.pending().get() { "Uploading..." } else { "" }
+    });
+
     view! {
         <NavBar />
         <div class="grid justify-center p-4">
-            <label>
-                "Dark Mode"
-                <input type="checkbox" on:input=move |ev| {
-                    let is_checked = event_target_checked(&ev);
-                    if is_checked { set_mode.set(ColorMode::Dark) } else { set_mode.set(ColorMode::Light) };
-                } />
-            </label>
+            <label>"Dark Mode"</label>
+            <input type="checkbox" on:input=move |ev| {
+                let is_checked = event_target_checked(&ev);
+                if is_checked { set_mode.set(ColorMode::Dark) } else { set_mode.set(ColorMode::Light) };
+            }/>
+            
             <ActionForm action=edit_username>
-                <label>
-                    "Change Username" 
-                    <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="text" name="username" />
-                    <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Submit" />
-                </label>
+                <label>"Change Username" </label>
+                    <input 
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        type="text" 
+                        name="username" 
+                    />
+                    <input 
+                        class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
+                        font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                        type="submit" 
+                        value="Submit"
+                    />
+                
             </ActionForm>
+
             <button
-                class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                on:click=move |_| {if changing_password.get() {changing_password.set(false)} else {changing_password.set(true)}}
+                class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
+                font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"#
+                on:click=move |_| {
+                    if changing_password.get() {changing_password.set(false)} else {changing_password.set(true)}
+                }
             >"Change Password"</button>
+
             <Show when=move || changing_password.get()>
                 <ActionForm action=edit_password>
-                    <label>
-                        "Old Password"
-                        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="old_password" />
-                    </label>
-                    <label>
-                        "New Password"
-                        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="new_password" />
-                    </label>
-                    <label>
-                        "Confirm New Password"
-                        <input class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" name="confirm_new_password" />
-                    </label>
+                    <label>"Old Password"</label>
+                    <input 
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        type="password" 
+                        name="old_password" 
+                    />
+                    
+                    <label>"New Password"</label>
+                    <input 
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        type="password" 
+                        name="new_password" 
+                    />
+                    
+                    <label>"Confirm New Password"</label>
+                    <input 
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                        type="password" 
+                        name="confirm_new_password" 
+                    />
+                    
                     <button 
                         class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 
                         on:click=move |_| {changing_password.set(false)}
                     >"Cancel"</button>
-                    <input class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="submit" value="Submit" />
+                    <input 
+                        class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
+                        font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                        type="submit" 
+                        value="Submit" 
+                    />
                 </ActionForm>
             </Show>
             <label>
@@ -68,20 +98,7 @@ pub fn Settings() -> impl IntoView {
                         }
                     }
                 />
-                <p>
-                    { move || {
-                        if edit_avatar_action.pending().get() {
-                            "Uploading...".to_string()
-                        // } else if let Some(Ok(val)) = edit_avatar_action.value().get() {
-                        //     format!("Uploaded: {}", val.details)
-                        // } else {
-                        //     "Choose a file".to_string()
-                        // }
-                        } else {
-                            "".to_string()
-                        }
-                    }}
-                </p>
+                <p>{move || edit_avatar_action_text.get()}</p>
             </label>
         </div>
     }

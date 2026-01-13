@@ -1,6 +1,5 @@
-use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone, Utc};
-use std::error::Error;
-use time::{Duration, OffsetDateTime, UtcOffset};
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use time::OffsetDateTime;
 
 pub fn offset_to_naive(offset_dt: OffsetDateTime) -> NaiveDateTime {
     let offset_dt_secs = offset_dt.unix_timestamp();

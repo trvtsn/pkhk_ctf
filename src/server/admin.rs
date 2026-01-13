@@ -493,8 +493,6 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
                     }
 
-                    let hashed_pw = hash_string(password.clone())?;
-
                     let mut tx = auth.backend.pool.begin().await?;
                     match DbUser::edit_username(&id, &username, &mut *tx).await {
                         Ok(_) => {},

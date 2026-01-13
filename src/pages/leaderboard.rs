@@ -1,5 +1,5 @@
-use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar}, server::{enums::AdminEventPayloadKind, build_leaderboard_data, structs::PivotRow}};
-use leptos::{logging::log, prelude::*};
+use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar}, server::{build_leaderboard_data, enums::AdminEventPayloadKind, structs::{LeaderboardData, PivotRow}}};
+use leptos::prelude::*;
 use leptos_chartistry::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
@@ -8,7 +8,8 @@ use leptos::server::codee::string::FromToStringCodec;
 #[component]
 pub fn Leaderboard() -> impl IntoView {
     let refresh = RwSignal::new(0);
-    let leaderboard_data = Resource::new(move || refresh.get(), move |_| async move {
+    let leaderboard_data = RwSignal::new(LeaderboardData::default());
+    let leaderboard_data_resource = Resource::new(move || refresh.get(), move |_| async move {
         build_leaderboard_data().await.unwrap_or_default()
     });
 
@@ -30,16 +31,10 @@ pub fn Leaderboard() -> impl IntoView {
                 Ok(_) => {},
                 Err(e) => tracing::warn!("failed to parse AdminEventPayloadKind: {}", e)
             }
-
-            // if let Ok(kind) = msg.data.parse::<AdminEventPayloadKind>() {
-            //     match kind {
-            //         AdminEventPayloadKind::ChallengeSolved => {
-            //             refresh.update(|n| *n += 1)
-            //         }
-            //         _ => {}
-            //     }
-            // }
         }
+
+        let leaderboard_data_result = leaderboard_data_resource.get().unwrap_or_default();
+        leaderboard_data.set(leaderboard_data_result);
     });
 
     view! { 
@@ -48,32 +43,24 @@ pub fn Leaderboard() -> impl IntoView {
             <h3 class="text-4xl text-center m-2">"Leaderboard"</h3>
             <Transition fallback=move || view! { <div>"Loading..."</div> }>
                 {move || {
-                    let result_view = match leaderboard_data.get() {
-                        Some(data) => { 
-                            let usernames = data.users.clone();
-                            let base = Series::new(|r: &PivotRow| r.ts);
-                            let series = usernames.iter().cloned().fold(base, |s, name| {
-                                let nm = name.clone();
-                                s.line(
-                                    Line::new(move |r: &PivotRow| {
-                                        r.values.get(&nm).cloned().unwrap_or(f64::NAN)
-                                    })
-                                    .with_name(name),
-                                )
-                            });
-
-                            view! {
-                                <LeaderboardChart
-                                    series=RwSignal::new(series)
-                                    data=RwSignal::new(data)
-                                />
-                            }.into_any()
-                        }
-                        None => view! { "No events currently active" }.into_any()
-                    };
+                    let data = leaderboard_data.get();
+                    let usernames = data.users.clone();
+                    let base = Series::new(|r: &PivotRow| r.ts);
+                    let series = usernames.iter().cloned().fold(base, |s, name| {
+                        let nm = name.clone();
+                        s.line(
+                            Line::new(move |r: &PivotRow| {
+                                r.values.get(&nm).cloned().unwrap_or(f64::NAN)
+                            })
+                            .with_name(name),
+                        )
+                    });
 
                     view! {
-                        { result_view }
+                        <LeaderboardChart
+                            series=RwSignal::new(series)
+                            data=RwSignal::new(data)
+                        />
                     }
                 }}
             </Transition>
