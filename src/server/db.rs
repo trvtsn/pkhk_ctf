@@ -81,7 +81,8 @@ pub mod structs {
         pub pw_hash: String,
         pub created_at: DateTime<Local>,
         pub last_active_at: DateTime<Local>,
-        pub role: UserRole
+        pub role: UserRole,
+        pub points: u32
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
@@ -258,9 +259,9 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     INSERT INTO users
-                    (id, username, email, pw_hash, created_at, last_active_at, role)
+                    (id, username, email, pw_hash, created_at, last_active_at, role, points)
                     VALUES
-                    (?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?)
                     ",
                     id.to_string(),
                     username,
@@ -268,7 +269,8 @@ cfg_if! {
                     pw_hash,
                     sqlx::types::chrono::Local::now(),
                     sqlx::types::chrono::Local::now(),
-                    "admin"
+                    "admin",
+                    0
                 )
                     .execute(executor)
                     .await {
@@ -372,7 +374,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -391,7 +393,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -411,7 +413,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
                             FROM users 
                             WHERE username LIKE ?
                             ", 
@@ -433,7 +435,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role
+                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
                     FROM users 
                     "
                 )
@@ -558,8 +560,8 @@ cfg_if! {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
-                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(),
                     self.username,
@@ -567,7 +569,8 @@ cfg_if! {
                     self.pw_hash,
                     self.created_at,
                     self.last_active_at,
-                    self.role.to_string()
+                    self.role.to_string(),
+                    self.points
                 )
                     .execute(executor)
                     .await {

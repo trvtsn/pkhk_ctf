@@ -469,7 +469,8 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         pw_hash: hashed_pw, 
                         created_at: chrono::Local::now(), 
                         last_active_at: chrono::Local::now(), 
-                        role: UserRole::Competitor
+                        role: UserRole::Competitor,
+                        points: 0
                     };
                     match DbUser::add(&new_user, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("created user".to_string()) }),

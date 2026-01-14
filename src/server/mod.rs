@@ -49,17 +49,15 @@ pub mod structs {
     pub struct User {
         /// The database id for this user
         pub id: String,
-
         /// User-facing username, has a unique constraint in the db so we can use it to id users
         pub username: String,
-
         /// This is computed with Argon2id, but it's only a *piece* of the entire thing returned
         /// by the hash function. You should be able to use whatever you want here as long as you
         /// can keep it stable between page loads. Personally, I don't like using the password hash
         /// but that's how they do it in the example so it's probably fine.
         pub session_auth_hash: Vec<u8>,
-
-        pub role: UserRole
+        pub role: UserRole,
+        pub points: u32
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]

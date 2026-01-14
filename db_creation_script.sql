@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`events` (
   `id` CHAR(36) NOT NULL,
   `name` VARCHAR(45) NOT NULL,
   `description` TEXT NULL DEFAULT NULL,
-  `start_date` TIMESTAMP NOT NULL,
-  `end_date` TIMESTAMP NOT NULL,
+  `start_at` TIMESTAMP NOT NULL,
+  `end_at` TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`challenges` (
   `points` INT UNSIGNED NOT NULL,
   `flag_hash` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`id`),
-  INDEX `fk_challenges_events1_idx` (`event_id` ASC) VISIBLE,
   CONSTRAINT `fk_challenges_events1`
     FOREIGN KEY (`event_id`)
     REFERENCES `ctfpkhk`.`events` (`id`)
@@ -52,6 +51,8 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`challenges` (
     ON UPDATE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE INDEX `fk_challenges_events1_idx` ON `ctfpkhk`.`challenges` (`event_id` ASC) VISIBLE;
 
 
 -- -----------------------------------------------------
@@ -62,14 +63,17 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`users` (
   `username` VARCHAR(40) NOT NULL,
   `email` VARCHAR(90) NOT NULL,
   `pw_hash` VARCHAR(100) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` TIMESTAMP NOT NULL,
   `last_active_at` TIMESTAMP NOT NULL,
   `role` VARCHAR(14) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `username_UNIQUE` (`username` ASC) VISIBLE,
-  INDEX `email_idx` (`email` ASC) INVISIBLE)
+  `points` INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE UNIQUE INDEX `username_UNIQUE` ON `ctfpkhk`.`users` (`username` ASC) VISIBLE;
+
+CREATE INDEX `email_idx` ON `ctfpkhk`.`users` (`email` ASC) INVISIBLE;
 
 
 -- -----------------------------------------------------
@@ -86,10 +90,6 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
   `mime_type` VARCHAR(45) NULL DEFAULT NULL,
   `file_size` INT GENERATED ALWAYS AS (length(`file_blob`)) VIRTUAL,
   PRIMARY KEY (`id`),
-  INDEX `fk_attachments_users1_idx` (`user_id` ASC) VISIBLE,
-  INDEX `fk_attachments_events1_idx` (`event_id` ASC) VISIBLE,
-  INDEX `fk_attachments_challenges1_idx` (`challenge_id` ASC) VISIBLE,
-  INDEX `file_name_idx` (`file_name` ASC) VISIBLE,
   CONSTRAINT `fk_attachments_challenges1`
     FOREIGN KEY (`challenge_id`)
     REFERENCES `ctfpkhk`.`challenges` (`id`)
@@ -108,6 +108,14 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
 
+CREATE INDEX `fk_attachments_users1_idx` ON `ctfpkhk`.`attachments` (`user_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_attachments_events1_idx` ON `ctfpkhk`.`attachments` (`event_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_attachments_challenges1_idx` ON `ctfpkhk`.`attachments` (`challenge_id` ASC) VISIBLE;
+
+CREATE INDEX `file_name_idx` ON `ctfpkhk`.`attachments` (`file_name` ASC) VISIBLE;
+
 
 -- -----------------------------------------------------
 -- Table `ctfpkhk`.`submissions`
@@ -120,9 +128,6 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (
   `points` INT UNSIGNED NOT NULL,
   `solved_at` TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`),
-  INDEX `fk_leaderboard_users1_idx` (`user_id` ASC) VISIBLE,
-  INDEX `fk_leaderboard_events1_idx` (`event_id` ASC) VISIBLE,
-  INDEX `fk_leaderboard_challenges1_idx` (`challenge_id` ASC) VISIBLE,
   CONSTRAINT `fk_submissions_challenges1`
     FOREIGN KEY (`challenge_id`)
     REFERENCES `ctfpkhk`.`challenges` (`id`)
@@ -137,6 +142,12 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (
     ON UPDATE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE INDEX `fk_leaderboard_users1_idx` ON `ctfpkhk`.`submissions` (`user_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_leaderboard_events1_idx` ON `ctfpkhk`.`submissions` (`event_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_leaderboard_challenges1_idx` ON `ctfpkhk`.`submissions` (`challenge_id` ASC) VISIBLE;
 
 
 SET SQL_MODE=@OLD_SQL_MODE;

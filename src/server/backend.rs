@@ -102,7 +102,8 @@ cfg_if! {
                     pw_hash: pw_hash_str, 
                     created_at: chrono::Local::now(), 
                     last_active_at: chrono::Local::now(), 
-                    role: UserRole::Competitor
+                    role: UserRole::Competitor,
+                    points: 0
                 };
                 let new_user_id = new_user.add(&self.pool).await?;
 
@@ -115,7 +116,8 @@ cfg_if! {
                         id: new_user_id,
                         username,
                         session_auth_hash: hash_bytes,
-                        role: UserRole::Competitor
+                        role: UserRole::Competitor,
+                        points: 0
                     }
                 ))
             }
@@ -180,7 +182,8 @@ cfg_if! {
                     id: self.id,
                     username: self.username,
                     session_auth_hash: hash,
-                    role: self.role
+                    role: self.role,
+                    points: self.points
                 })
             }
         }
