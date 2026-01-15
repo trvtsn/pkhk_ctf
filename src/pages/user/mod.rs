@@ -16,7 +16,7 @@ pub fn User() -> impl IntoView {
     
     let user_res = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
-        async move { get_db_user(username).await.unwrap_or_default() }
+        async move { get_db_user().await.unwrap_or_default() }
     });
 
     let user_avatar = Resource::new(move || (), move |_| {

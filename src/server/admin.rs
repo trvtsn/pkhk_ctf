@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
@@ -53,8 +53,18 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -199,8 +209,18 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -257,8 +277,18 @@ pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -285,8 +315,18 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -312,8 +352,18 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -367,8 +417,18 @@ pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -394,8 +454,18 @@ pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -449,8 +519,18 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }
@@ -546,8 +626,18 @@ pub async fn delete_file(id: String) -> Result<ApiResult<Option<String>>, AppErr
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            if user.role != UserRole::Admin {
+            if db_user.role != UserRole::Admin {
                 response.set_status(StatusCode::FORBIDDEN);
                 return Err(AppError::Forbidden);
             }

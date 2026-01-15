@@ -1,3 +1,4 @@
+use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::structs::ChallengeWithAttachments;
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
@@ -19,6 +20,8 @@ pub fn Challenge(
     let open = RwSignal::new(false);
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
+
+    let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let button_classes = Memo::new(move |_| {
         let base = r#"inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 
@@ -79,6 +82,8 @@ pub fn Challenge(
                                 start(());
                             } else if result == ResultStatus::Success {
                                 solved.set(true);
+                                let iteration = refresh_user.get().iteration + 1;
+                                refresh_user.set(RefreshUser { iteration });
                             }
                         }
                     });

@@ -1,6 +1,5 @@
 use crate::{
-    components::{challenge::Challenge, navbar::NavBar},
-    server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
+    app::RefreshUser, components::{challenge::Challenge, navbar::NavBar}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -11,6 +10,7 @@ use std::collections::HashMap;
 #[component]
 pub fn Challenges() -> impl IntoView {
     let refresh = RwSignal::new(0);
+    let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     let challenges = RwSignal::<Vec<ChallengeWithAttachments>>::new(vec![]);
     let challenges_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_challenges_with_attachments().await.unwrap_or_default()
@@ -56,6 +56,8 @@ pub fn Challenges() -> impl IntoView {
                 Ok(AdminEventPayloadKind::EventDeleted) |
                 Ok(AdminEventPayloadKind::NewEventCreated) => {
                     refresh.update(|n| *n += 1);
+                    let iteration = refresh_user.get().iteration + 1;
+                    refresh_user.set(RefreshUser { iteration });
                 }
                 Ok(_) => {},
                 Err(e) => tracing::warn!("failed to parse AdminEventPayloadKind: {}", e)

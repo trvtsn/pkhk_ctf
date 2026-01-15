@@ -114,10 +114,7 @@ cfg_if! {
                 Ok(Some(
                     User {
                         id: new_user_id,
-                        username,
                         session_auth_hash: hash_bytes,
-                        role: UserRole::Competitor,
-                        points: 0
                     }
                 ))
             }
@@ -180,10 +177,7 @@ cfg_if! {
                 
                 Ok(User {
                     id: self.id,
-                    username: self.username,
                     session_auth_hash: hash,
-                    role: self.role,
-                    points: self.points
                 })
             }
         }

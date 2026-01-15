@@ -1,14 +1,16 @@
-use crate::{components::navbar::NavBar, server::{EditUsername, EditPassword, edit_avatar}};
-use leptos::{prelude::*, web_sys::{FormData, Event, HtmlInputElement}, wasm_bindgen::JsCast};
+use crate::{app::RefreshUser, components::navbar::NavBar, server::{EditPassword, edit_avatar, edit_username}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
 use leptos_use::{ColorMode};
 
 /// Default Home Page
 #[component]
 pub fn Settings() -> impl IntoView {
+    let refresh_user = expect_context::<RwSignal<RefreshUser>>();
+
+    let new_username = RwSignal::new("".to_string());
     let edit_avatar_action = Action::new_local(|data: &FormData| {
         edit_avatar(data.clone().into())
     });
-    let edit_username = ServerAction::<EditUsername>::new();
     let edit_password = ServerAction::<EditPassword>::new();
     let set_mode = use_context::<WriteSignal<ColorMode>>().unwrap();
     let changing_password = RwSignal::new(false);
@@ -26,27 +28,31 @@ pub fn Settings() -> impl IntoView {
                 if is_checked { set_mode.set(ColorMode::Dark) } else { set_mode.set(ColorMode::Light) };
             }/>
             
-            <ActionForm action=edit_username>
-                <label>"Change Username" </label>
-                    <input 
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type="text" 
-                        name="username" 
-                    />
-                    <input 
-                        class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
-                        font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
-                        type="submit" 
-                        value="Submit"
-                    />
-                
-            </ActionForm>
+            <label>"Change Username"</label>
+            <input 
+                class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                type="text" 
+                bind:value=new_username
+            />
+            <button
+                class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
+                font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                on:click=move |_| {
+                    spawn_local(async move {
+                        if edit_username(new_username.get()).await.is_ok() {
+                            let iteration = refresh_user.get().iteration + 1;
+                            refresh_user.set(RefreshUser { iteration });
+                        }
+                    });
+                }
+            >"Change Username"</button>
 
             <button
                 class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
                 font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"#
                 on:click=move |_| {
                     if changing_password.get() {changing_password.set(false)} else {changing_password.set(true)}
+
                 }
             >"Change Password"</button>
 

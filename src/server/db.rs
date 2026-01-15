@@ -599,6 +599,26 @@ cfg_if! {
                         }
                     }
             }
+
+            pub async fn add_points(id: &String, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET points = points + ?
+                    WHERE id = ?
+                    ",
+                    points,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
         }
 
         impl Challenge {

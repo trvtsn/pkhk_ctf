@@ -5,13 +5,14 @@ use leptos_router::{
     path
 };
 use leptos_use::{UseColorModeOptions, UseColorModeReturn, use_color_mode_with_options};
+use serde::{Deserialize, Serialize};
 
 // Top-Level pages
 use crate::{
     pages::{
         admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login::Login,
         not_found::NotFound, register::Register, user,
-    }, server::{db::enums::UserRole, get_user,}
+    }, server::{db::enums::UserRole, get_db_user}
 };
 
 
@@ -34,6 +35,11 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RefreshUser {
+    pub iteration: u32
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
@@ -45,9 +51,24 @@ pub fn App() -> impl IntoView {
     provide_context(mode);
     provide_context(set_mode);
 
-    let user = Resource::new(move|| (), |_| async move {
-        get_user().await.unwrap_or(None)
+    let refresh_user = RwSignal::new(RefreshUser { iteration: 0 });
+    let user = RwSignal::new(None);
+    let user_resource = Resource::new(move || refresh_user.get(), |_| async move {
+        get_db_user().await.unwrap_or(None)
     });
+
+    // effects arent actually intended to synchronize with the reactive system,
+    // find another solution
+    Effect::new(move |_| {
+        let user_value = user_resource.get().unwrap_or(None);
+        // only set the signal if it's different, avoiding infinite loops
+        if user_value != user.get() {
+            user.set(user_value);
+        }
+    });
+
+    provide_context(user);
+    provide_context(refresh_user);
 
     view! {
         <ErrorBoundary fallback=|errors| {
@@ -77,10 +98,7 @@ pub fn App() -> impl IntoView {
                     <ProtectedRoute
                         path=path!("/admin")
                         redirect_path=|| "/login"
-                        condition=move || user.get().map(|u| match u {
-                            Some(user) => user.role == UserRole::Admin,
-                            None => false
-                        })
+                        condition=move || user.get().map(|u| u.role == UserRole::Admin)
                         view=Admin
                         ssr=leptos_router::SsrMode::InOrder
                     ></ProtectedRoute>
@@ -89,7 +107,7 @@ pub fn App() -> impl IntoView {
                     <ProtectedRoute
                         path=path!("/settings")
                         redirect_path=|| "/login"
-                        condition=move || user.get().map(|u| u.is_some())
+                        condition=move || Some(user.get().is_some())
                         view=user::settings::Settings
                         ssr=leptos_router::SsrMode::InOrder
                     >

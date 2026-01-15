@@ -24,7 +24,7 @@ pub mod auth;
 pub mod backend;
 pub mod db;
 pub mod structs {
-    use crate::server::{UserRole, enums::ResultStatus};
+    use crate::server::{enums::ResultStatus};
     use chrono::{DateTime, Local};
     use leptos::prelude::LeptosOptions;
     use serde::{Deserialize, Serialize};
@@ -49,15 +49,11 @@ pub mod structs {
     pub struct User {
         /// The database id for this user
         pub id: String,
-        /// User-facing username, has a unique constraint in the db so we can use it to id users
-        pub username: String,
         /// This is computed with Argon2id, but it's only a *piece* of the entire thing returned
         /// by the hash function. You should be able to use whatever you want here as long as you
         /// can keep it stable between page loads. Personally, I don't like using the password hash
         /// but that's how they do it in the example so it's probably fine.
         pub session_auth_hash: Vec<u8>,
-        pub role: UserRole,
-        pub points: u32
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -261,22 +257,6 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
     }
 }
 
-#[server]
-pub async fn is_user_admin() -> Result<bool, AppError> {
-    cfg_if! {
-        if #[cfg(feature = "ssr")] {
-            let session = use_context::<AuthSession>().unwrap();
-            if session.user.unwrap().role == UserRole::Admin {
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        } else {
-            Err(AppError::NoServerConnection)
-        }
-    }
-}
-
 #[server(name=LoginUser, prefix="/api", endpoint="login")]
 #[instrument(skip(password))]
 pub async fn login_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> { // impl IntoResponse (can serve 403 that way)
@@ -363,19 +343,19 @@ pub async fn get_user_points() -> Result<u32, AppError> {
 
 #[server(name=GetDbUser, prefix="/api/user", endpoint="info")]
 #[instrument]
-pub async fn get_db_user(username: String) -> Result<Option<DbUser>, AppError> {
+pub async fn get_db_user() -> Result<Option<DbUser>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let response = expect_context::<ResponseOptions>();
-            match auth.user {
-                Some(_) => {},
+            let user = match auth.user {
+                Some(user) => user,
                 None => {
                     response.set_status(StatusCode::FORBIDDEN);
                     return Err(AppError::Forbidden);
                 }
-            }
-            match DbUser::get(&UserIdentifier::Username(username), &auth.backend.pool).await {
+            };
+            match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
                 Ok(user) => Ok(user),
                 Err(e) => {
                     tracing::error!(error = ?e);
@@ -433,8 +413,10 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                 }
             };
 
+            let mut tx = auth.backend.pool.begin().await?;
+
             // check if the challenge is already solved, and if so, return Error
-            match db::structs::Submission::get_user_solved_challenges(&user.id, &auth.backend.pool).await {
+            match db::structs::Submission::get_user_solved_challenges(&user.id, &mut *tx).await {
                 Ok(solved) => {
                     if solved.contains(&challenge.id) {
                         return Ok(ApiResult { result: ResultStatus::Fail, details: "challenge already solved".to_string() });
@@ -442,25 +424,39 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                 },
                 Err(e) => {
                     tracing::error!(error = ?e);
+                    tx.rollback().await?;
                     return Err(AppError::InternalError("failed to check flag".to_string()));
                 }
             }
 
-            let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&challenge.id, &auth.backend.pool).await {
+            let challenge_flag_hash = match db::structs::Challenge::get_flag_hash(&challenge.id, &mut *tx).await {
                 Ok(flag_hash) => flag_hash,
                 Err(e) => {
                     tracing::error!(error = ?e);
+                    tx.rollback().await?;
                     return Err(AppError::InternalError("Failed to get flag hash".to_string()));
                 }
             };
 
             if let Ok(()) = verify_hash(flag.clone(), challenge_flag_hash) {
-                match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &auth.backend.pool).await {
+                match DbUser::add_points(&user.id.clone(), &challenge.points, &mut *tx).await {
+                    Ok(_) => {},
+                    Err(e) => {
+                        tx.rollback().await?;
+                        return Err(e.into());
+                    }
+                }
+                
+                match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &mut *tx).await {
                     Ok(_) => {
+                        tx.commit().await?;
                         _ = build_and_broadcast(AdminEventPayloadKind::ChallengeSolved).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() })
                     }
-                    Err(e) => Err(e.into())
+                    Err(e) => {
+                        tx.rollback().await?;
+                        Err(e.into())
+                    }
                 }
             } else {
                 Ok(ApiResult { result: ResultStatus::Fail, details: "incorrect solution".to_string() })
@@ -549,7 +545,7 @@ pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
                 }
             };
 
-            match DbUser::get_avatar(&UserIdentifier::Username(user.username.clone()), &auth.backend.pool).await {
+            match DbUser::get_avatar(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
                 Ok(avatar) => Ok(avatar),
                 Err(e) => Err(e.into())
             }

@@ -1,4 +1,4 @@
-use crate::server::{db::enums::UserRole, get_user, logout_user};
+use crate::server::{db::{enums::UserRole, structs::DbUser}, logout_user};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 use leptos_icons::Icon;
@@ -7,18 +7,7 @@ use leptos_router::hooks::use_navigate;
 #[component]
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
-    let user = RwSignal::new(None);
-
-    let user_resource = Resource::new(move || (), move |_| async move {
-        get_user().await.unwrap_or(None)
-    });
-
-    // effects arent actually intended to synchronize with the reactive system,
-    // find another solution
-    Effect::new(move |_| {
-        let user_result = user_resource.get().unwrap_or_default();
-        user.set(user_result);
-    });
+    let user = expect_context::<RwSignal<Option<DbUser>>>();
 
     let role = Memo::new(move |_| {
         if let Some(user) = user.get() { user.role } else { UserRole::Competitor }
@@ -29,7 +18,7 @@ pub fn NavBar() -> impl IntoView {
     });
 
     let points = Memo::new(move |_| {
-        if let Some(user) = user.get() { user.points } else { 0_u32 }
+        if let Some(user) = user.get() { user.points } else { 0 }
     });
 
     view! {
