@@ -92,19 +92,13 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_attachments_challenges1`
     FOREIGN KEY (`challenge_id`)
-    REFERENCES `ctfpkhk`.`challenges` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
+    REFERENCES `ctfpkhk`.`challenges` (`id`),
   CONSTRAINT `fk_attachments_events1`
     FOREIGN KEY (`event_id`)
-    REFERENCES `ctfpkhk`.`events` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
+    REFERENCES `ctfpkhk`.`events` (`id`),
   CONSTRAINT `fk_attachments_users1`
     FOREIGN KEY (`user_id`)
-    REFERENCES `ctfpkhk`.`users` (`id`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE)
+    REFERENCES `ctfpkhk`.`users` (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
 
@@ -131,14 +125,17 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (
   CONSTRAINT `fk_submissions_challenges1`
     FOREIGN KEY (`challenge_id`)
     REFERENCES `ctfpkhk`.`challenges` (`id`)
+    ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT `fk_submissions_events1`
     FOREIGN KEY (`event_id`)
     REFERENCES `ctfpkhk`.`events` (`id`)
+    ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT `fk_submissions_users1`
     FOREIGN KEY (`user_id`)
     REFERENCES `ctfpkhk`.`users` (`id`)
+    ON DELETE CASCADE
     ON UPDATE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
@@ -149,6 +146,69 @@ CREATE INDEX `fk_leaderboard_events1_idx` ON `ctfpkhk`.`submissions` (`event_id`
 
 CREATE INDEX `fk_leaderboard_challenges1_idx` ON `ctfpkhk`.`submissions` (`challenge_id` ASC) VISIBLE;
 
+USE `ctfpkhk`;
+
+DELIMITER $$
+USE `ctfpkhk`$$
+CREATE
+DEFINER=`root`@`localhost`
+TRIGGER `ctfpkhk`.`submissions_AFTER_DELETE`
+AFTER DELETE ON `ctfpkhk`.`submissions`
+FOR EACH ROW
+BEGIN
+	UPDATE users
+    SET points = 
+    GREATEST(COALESCE(points,0) -
+    COALESCE(OLD.points,0), 0)
+    WHERE id = OLD.user_id;
+END$$
+
+USE `ctfpkhk`$$
+CREATE
+DEFINER=`root`@`localhost`
+TRIGGER `ctfpkhk`.`submissions_AFTER_INSERT`
+AFTER INSERT ON `ctfpkhk`.`submissions`
+FOR EACH ROW
+BEGIN
+	UPDATE users
+    SET points = 
+    COALESCE(points,0) +
+    COALESCE(NEW.points,0)
+    WHERE id = NEW.user_id;
+END$$
+
+USE `ctfpkhk`$$
+CREATE
+DEFINER=`root`@`localhost`
+TRIGGER `ctfpkhk`.`submissions_AFTER_UPDATE`
+AFTER UPDATE ON `ctfpkhk`.`submissions`
+FOR EACH ROW
+BEGIN
+	IF OLD.user_id = NEW.user_id
+	THEN
+		UPDATE users
+		SET points = 
+		GREATEST(COALESCE(points,0) + 
+		COALESCE(NEW.points,0) - 
+		COALESCE(OLD.points,0), 0)
+		WHERE id = NEW.user_id;
+	ELSE
+		UPDATE users
+		SET points = 
+		GREATEST(COALESCE(points,0) - 
+		COALESCE(OLD.points,0), 0)
+		WHERE id = OLD.user_id;
+        
+		UPDATE users
+		SET points = 
+		COALESCE(points,0) + 
+		COALESCE(NEW.points,0) 
+		WHERE id = NEW.user_id;
+	END IF;
+END$$
+
+
+DELIMITER ;
 
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;

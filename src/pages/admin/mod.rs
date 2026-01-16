@@ -21,6 +21,14 @@ pub enum AdminSections {
     Log
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Actions {
+    Create,
+    Delete,
+    Edit,
+    None
+}
+
 /// Default Home Page
 #[component]
 pub fn Admin() -> impl IntoView {

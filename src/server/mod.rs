@@ -343,7 +343,7 @@ pub async fn get_user_points() -> Result<u32, AppError> {
 
 #[server(name=GetDbUser, prefix="/api/user", endpoint="info")]
 #[instrument]
-pub async fn get_db_user() -> Result<Option<DbUser>, AppError> {
+pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -355,11 +355,21 @@ pub async fn get_db_user() -> Result<Option<DbUser>, AppError> {
                     return Err(AppError::Forbidden);
                 }
             };
-            match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
-                Ok(user) => Ok(user),
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+            if username.is_some() {
+                match DbUser::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &auth.backend.pool).await {
+                    Ok(user) => Ok(user),
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        Err(AppError::InternalError("internal error".to_string()))
+                    }
+                }    
+            } else {
+                match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                    Ok(user) => Ok(user),
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        Err(AppError::InternalError("internal error".to_string()))
+                    }
                 }
             }
         } else {
@@ -438,15 +448,7 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                 }
             };
 
-            if let Ok(()) = verify_hash(flag.clone(), challenge_flag_hash) {
-                match DbUser::add_points(&user.id.clone(), &challenge.points, &mut *tx).await {
-                    Ok(_) => {},
-                    Err(e) => {
-                        tx.rollback().await?;
-                        return Err(e.into());
-                    }
-                }
-                
+            if let Ok(()) = verify_hash(flag.clone(), challenge_flag_hash) {                
                 match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &mut *tx).await {
                     Ok(_) => {
                         tx.commit().await?;

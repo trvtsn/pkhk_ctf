@@ -8,8 +8,6 @@ use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
 use leptos_axum::ResponseOptions;
 #[cfg(feature = "ssr")]
 use http::StatusCode;
-// #[cfg(feature = "ssr")]
-// use leptos_use::{UseEventSourceMessage, UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -47,9 +45,6 @@ pub enum ChallengeAction {
 pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
-            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
-            // and it feels faster. Get the AuthSession.
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
@@ -203,9 +198,6 @@ pub enum EventAction {
 pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
-            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
-            // and it feels faster. Get the AuthSession.
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
@@ -489,7 +481,8 @@ pub enum UserAction {
         username: String,  
         email: String, 
         password: String, 
-        confirm_password: String
+        confirm_password: String,
+        role: UserRole
     },
     Delete {
         id: String
@@ -499,7 +492,8 @@ pub enum UserAction {
         username: String,  
         email: String, 
         password: String, 
-        confirm_password: String
+        confirm_password: String,
+        role: UserRole
     },
     EditPassword {
         id: String,
@@ -513,9 +507,6 @@ pub enum UserAction {
 pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
-            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
-            // and it feels faster. Get the AuthSession.
             let auth = use_context::<AuthSession>().unwrap();
             let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
@@ -536,7 +527,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
             }
 
             match action {
-                UserAction::Create { username, email, password, confirm_password } => {
+                UserAction::Create { username, email, password, confirm_password, role } => {
                     if password != confirm_password {
                         return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
                     }
@@ -549,7 +540,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         pw_hash: hashed_pw, 
                         created_at: chrono::Local::now(), 
                         last_active_at: chrono::Local::now(), 
-                        role: UserRole::Competitor,
+                        role,
                         points: 0
                     };
                     match DbUser::add(&new_user, &auth.backend.pool).await {
@@ -561,6 +552,21 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
                 }
                 UserAction::Delete { id } => {
+                    match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
+                        Ok(Some(user)) => {
+                            if user.role == UserRole::Admin {
+                                return Err(AppError::InternalError("cannot delete admin users".to_string()));
+                            }
+                        },
+                        Ok(None) => {
+                            return Err(AppError::InternalError("internal error".to_string()));
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            return Err(AppError::InternalError("internal error".to_string()));
+                        }
+                    };
+
                     match DbUser::delete(&id, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) }),
                         Err(e) => {
@@ -569,7 +575,22 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     }
                 }
-                UserAction::Edit { id, username, email, password, confirm_password } => {
+                UserAction::Edit { id, username, email, password, confirm_password, role } => {
+                    match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
+                        Ok(Some(user)) => {
+                            if user.role == UserRole::Admin {
+                                return Err(AppError::InternalError("cannot edit admin users".to_string()));
+                            }
+                        },
+                        Ok(None) => {
+                            return Err(AppError::InternalError("internal error".to_string()));
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            return Err(AppError::InternalError("internal error".to_string()));
+                        }
+                    };
+
                     if password != confirm_password {
                         return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
                     }
@@ -585,6 +606,15 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
 
                     match DbUser::edit_email(&id, &email, &mut *tx).await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            tx.rollback().await?;
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                        }
+                    }
+
+                    match DbUser::edit_role(&id, &role, &mut *tx).await {
                         Ok(_) => {
                             tx.commit().await?;
                             Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) })
@@ -597,6 +627,21 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
                 }
                 UserAction::EditPassword { id, password, confirm_password } => {
+                    match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
+                        Ok(Some(user)) => {
+                            if user.role == UserRole::Admin {
+                                return Err(AppError::InternalError("cannot edit password on admin users".to_string()));
+                            }
+                        },
+                        Ok(None) => {
+                            return Err(AppError::InternalError("internal error".to_string()));
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            return Err(AppError::InternalError("internal error".to_string()));
+                        }
+                    };
+
                     if password != confirm_password {
                         return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
                     }

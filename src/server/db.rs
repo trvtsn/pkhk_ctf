@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::{constants, error_template::AppError, server::{db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier}, structs::{AttachmentWithoutBlob, EventMetadata}}}};
+use crate::{constants, error_template::AppError, server::{db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, EventMetadata}}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
@@ -356,6 +356,26 @@ cfg_if! {
                     WHERE id = ?
                     ",
                     email,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn edit_role(id: &String, role: &UserRole, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET role = ?
+                    WHERE id = ?
+                    ",
+                    role.to_string(),
                     id
                 )
                     .execute(executor)

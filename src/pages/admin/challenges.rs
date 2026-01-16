@@ -1,3 +1,4 @@
+use crate::pages::admin::Actions;
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments};
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
 use crate::server::structs::ApiResult;
@@ -8,14 +9,6 @@ use leptos::{web_sys::{FormData, HtmlInputElement, Event, HtmlSelectElement}, wa
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
 use std::{collections::HashMap, time::Duration};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Actions {
-    Create,
-    Delete,
-    Edit,
-    None
-}
 
 /// Default Home Page
 #[component]

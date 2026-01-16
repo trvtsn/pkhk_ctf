@@ -1,13 +1,5 @@
-use crate::{components::admin::user::User, server::{admin::get_all_users, db::structs::DbUser, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::admin::user::User, pages::admin::Actions, server::{admin::get_all_users, db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Actions {
-    Create,
-    Delete,
-    Edit,
-    None
-}
 
 /// Default Home Page
 #[component]
@@ -21,6 +13,8 @@ pub fn Users() -> impl IntoView {
     let email_signal = RwSignal::new("".to_string());
     let password_signal = RwSignal::new("".to_string());
     let confirm_password_signal = RwSignal::new("".to_string());
+    let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
+    let role_signal = RwSignal::new("".to_string());
 
     let users_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_users().await.unwrap_or_default()
@@ -81,6 +75,22 @@ pub fn Users() -> impl IntoView {
                     value=move || confirm_password_signal.get() 
                     bind:value=confirm_password_signal
                 />
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Role"</label>
+                <select 
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    name="event_id" 
+                    bind:value=role_signal
+                >
+                    <option value="">"-- Select Role --"</option>
+                    <For
+                        each=move || roles_signal.get()
+                        key=|r: &UserRole| r.to_string()
+                        let(role: UserRole)
+                    >
+                        <option value={role.to_string()}>{role.to_string()}</option>
+                    </For>
+                </select>
                 <Transition fallback=|| view! { "..." }>
                     {confirm_password_ui.get()}
                 </Transition>
@@ -100,10 +110,11 @@ pub fn Users() -> impl IntoView {
                             let email = email_signal.get().clone();
                             let password = password_signal.get().clone();
                             let confirm_password = confirm_password_signal.get().clone();
+                            let role = role_signal.get().clone().into();
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::user(
-                                    crate::server::admin::UserAction::Create { username, email, password, confirm_password }
+                                    crate::server::admin::UserAction::Create { username, email, password, confirm_password, role }
                                 ).await && result == ResultStatus::Success {
                                     refresh.update(|n| *n += 1);
                                 }

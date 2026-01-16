@@ -1,13 +1,5 @@
-use crate::{components::admin::event::Event, server::{admin::get_all_events, db, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::admin::event::Event, pages::admin::Actions, server::{admin::get_all_events, db, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use leptos::{prelude::*, task:: spawn_local};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Actions {
-    Create,
-    Delete,
-    Edit,
-    None
-}
 
 /// Default Home Page
 #[component]

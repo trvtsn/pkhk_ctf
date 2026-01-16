@@ -16,7 +16,7 @@ pub fn User() -> impl IntoView {
     
     let user_res = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
-        async move { get_db_user().await.unwrap_or_default() }
+        async move { get_db_user(Some(username)).await.unwrap_or_default() } // leaks pw_hash
     });
 
     let user_avatar = Resource::new(move || (), move |_| {
@@ -49,7 +49,6 @@ pub fn User() -> impl IntoView {
                     }.into_any()
                 }}
                 </p>
-                //<p>"Date Joined: " {move || user.get().created_at.to_string()}</p>
             </Suspense>
         </div>
     }

@@ -54,7 +54,7 @@ pub fn App() -> impl IntoView {
     let refresh_user = RwSignal::new(RefreshUser { iteration: 0 });
     let user = RwSignal::new(None);
     let user_resource = Resource::new(move || refresh_user.get(), |_| async move {
-        get_db_user().await.unwrap_or(None)
+        get_db_user(None).await.unwrap_or(None)
     });
 
     // effects arent actually intended to synchronize with the reactive system,
