@@ -730,10 +730,10 @@ cfg_if! {
 
         #[instrument]
         pub async fn build_and_broadcast(payload_kind: AdminEventPayloadKind) -> Result<(), AppError> {
-            let payload = AdminEventPayload {
-                kind: payload_kind,
-            };
-            match serde_json::to_string(&payload) {
+            // let payload = AdminEventPayload {
+            //     kind: payload_kind,
+            // };
+            match serde_json::to_string(&payload_kind) {
                 Ok(json) => {
                     if let Err(e) = ADMIN_TX.send(json) {
                         tracing::warn!(error = ?e, "admin event broadcast failed");

@@ -26,7 +26,6 @@ pub fn Challenges() -> impl IntoView {
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
 
     let refresh = RwSignal::new(0);
-    let cwa_signal = RwSignal::<Vec<ChallengeWithAttachments>>::new(vec![]);
     let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
     let events_signal = RwSignal::<Vec<db::structs::Event>>::new(vec![]);
 
@@ -34,27 +33,18 @@ pub fn Challenges() -> impl IntoView {
         get_all_challenges_with_attachments().await.unwrap_or_default()
     });
     let categories_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_challenge_categories().await.unwrap_or_default()
+        let all_categories = get_all_challenge_categories().await.unwrap_or_default();
+        categories_signal.set(all_categories.clone());
+        all_categories
     });
     let events_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_events().await.unwrap_or_default()
+        let all_events = get_all_events().await.unwrap_or_default();
+        events_signal.set(all_events.clone());
+        all_events
     });
 
     let upload_action = Action::new_local(|data: &FormData| {
         upload_files(data.clone().into())
-    });
-
-    Effect::new(move |_| {
-        if let Some(Ok(api_result)) = upload_action.value().get() {
-            attachments.set(Some(api_result.details.clone()));
-        }
-
-        let cwa = cwa_resource.get().unwrap_or_default();
-        let all_categories = categories_resource.get().unwrap_or_default();
-        let all_events = events_resource.get().unwrap_or_default();
-        cwa_signal.set(cwa);
-        categories_signal.set(all_categories);
-        events_signal.set(all_events);
     });
 
     let UseEventSourceReturn { message, .. } = 
@@ -64,6 +54,10 @@ pub fn Challenges() -> impl IntoView {
         );
 
     Effect::new(move |_| {
+        if let Some(Ok(api_result)) = upload_action.value().get() {
+            attachments.set(Some(api_result.details.clone()));
+        }
+
         if let Some(msg) = message.get() {
             match serde_json::from_str::<AdminEventPayloadKind>(&msg.data) {
                 Ok(AdminEventPayloadKind::ChallengeEdited)  => refresh.update(|n| *n += 1),
@@ -77,19 +71,6 @@ pub fn Challenges() -> impl IntoView {
     let creating = RwSignal::new(false);
     let create_submit_btn_text = Memo::new(move |_| {
         if created.get() { "Created!".to_string() } else { "Create".to_string() }
-    });
-    let grouped_challenges = Memo::new(move |_| {
-        let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
-        for ch in cwa_signal.get().into_iter() {
-            map.entry(ch.challenge.category.clone()).or_default().push(ch);
-        }
-
-        let mut groups = map.into_iter().collect::<Vec<(Option<String>, Vec<ChallengeWithAttachments>)>>();
-
-        // alphabetical sort, there's probably a better way to do this
-        groups.sort_by(|(a, _), (b, _)| a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or("")));
-
-        groups
     });
 
     let uploading_text = Memo::new(move |_| {
@@ -125,13 +106,20 @@ pub fn Challenges() -> impl IntoView {
                     bind:value=event_id
                 >
                     <option value="">"-- Select Event --"</option>
-                        <For
-                            each=move || events_signal.get()
-                            key=|e: &db::structs::Event| e.id.clone()
-                            let(e: db::structs::Event)
-                        >
-                            <option value={e.id.clone()}>{e.name.clone()} " (ID: " {e.id.clone()} ")"</option>
-                        </For>
+                    <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+                        {move || {
+                            let events = events_resource.get().unwrap_or_default();
+                            view! {
+                                <For
+                                    each=move || events.clone()
+                                    key=|e: &db::structs::Event| e.id.clone()
+                                    let(e: db::structs::Event)
+                                >
+                                    <option value={e.id.clone()}>{e.name.clone()} " (ID: " {e.id.clone()} ")"</option>
+                                </For>
+                            }
+                        }}
+                    </Suspense>
                 </select>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
@@ -174,13 +162,21 @@ pub fn Challenges() -> impl IntoView {
                     }
                 >
                     <option value="">"-- Select Category --"</option>
-                    <For
-                        each=move || categories_signal.get()
-                        key=|category: &String| category.clone()
-                        let(category)
-                    >
-                        <option value={category.clone()}>{category.clone()}</option>
-                    </For>
+                    <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+                        {move || {
+                            let categories = categories_resource.get().unwrap_or_default();
+                            view! {
+                                <For
+                                    each=move || categories.clone()
+                                    key=|category: &String| category.clone()
+                                    let(category)
+                                >
+                                    <option value={category.clone()}>{category.clone()}</option>
+                                </For>
+                            }
+                        }}
+
+                    </Suspense>
                     <option value="__new__">"-- Add New --"</option>
                 </select>
                 <input 
@@ -270,31 +266,45 @@ pub fn Challenges() -> impl IntoView {
         </div>
 
         <div class="challenges">
-            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
-                <For
-                    each=move || grouped_challenges.get()
-                    key=|group: &(Option<String>, Vec<ChallengeWithAttachments>)| group.0.clone()
-                    let(group)
-                >
-                    <div class="challenge-category p-2">
-                        <h2 class="text-2xl">
-                            {group.0.clone().unwrap_or_else(|| "Uncategorized".to_string())}
-                        </h2>
+            <Transition fallback=move || view! { <div>"Loading..."</div> }>
+                {move || {
+                    let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
+                    for ch in cwa_resource.get().unwrap_or_default().into_iter() {
+                        map.entry(ch.challenge.category.clone()).or_default().push(ch);
+                    }
 
-                        <div class="m-4 grid grid-cols-4 content-stretch">
-                            <For
-                                each=move || group.1.clone()
-                                key=|challenge: &ChallengeWithAttachments| challenge.challenge.id.clone()
-                                let(challenge)
-                            >
-                                <div class="challenge p-2">
-                                    <Challenge cwa=challenge refresh categories=categories_signal events=events_signal/>
+                    let mut groups = map.into_iter().collect::<Vec<(Option<String>, Vec<ChallengeWithAttachments>)>>();
+
+                    // alphabetical sort, there's probably a better way to do this
+                    groups.sort_by(|(a, _), (b, _)| a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or("")));
+
+                    view! {
+                        <For
+                            each=move || groups.clone()
+                            key=|group: &(Option<String>, Vec<ChallengeWithAttachments>)| group.0.clone()
+                            let(group)
+                        >
+                            <div class="challenge-category p-2">
+                                <h2 class="text-2xl">
+                                    {group.0.clone().unwrap_or_else(|| "Uncategorized".to_string())}
+                                </h2>
+
+                                <div class="m-4 grid grid-cols-4 content-stretch">
+                                    <For
+                                        each=move || group.1.clone()
+                                        key=|challenge: &ChallengeWithAttachments| challenge.challenge.id.clone()
+                                        let(challenge)
+                                    >
+                                        <div class="challenge p-2">
+                                            <Challenge cwa=challenge refresh categories=categories_signal events=events_signal/>
+                                        </div>
+                                    </For>
                                 </div>
-                            </For>
-                        </div>
-                    </div>
-                </For>
-            </Suspense>
+                            </div>
+                        </For>
+                    }
+                }}
+            </Transition>
         </div>
     }
 }

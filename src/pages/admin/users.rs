@@ -7,7 +7,6 @@ pub fn Users() -> impl IntoView {
     let section = RwSignal::new(Actions::None);
     let refresh = RwSignal::new(0);
     let creating = RwSignal::new(false);
-    let users = RwSignal::<Vec<DbUser>>::new(vec![]);
 
     let username_signal = RwSignal::new("".to_string());
     let email_signal = RwSignal::new("".to_string());
@@ -18,11 +17,6 @@ pub fn Users() -> impl IntoView {
 
     let users_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_users().await.unwrap_or_default()
-    });
-
-    Effect::new(move |_| {
-        let users_result = users_resource.get().unwrap_or_default();
-        users.set(users_result);
     });
 
     let confirm_password_ui = Memo::new(move |_| {
@@ -125,16 +119,16 @@ pub fn Users() -> impl IntoView {
             </Show>
         </div>
 
-        <div class="grid-cols-4 p-4 m-4 flex gap-4">
-            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+        <Transition fallback=move || view! { <div>"Loading..."</div> }>
+            <div class="grid-cols-4 p-4 m-4 flex gap-4">
                 <For
-                    each=move || users.get()
+                    each=move || users_resource.get().unwrap_or_default()
                     key=|user: &DbUser| user.id.clone()
                     let(user)
                 >
                     <User user refresh/>
                 </For>
-            </Suspense>
-        </div>
+            </div>
+        </Transition>
     }
 }

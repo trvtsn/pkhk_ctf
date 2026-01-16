@@ -1,5 +1,5 @@
 use crate::server::{db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult};
-use leptos::{prelude::*, task::spawn_local};
+use leptos::{prelude::*, task::spawn_local, web_sys::Event};
 
 #[component]
 pub fn User(
@@ -16,6 +16,13 @@ pub fn User(
     let points_signal = RwSignal::new(user.points);
     let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
     let role_signal = RwSignal::new(user.role.to_string());
+
+    let username_edit = RwSignal::new(user.username.clone());
+    let email_edit = RwSignal::new(user.email.clone());
+    let new_password_edit = RwSignal::new("".to_string());
+    let confirm_new_password_edit = RwSignal::new("".to_string());
+    let points_edit = RwSignal::new(user.points);
+    let role_edit = RwSignal::new(user.role.to_string());
 
     let editing = RwSignal::new(false);
     let editing_password = RwSignal::new(false);
@@ -61,7 +68,7 @@ pub fn User(
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                     name="username" 
                     value=move || username_signal.get() 
-                    bind:value=username_signal
+                    bind:value=username_edit
                 />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"E-mail"</label>
@@ -69,14 +76,26 @@ pub fn User(
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                     name="email" 
                     value=move || email_signal.get() 
-                    bind:value=email_signal
+                    bind:value=email_edit
+                />
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">"Points"</label>
+                <input 
+                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    name="points" 
+                    type="number"
+                    value=move || points_signal.get() 
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        points_edit.set(value.parse::<u32>().unwrap_or_default());
+                    }
                 />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Role"</label>
                 <select 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                     name="event_id" 
-                    bind:value=role_signal
+                    bind:value=role_edit
                 >
                     <option value="">"-- Select Role --"</option>
                     <For
@@ -95,7 +114,7 @@ pub fn User(
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                     type="password" 
                     name="new_password" 
-                    bind:value=new_password_signal
+                    bind:value=new_password_edit
                 />
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm New Password"</label>
@@ -103,7 +122,7 @@ pub fn User(
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                     type="password" 
                     name="confirm_new_password" 
-                    bind:value=confirm_new_password_signal
+                    bind:value=confirm_new_password_edit
                 />
                 {confirm_password_ui}
             </Show>
@@ -124,20 +143,35 @@ pub fn User(
                         class=r#"inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none 
                         focus:ring-2 active:scale-95 transition bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400"#
                         on:click=move |_| {
+                            let user_id = id_signal.get(); 
+                            let username = username_edit.get();
+                            let email = email_edit.get();
+                            let password = new_password_edit.get();
+                            let confirm_password = confirm_new_password_edit.get();
+                            let points = points_edit.get();
+                            let role = role_edit.get();
                             if editing.get() {
                                 spawn_local(async move {
-                                    tracing::debug!("editing user: {}", id_signal.get().clone());
+                                    tracing::debug!("editing user: {}", user_id.clone());
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::user(
                                         crate::server::admin::UserAction::Edit { 
-                                            id: id_signal.get().clone(), 
-                                            username: username_signal.get().clone(), 
-                                            email: email_signal.get().clone(),
-                                            password: new_password_signal.get().clone(),
-                                            confirm_password: confirm_new_password_signal.get().clone(),
-                                            role: role_signal.get().clone().into()
+                                            id: user_id, 
+                                            username: username.clone(), 
+                                            email: email.clone(),
+                                            password: password.clone(),
+                                            confirm_password: confirm_password.clone(),
+                                            points,
+                                            role: role.clone().into()
                                         }
                                     ).await && result == ResultStatus::Success {
                                         refresh.update(|n| *n += 1);
+
+                                        username_signal.set(username);
+                                        email_signal.set(email);
+                                        new_password_signal.set(password);
+                                        confirm_new_password_signal.set(confirm_password);
+                                        points_signal.set(points);
+                                        role_signal.set(role);
                                     }
                                 });
                                 editing.set(false)
@@ -157,8 +191,8 @@ pub fn User(
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::user(
                                         crate::server::admin::UserAction::EditPassword { 
                                             id: id_signal.get().clone(), 
-                                            password: new_password_signal.get().clone(),
-                                            confirm_password: confirm_new_password_signal.get().clone()
+                                            password: new_password_edit.get().clone(),
+                                            confirm_password: confirm_new_password_edit.get().clone()
                                         }
                                     ).await && result == ResultStatus::Success {
                                         refresh.update(|n| *n += 1);

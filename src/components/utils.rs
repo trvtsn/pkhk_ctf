@@ -25,13 +25,11 @@ pub fn TruncatedDesc(description_signal: RwSignal<Option<String>>) -> impl IntoV
     });
 
     view! {
-        // full desc or not over 200 chars
         <Show when=move || desc_expanded.get() || !needs_truncate.get()>
             {description.get()}
         </Show>
 
-        // truncated desc or over 200 chars
-        <Show when=move || !desc_expanded.get() || needs_truncate.get()>
+        <Show when=move || !desc_expanded.get() && needs_truncate.get()>
             {truncated_desc.get()}
         </Show>
 

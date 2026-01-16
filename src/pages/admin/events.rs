@@ -7,7 +7,6 @@ pub fn Events() -> impl IntoView {
     let creating = RwSignal::new(false);
     let section = RwSignal::new(Actions::None);
     let refresh = RwSignal::new(0);
-    let events = RwSignal::<Vec<db::structs::Event>>::new(vec![]);
 
     let name_signal = RwSignal::new("".to_string());
     let description_signal = RwSignal::new("".to_string());
@@ -16,11 +15,6 @@ pub fn Events() -> impl IntoView {
     
     let events_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_events().await.unwrap_or_default()
-    });
-
-    Effect::new(move |_| {
-        let events_result = events_resource.get().unwrap_or_default();
-        events.set(events_result);
     });
 
     view! {
@@ -97,10 +91,10 @@ pub fn Events() -> impl IntoView {
         </div>
 
         <div class="events">
-            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
-                <div class="m-4 grid grid-cols-4 content-stretch">
+            <div class="m-4 grid grid-cols-4 content-stretch">
+                <Transition fallback=move || view! { <div>"Loading..."</div> }>
                     <For
-                        each=move || events.get()
+                        each=move || events_resource.get().unwrap_or_default()
                         key=|event: &db::structs::Event| event.id.clone()
                         let(event)
                     >
@@ -108,8 +102,8 @@ pub fn Events() -> impl IntoView {
                             <Event event refresh/>
                         </div>
                     </For>
-                </div>
-            </Suspense>
+                </Transition>
+            </div>
         </div>
     }
 }

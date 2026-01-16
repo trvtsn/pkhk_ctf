@@ -40,6 +40,7 @@ pub fn Challenge(
 
     let submit_btn_text = Memo::new(move |_| {
         if solved_challenges.get().contains(&challenge_signal.get().id) { 
+            solved.set(true);
             "Solved" 
         } else { 
             "Submit"
@@ -57,7 +58,7 @@ pub fn Challenge(
             class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center"
             on:click=move |_| { open.set(true) }
         >
-            <h3 class="text-3xl/8">{move || challenge_signal.get().name.clone()}</h3>
+            <h3 class="text-3xl/8 font-bold">{move || challenge_signal.get().name.clone()}</h3>
             <p class="text-lg/8">
                 <TruncatedDesc description_signal/>
             </p>
@@ -73,8 +74,12 @@ pub fn Challenge(
                 on:click=move |_| {
                     let start = start.clone();
                     let stop = stop.clone();
+                    let refresh_user = refresh_user;
+                    
+                    let flag = flag_signal.get();
+                    let challenge = challenge_signal.get();
                     spawn_local(async move {
-                        if let Ok(ApiResult { result, details }) = check_flag(flag_signal.get(), challenge_signal.get()).await {
+                        if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
                             // change button appearance to red, incorrect
                             if result == ResultStatus::Fail && details == "incorrect solution" {
                                 incorrect.set(true);

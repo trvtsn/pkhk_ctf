@@ -388,6 +388,26 @@ cfg_if! {
                     }
             }
 
+            pub async fn edit_points(id: &String, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET points = ?
+                    WHERE id = ?
+                    ",
+                    points,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
@@ -429,15 +449,15 @@ cfg_if! {
                             }
                     }
                     UserIdentifier::Username(username) => {
-                        let pattern = format!("%{username}%");
+                        //let pattern = format!("%{username}%");
                         match sqlx::query_as!(
                             Self,
                             "
                             SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
                             FROM users 
-                            WHERE username LIKE ?
+                            WHERE username = ?
                             ", 
-                            pattern
+                            username
                         )
                             .fetch_optional(executor)
                             .await {
@@ -476,7 +496,7 @@ cfg_if! {
                             "
                             SELECT file_blob
                             FROM attachments
-                            WHERE user_id = ?
+                            WHERE user_id = ? AND file_type = \"avatar\"
                             ",
                             id
                         )
@@ -494,7 +514,7 @@ cfg_if! {
                             "
                             SELECT file_blob
                             FROM attachments
-                            WHERE user_id = (SELECT id FROM users WHERE email = ?)
+                            WHERE user_id = (SELECT id FROM users WHERE email = ?) AND file_type = \"avatar\"
                             ",
                             email
                         )
@@ -512,7 +532,7 @@ cfg_if! {
                             "
                             SELECT file_blob
                             FROM attachments
-                            WHERE user_id = (SELECT id FROM users WHERE username = ?)
+                            WHERE user_id = (SELECT id FROM users WHERE username = ?) AND file_type = \"avatar\"
                             ",
                             username
                         )

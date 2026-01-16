@@ -493,6 +493,7 @@ pub enum UserAction {
         email: String, 
         password: String, 
         confirm_password: String,
+        points: u32,
         role: UserRole
     },
     EditPassword {
@@ -575,7 +576,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     }
                 }
-                UserAction::Edit { id, username, email, password, confirm_password, role } => {
+                UserAction::Edit { id, username, email, password, confirm_password, points, role } => {
                     match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
@@ -606,6 +607,15 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
 
                     match DbUser::edit_email(&id, &email, &mut *tx).await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            tx.rollback().await?;
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                        }
+                    }
+
+                    match DbUser::edit_points(&id, &points, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tracing::error!(error = ?e);

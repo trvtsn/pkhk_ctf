@@ -13,14 +13,22 @@ pub fn Challenge(
     let Challenge { id, event_id, name, description, category, difficulty, points } = challenge;
 
     let id_signal = RwSignal::new(id);
-    let event_id_signal = RwSignal::new(event_id);
+    let event_id_signal = RwSignal::new(event_id.clone());
     let name_signal = RwSignal::new(name.clone());
     let description_signal = RwSignal::new(description.clone());
     let category_signal = RwSignal::new(category.clone());
     let difficulty_signal = RwSignal::new(difficulty);
     let points_signal = RwSignal::new(points);
     let attachments_signal = RwSignal::new(attachments.clone());
-    let flag_signal = RwSignal::new("".to_string());
+
+    let event_id_edit = RwSignal::new(event_id);
+    let name_edit = RwSignal::new(name.clone());
+    let description_edit = RwSignal::new(description.clone());
+    let category_edit = RwSignal::new(category.clone());
+    let difficulty_edit = RwSignal::new(difficulty);
+    let points_edit = RwSignal::new(points);
+    let attachments_edit = RwSignal::new(attachments.clone());
+    let flag_edit = RwSignal::new("".to_string());
 
     let category_add_new_selected = RwSignal::new(false);
     let editing = RwSignal::new(false);
@@ -47,7 +55,7 @@ pub fn Challenge(
     view! {
         <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center">
             <Show when=move || !editing.get() && !deleted.get()>
-                <h3 class="text-3xl/8">{move || name_signal.get().clone()}</h3>
+                <h3 class="text-3xl/8 font-bold">{move || name_signal.get().clone()}</h3>
                 <p class="text-lg/8"><b>"ID: "</b>{move || id_signal.get().clone()}</p>
                 <p class="text-lg/8"><b>"Event ID: "</b>{move || event_id_signal.get().clone()}</p>
                 <p class="text-lg/8">
@@ -75,7 +83,7 @@ pub fn Challenge(
                 <select 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                     name="event_id" 
-                    bind:value=event_id_signal
+                    bind:value=event_id_edit
                 >
                     <option value="">"-- Select Event --"</option>
                     <For
@@ -91,7 +99,8 @@ pub fn Challenge(
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                     name="name" 
-                    bind:value=name_signal
+                    value=move || name_signal.get()
+                    bind:value=name_edit
                 />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Description"</label>
@@ -101,7 +110,7 @@ pub fn Challenge(
                     value=move || description_signal.get().unwrap_or_default() 
                     on:change=move |ev: Event| {
                         let value = event_target_value(&ev);
-                        description_signal.set(Some(value));
+                        description_edit.set(Some(value));
                     }
                 />
 
@@ -127,7 +136,7 @@ pub fn Challenge(
                             category_add_new_selected.set(false);
                         }
 
-                        category_signal.set(Some(sel.value()));
+                        category_edit.set(Some(sel.value()));
                     }
                 >
                     <option value="">"-- Select Category --"</option>
@@ -147,7 +156,7 @@ pub fn Challenge(
                     id="action_edit_category_input" 
                     on:change=move |ev: Event| {
                         let value = event_target_value(&ev);
-                        category_signal.set(Some(value));
+                        category_edit.set(Some(value));
                     }
                 />
 
@@ -161,7 +170,7 @@ pub fn Challenge(
                     value=move || difficulty_signal.get() 
                     on:change=move |ev: Event| {
                         let value = event_target_value(&ev);
-                        difficulty_signal.set(value.parse::<i8>().unwrap_or_default());
+                        difficulty_edit.set(value.parse::<i8>().unwrap_or_default());
                     }
                 />
 
@@ -173,7 +182,7 @@ pub fn Challenge(
                     value=move || points_signal.get() 
                     on:change=move |ev: Event| {
                         let value = event_target_value(&ev);
-                        points_signal.set(value.parse::<u32>().unwrap_or_default());
+                        points_edit.set(value.parse::<u32>().unwrap_or_default());
                     }
                 />
 
@@ -181,7 +190,7 @@ pub fn Challenge(
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     name="flag" 
-                    bind:value=flag_signal
+                    bind:value=flag_edit
                 />
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Attachment"</label>
@@ -215,24 +224,41 @@ pub fn Challenge(
                     font-medium focus:outline-none focus:ring-2 active:scale-95 transition bg-indigo-600 
                     hover:bg-indigo-700 focus:ring-indigo-400"#
                     on:click=move |_| {
+                        let challenge_id = id_signal.get();
+                        let event_id = event_id_edit.get();
+                        let name = name_edit.get();
+                        let description = description_edit.get();
+                        let category = category_edit.get();
+                        let difficulty = difficulty_edit.get();
+                        let points = points_edit.get();
+                        let flag = flag_edit.get();
+                        let attachments = attachments_edit.get();
                         if editing.get() {
                             spawn_local(async move {
                                 // update in db
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(
                                     crate::server::admin::ChallengeAction::Edit { 
-                                        id: id_signal.get().clone(), 
-                                        event_id: event_id_signal.get().clone(), 
-                                        name: name_signal.get().to_string(), 
-                                        description: description_signal.get().unwrap_or_default(), 
-                                        category: category_signal.get().unwrap_or_default(), 
-                                        difficulty: difficulty_signal.get(), 
-                                        points: points_signal.get(), 
-                                        flag: flag_signal.get(), 
-                                        attachments: Some(attachments_signal.get()),
+                                        id: challenge_id.clone(), 
+                                        event_id: event_id.clone(), 
+                                        name: name.clone(), 
+                                        description: description.clone().unwrap_or_default(), 
+                                        category: category.clone().unwrap_or_default(), 
+                                        difficulty,
+                                        points,
+                                        flag: flag.clone(), 
+                                        attachments: Some(attachments.clone()),
                                     }
                                 ).await && result == ResultStatus::Success {
                                     refresh.update(|n| *n += 1);
-                                    editing.set(false)
+                                    editing.set(false);
+
+                                    event_id_signal.set(event_id);
+                                    name_signal.set(name);
+                                    description_signal.set(description);
+                                    category_signal.set(category);
+                                    difficulty_signal.set(difficulty);
+                                    points_signal.set(points);
+                                    attachments_signal.set(attachments);
                                 }
                             });
                         } else {
