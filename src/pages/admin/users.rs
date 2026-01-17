@@ -1,4 +1,4 @@
-use crate::{components::admin::user::User, pages::admin::Actions, server::{admin::get_all_users, db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::{admin::user::User, utils::HidePasswordButton}, pages::admin::Actions, server::{admin::get_all_users, db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local};
 
 /// Default Home Page
@@ -7,6 +7,15 @@ pub fn Users() -> impl IntoView {
     let section = RwSignal::new(Actions::None);
     let refresh = RwSignal::new(0);
     let creating = RwSignal::new(false);
+    let password_hidden = RwSignal::new(true);
+
+    let password_input_type = Memo::new(move |_| {
+        if password_hidden.get() {
+            "password"
+        } else {
+            "text"
+        }
+    });
 
     let username_signal = RwSignal::new("".to_string());
     let email_signal = RwSignal::new("".to_string());
@@ -57,18 +66,20 @@ pub fn Users() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    type=move || password_input_type.get()
                     name="password" 
                     value=move || password_signal.get() 
                     bind:value=password_signal
-                />
+                /><HidePasswordButton hidden=password_hidden/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    type=move || password_input_type.get()
                     name="confirm_password" 
                     value=move || confirm_password_signal.get() 
                     bind:value=confirm_password_signal
-                />
+                /><HidePasswordButton hidden=password_hidden/>
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Role"</label>
                 <select 

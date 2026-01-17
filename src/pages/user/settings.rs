@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::navbar::NavBar, server::{EditPassword, edit_avatar, edit_username}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, utils::HidePasswordButton}, server::{EditPassword, edit_avatar, edit_username}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
 use leptos_use::{ColorMode};
 
@@ -17,6 +17,16 @@ pub fn Settings() -> impl IntoView {
 
     let edit_avatar_action_text = Memo::new(move |_| {
         if edit_avatar_action.pending().get() { "Uploading..." } else { "" }
+    });
+
+    let password_hidden = RwSignal::new(true);
+
+    let password_input_type = Memo::new(move |_| {
+        if password_hidden.get() {
+            "password"
+        } else {
+            "text"
+        }
     });
 
     view! {
@@ -61,23 +71,23 @@ pub fn Settings() -> impl IntoView {
                     <label>"Old Password"</label>
                     <input 
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type="password" 
+                        type=move || password_input_type.get()
                         name="old_password" 
-                    />
+                    /><HidePasswordButton hidden=password_hidden/>
                     
                     <label>"New Password"</label>
                     <input 
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type="password" 
+                        type=move || password_input_type.get()
                         name="new_password" 
-                    />
+                    /><HidePasswordButton hidden=password_hidden/>
                     
                     <label>"Confirm New Password"</label>
                     <input 
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type="password" 
+                        type=move || password_input_type.get()
                         name="confirm_new_password" 
-                    />
+                    /><HidePasswordButton hidden=password_hidden/>
                     
                     <button 
                         class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 

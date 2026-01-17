@@ -1,4 +1,4 @@
-use crate::{components::navbar::NavBar, server::{LoginUser, get_user}};
+use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{LoginUser, get_user}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
@@ -7,6 +7,7 @@ use leptos_router::hooks::use_navigate;
 pub fn Login() -> impl IntoView {
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
+    let password_hidden = RwSignal::new(true);
 
     let login: ServerAction<LoginUser> = ServerAction::new();
 
@@ -20,6 +21,14 @@ pub fn Login() -> impl IntoView {
             }
         }
     );
+
+    let password_input_type = Memo::new(move |_| {
+        if password_hidden.get() {
+            "password"
+        } else {
+            "text"
+        }
+    });
 
     Effect::new(move || {
         if let Some(Some(_)) = logged_in_user.get() {
@@ -45,10 +54,10 @@ pub fn Login() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type="password" 
+                    type=move || password_input_type.get()
                     name="password" 
                     bind:value=password 
-                />
+                /><HidePasswordButton hidden=password_hidden/>
                 
                 <input
                     type="submit"

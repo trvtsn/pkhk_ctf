@@ -1,4 +1,4 @@
-use crate::{components::navbar::NavBar, server::{Register, user_exists}};
+use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{Register, user_exists}};
 use leptos::prelude::*;
 
 /// Default Home Page
@@ -7,6 +7,15 @@ pub fn Register() -> impl IntoView {
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
     let confirm_password = RwSignal::new("".to_string());
+    let password_hidden = RwSignal::new(true);
+
+    let password_input_type = Memo::new(move |_| {
+        if password_hidden.get() {
+            "password"
+        } else {
+            "text"
+        }
+    });
 
     let register: ServerAction<Register> = ServerAction::new();
 
@@ -47,17 +56,18 @@ pub fn Register() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type="password" 
+                    type=move || password_input_type.get()
                     name="password" 
                     bind:value=password
-                />
+                /><HidePasswordButton hidden=password_hidden/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type="password" name="confirm_password" 
+                    type=move || password_input_type.get()
+                    name="confirm_password" 
                     bind:value=confirm_password
-                />
+                /><HidePasswordButton hidden=password_hidden/>
                 <Transition fallback=|| view! { "..." }>
                     {confirm_password_ui.get()}
                 </Transition>

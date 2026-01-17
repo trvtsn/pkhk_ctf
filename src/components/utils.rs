@@ -1,4 +1,6 @@
+use icondata as i;
 use leptos::{prelude::*};
+use leptos_icons::Icon;
 
 /// Default Home Page
 #[component]
@@ -42,6 +44,35 @@ pub fn TruncatedDesc(description_signal: RwSignal<Option<String>>) -> impl IntoV
                 }
             >
                 {show_more_less_text.get()}
+            </button>
+        </Show>
+    }
+}
+
+#[component]
+pub fn HidePasswordButton(hidden: RwSignal<bool>) -> impl IntoView {
+    view! {
+        <Show when=move || hidden.get()>
+            <button
+                type="button"
+                class="ml-2 text-base underline text-blue-600 cursor-pointer"
+                on:click=move |_| {
+                    hidden.set(false);
+                }
+            >
+                <Icon icon=i::LuEye />
+            </button>
+        </Show>
+
+        <Show when=move || !hidden.get()>
+            <button
+                type="button"
+                class="ml-2 text-base underline text-blue-600 cursor-pointer"
+                on:click=move |_| {
+                    hidden.set(true);
+                }
+            >
+                <Icon icon=i::LuEyeOff />
             </button>
         </Show>
     }

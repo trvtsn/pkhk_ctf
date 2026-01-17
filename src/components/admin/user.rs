@@ -1,4 +1,4 @@
-use crate::server::{db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult};
+use crate::{components::utils::HidePasswordButton, server::{db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local, web_sys::Event};
 
 #[component]
@@ -27,6 +27,15 @@ pub fn User(
     let editing = RwSignal::new(false);
     let editing_password = RwSignal::new(false);
     let deleting = RwSignal::new(false);
+    let password_hidden = RwSignal::new(true);
+
+    let password_input_type = Memo::new(move |_| {
+        if password_hidden.get() {
+            "password"
+        } else {
+            "text"
+        }
+    });
 
     let delete_submit_btn_text = Memo::new(move |_| {
         if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
@@ -112,18 +121,18 @@ pub fn User(
                 <label class="block text-sm font-medium text-gray-700 mb-1">"New Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type="password" 
+                    type=move || password_input_type.get()
                     name="new_password" 
                     bind:value=new_password_edit
-                />
+                /><HidePasswordButton hidden=password_hidden/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm New Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type="password" 
+                    type=move || password_input_type.get()
                     name="confirm_new_password" 
                     bind:value=confirm_new_password_edit
-                />
+                /><HidePasswordButton hidden=password_hidden/>
                 {confirm_password_ui}
             </Show>
 
