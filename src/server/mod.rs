@@ -690,7 +690,10 @@ pub async fn logout_user() -> Result<(), AppError> {
     let mut auth = use_context::<AuthSession>().unwrap();
 
     match auth.logout().await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            leptos_axum::redirect("/");
+            Ok(())
+        }
         Err(e) => Err(e.into())
     }
 }

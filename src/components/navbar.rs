@@ -1,13 +1,14 @@
-use crate::server::{db::{enums::UserRole, structs::DbUser}, logout_user};
+use crate::{app::RefreshUser, server::{LogoutUser, db::{enums::UserRole, structs::DbUser}}};
 use icondata as i;
-use leptos::{prelude::*, task::spawn_local};
+use leptos::prelude::*;
 use leptos_icons::Icon;
-use leptos_router::hooks::use_navigate;
 
 #[component]
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
     let user = expect_context::<RwSignal<Option<DbUser>>>();
+    let refresh_user = expect_context::<RwSignal<RefreshUser>>();
+    let logout = ServerAction::<LogoutUser>::new();
 
     let role = Memo::new(move |_| {
         if let Some(user) = user.get() { user.role } else { UserRole::Competitor }
@@ -105,19 +106,19 @@ pub fn NavBar() -> impl IntoView {
                                     </a>
                                 </li>
                                 <li class="w-full">
-                                    <button
-                                        class="cursor-pointer" 
-                                        on:click=move |_| {
-                                        spawn_local(async move {
-                                            if let Ok(()) = logout_user().await {
-                                                let nav = use_navigate();
-                                                nav("/", Default::default());
+                                    <ActionForm action=logout>
+                                        <button
+                                            class="cursor-pointer" 
+                                            type="Submit"
+                                            on:click=move |_| {
+                                                let iteration = refresh_user.get().iteration + 1;
+                                                refresh_user.set(RefreshUser { iteration });
                                             }
-                                        });
-                                    }>
-                                        <Icon icon=i::LuLogOut />
-                                        "Logout"
-                                    </button>
+                                        >
+                                            <Icon icon=i::LuLogOut />
+                                            "Logout"
+                                        </button>
+                                    </ActionForm>
                                 </li>
                             </ul>
                         </nav>
