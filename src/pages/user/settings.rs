@@ -19,15 +19,9 @@ pub fn Settings() -> impl IntoView {
         if edit_avatar_action.pending().get() { "Uploading..." } else { "" }
     });
 
-    let password_hidden = RwSignal::new(true);
-
-    let password_input_type = Memo::new(move |_| {
-        if password_hidden.get() {
-            "password"
-        } else {
-            "text"
-        }
-    });
+    let old_password_hidden = RwSignal::new(true);
+    let new_password_hidden = RwSignal::new(true);
+    let confirm_new_password_hidden = RwSignal::new(true);
 
     view! {
         <NavBar />
@@ -71,23 +65,23 @@ pub fn Settings() -> impl IntoView {
                     <label>"Old Password"</label>
                     <input 
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type=move || password_input_type.get()
+                        type=move || if old_password_hidden.get() { "password" } else { "text" }
                         name="old_password" 
-                    /><HidePasswordButton hidden=password_hidden/>
+                    /><HidePasswordButton hidden=old_password_hidden/>
                     
                     <label>"New Password"</label>
                     <input 
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type=move || password_input_type.get()
+                        type=move || if new_password_hidden.get() { "password" } else { "text" }
                         name="new_password" 
-                    /><HidePasswordButton hidden=password_hidden/>
+                    /><HidePasswordButton hidden=new_password_hidden/>
                     
                     <label>"Confirm New Password"</label>
                     <input 
                         class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type=move || password_input_type.get()
+                        type=move || if confirm_new_password_hidden.get() { "password" } else { "text" }
                         name="confirm_new_password" 
-                    /><HidePasswordButton hidden=password_hidden/>
+                    /><HidePasswordButton hidden=confirm_new_password_hidden/>
                     
                     <button 
                         class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 

@@ -8,15 +8,8 @@ pub fn Users() -> impl IntoView {
     let refresh = RwSignal::new(0);
     let creating = RwSignal::new(false);
     let password_hidden = RwSignal::new(true);
-
-    let password_input_type = Memo::new(move |_| {
-        if password_hidden.get() {
-            "password"
-        } else {
-            "text"
-        }
-    });
-
+    let confirm_password_hidden = RwSignal::new(true);
+    
     let username_signal = RwSignal::new("".to_string());
     let email_signal = RwSignal::new("".to_string());
     let password_signal = RwSignal::new("".to_string());
@@ -26,10 +19,6 @@ pub fn Users() -> impl IntoView {
 
     let users_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_users().await.unwrap_or_default()
-    });
-
-    let confirm_password_ui = Memo::new(move |_| {
-        if password_signal.get() != confirm_password_signal.get() { "Must match with password" } else { "" }
     });
 
     view! {
@@ -66,7 +55,7 @@ pub fn Users() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type=move || password_input_type.get()
+                    type=move || if password_hidden.get() { "password" } else { "text" }
                     name="password" 
                     value=move || password_signal.get() 
                     bind:value=password_signal
@@ -75,11 +64,11 @@ pub fn Users() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type=move || password_input_type.get()
+                    type=move || if confirm_password_hidden.get() { "password" } else { "text" }
                     name="confirm_password" 
                     value=move || confirm_password_signal.get() 
                     bind:value=confirm_password_signal
-                /><HidePasswordButton hidden=password_hidden/>
+                /><HidePasswordButton hidden=confirm_password_hidden/>
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Role"</label>
                 <select 
@@ -97,7 +86,7 @@ pub fn Users() -> impl IntoView {
                     </For>
                 </select>
                 <Transition fallback=|| view! { "..." }>
-                    {confirm_password_ui.get()}
+                    {move || if password_signal.get() != confirm_password_signal.get() { "Confirmation must match" } else { "" }}
                 </Transition>
 
                 <div class="flex gap-3 mt-2">

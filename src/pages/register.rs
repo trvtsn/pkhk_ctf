@@ -8,14 +8,7 @@ pub fn Register() -> impl IntoView {
     let password = RwSignal::new("".to_string());
     let confirm_password = RwSignal::new("".to_string());
     let password_hidden = RwSignal::new(true);
-
-    let password_input_type = Memo::new(move |_| {
-        if password_hidden.get() {
-            "password"
-        } else {
-            "text"
-        }
-    });
+    let confirm_password_hidden = RwSignal::new(true);
 
     let register: ServerAction<Register> = ServerAction::new();
 
@@ -26,10 +19,6 @@ pub fn Register() -> impl IntoView {
             Ok(false) => "",
             Err(_) => ""
         }
-    });
-
-    let confirm_password_ui = Memo::new(move |_| {
-        if password.get() != confirm_password.get() { "Must match with password" } else { "" }
     });
 
     view! {
@@ -56,7 +45,7 @@ pub fn Register() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type=move || password_input_type.get()
+                    type=move || if password_hidden.get() { "password" } else { "text" }
                     name="password" 
                     bind:value=password
                 /><HidePasswordButton hidden=password_hidden/>
@@ -64,12 +53,12 @@ pub fn Register() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type=move || password_input_type.get()
+                    type=move || if confirm_password_hidden.get() { "password" } else { "text" }
                     name="confirm_password" 
                     bind:value=confirm_password
-                /><HidePasswordButton hidden=password_hidden/>
+                /><HidePasswordButton hidden=confirm_password_hidden/>
                 <Transition fallback=|| view! { "..." }>
-                    {confirm_password_ui.get()}
+                    {if password.get() != confirm_password.get() { "Confirmation must match" } else { "" }}
                 </Transition>
 
                 <input

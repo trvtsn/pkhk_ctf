@@ -484,9 +484,26 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
                     return Err(AppError::Forbidden);
                 }
             };
-            match DbUser::edit_username(&user.id, &username, &auth.backend.pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed username".to_string() }),
-                Err(e) => Err(e.into())
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if username == db_user.username {
+                return Ok(ApiResult { result: ResultStatus::Fail, details: "username already exists".to_string() });
+            } else if username.is_empty() || !username.is_ascii() {
+                return Err(AppError::InternalError("internal error".to_string()));
+            } else {
+                match DbUser::edit_username(&user.id, &username, &auth.backend.pool).await {
+                    Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed username".to_string() }),
+                    Err(e) => Err(e.into())
+                }
             }
         } else {
             Err(AppError::NoServerConnection)

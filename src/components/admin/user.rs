@@ -27,15 +27,8 @@ pub fn User(
     let editing = RwSignal::new(false);
     let editing_password = RwSignal::new(false);
     let deleting = RwSignal::new(false);
-    let password_hidden = RwSignal::new(true);
-
-    let password_input_type = Memo::new(move |_| {
-        if password_hidden.get() {
-            "password"
-        } else {
-            "text"
-        }
-    });
+    let new_password_hidden = RwSignal::new(true);
+    let confirm_new_password_hidden = RwSignal::new(true);
 
     let delete_submit_btn_text = Memo::new(move |_| {
         if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
@@ -46,20 +39,6 @@ pub fn User(
     let edit_password_submit_btn_text = Memo::new(move |_| {
         if editing.get() { "Confirm Edit".to_string() } else { "Edit Password".to_string() }
     });
-
-    let confirm_password_ui = move || view! {
-        <Transition fallback=|| {
-            view! { "..." }
-        }>
-            <p>{move || 
-                if new_password_signal.get() != confirm_new_password_signal.get() {
-                    "Must match with password".into_any()
-                } else {
-                   "".into_any()
-                }
-            }</p>
-        </Transition>
-    };
     
     view! {
         <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center">
@@ -121,19 +100,21 @@ pub fn User(
                 <label class="block text-sm font-medium text-gray-700 mb-1">"New Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type=move || password_input_type.get()
+                    type=move || if new_password_hidden.get() { "password" } else { "text" }
                     name="new_password" 
                     bind:value=new_password_edit
-                /><HidePasswordButton hidden=password_hidden/>
+                /><HidePasswordButton hidden=new_password_hidden/>
                 
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm New Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type=move || password_input_type.get()
+                    type=move || if confirm_new_password_hidden.get() { "password" } else { "text" }
                     name="confirm_new_password" 
                     bind:value=confirm_new_password_edit
-                /><HidePasswordButton hidden=password_hidden/>
-                {confirm_password_ui}
+                /><HidePasswordButton hidden=confirm_new_password_hidden/>
+                <Transition fallback=|| {view! { "..." }}>
+                    {move || if new_password_signal.get() != confirm_new_password_signal.get() { "Confirmation must match" } else { "" }}
+                </Transition>
             </Show>
 
             // dont show edit and delete buttons for admin users

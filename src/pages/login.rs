@@ -22,14 +22,6 @@ pub fn Login() -> impl IntoView {
         }
     );
 
-    let password_input_type = Memo::new(move |_| {
-        if password_hidden.get() {
-            "password"
-        } else {
-            "text"
-        }
-    });
-
     Effect::new(move || {
         if let Some(Some(_)) = logged_in_user.get() {
             let nav = use_navigate();
@@ -54,7 +46,7 @@ pub fn Login() -> impl IntoView {
                 <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
                 <input 
                     class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type=move || password_input_type.get()
+                    type=move || if password_hidden.get() { "password" } else { "text" }
                     name="password" 
                     bind:value=password 
                 /><HidePasswordButton hidden=password_hidden/>

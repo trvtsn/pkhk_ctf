@@ -530,7 +530,11 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
             match action {
                 UserAction::Create { username, email, password, confirm_password, role } => {
                     if password != confirm_password {
-                        return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+                        return Err(AppError::BadRequest("password and confirm password must match".to_string()));
+                    }
+
+                    if username.is_empty() {
+                        return Err(AppError::BadRequest("username must not be empty".to_string()));
                     }
 
                     let hashed_pw = hash_string(password.clone())?;
@@ -553,11 +557,12 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
                 }
                 UserAction::Delete { id } => {
-                    match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
+                    let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
                                 return Err(AppError::InternalError("cannot delete admin users".to_string()));
                             }
+                            user
                         },
                         Ok(None) => {
                             return Err(AppError::InternalError("internal error".to_string()));
@@ -568,7 +573,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     };
 
-                    match DbUser::delete(&id, &auth.backend.pool).await {
+                    match DbUser::delete(&user.id, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) }),
                         Err(e) => {
                             tracing::error!(error = ?e);
@@ -577,11 +582,12 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
                 }
                 UserAction::Edit { id, username, email, password, confirm_password, points, role } => {
-                    match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
+                    let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
                                 return Err(AppError::InternalError("cannot edit admin users".to_string()));
                             }
+                            user
                         },
                         Ok(None) => {
                             return Err(AppError::InternalError("internal error".to_string()));
@@ -593,11 +599,15 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     };
 
                     if password != confirm_password {
-                        return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+                        return Err(AppError::BadRequest("password and confirm password must match".to_string()));
+                    }
+
+                    if username.is_empty() {
+                        return Err(AppError::BadRequest("username must not be empty".to_string()));
                     }
 
                     let mut tx = auth.backend.pool.begin().await?;
-                    match DbUser::edit_username(&id, &username, &mut *tx).await {
+                    match DbUser::edit_username(&user.id, &username, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tracing::error!(error = ?e);
@@ -606,7 +616,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     }
 
-                    match DbUser::edit_email(&id, &email, &mut *tx).await {
+                    match DbUser::edit_email(&user.id, &email, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tracing::error!(error = ?e);
@@ -615,7 +625,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     }
 
-                    match DbUser::edit_points(&id, &points, &mut *tx).await {
+                    match DbUser::edit_points(&user.id, &points, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tracing::error!(error = ?e);
@@ -637,11 +647,12 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
                 }
                 UserAction::EditPassword { id, password, confirm_password } => {
-                    match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
+                    let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
                                 return Err(AppError::InternalError("cannot edit password on admin users".to_string()));
                             }
+                            user
                         },
                         Ok(None) => {
                             return Err(AppError::InternalError("internal error".to_string()));
@@ -653,12 +664,12 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     };
 
                     if password != confirm_password {
-                        return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+                        return Err(AppError::BadRequest("password and confirm password must match".to_string()));
                     }
 
                     let hashed_pw = hash_string(password.clone())?;
 
-                    match DbUser::edit_password(&id, &hashed_pw, &auth.backend.pool).await {
+                    match DbUser::edit_password(&user.id, &hashed_pw, &auth.backend.pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) }),
                         Err(e) => {
                             tracing::error!(error = ?e);
