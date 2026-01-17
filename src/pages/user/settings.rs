@@ -27,20 +27,25 @@ pub fn Settings() -> impl IntoView {
         <NavBar />
         <div class="grid justify-center p-4">
             <label>"Dark Mode"</label>
-            <input type="checkbox" on:input=move |ev| {
-                let is_checked = event_target_checked(&ev);
-                if is_checked { set_mode.set(ColorMode::Dark) } else { set_mode.set(ColorMode::Light) };
-            }/>
-            
+            <input
+                type="checkbox"
+                on:input=move |ev| { let is_checked = event_target_checked(&ev);
+                    if is_checked {
+                        set_mode.set(ColorMode::Dark)
+                    } else {
+                        set_mode.set(ColorMode::Light)
+                    };
+                }
+            />
+
             <label>"Change Username"</label>
-            <input 
-                class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                type="text" 
+            <input
+                class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                type="text"
                 bind:value=new_username
             />
             <button
-                class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
-                font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
+                class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
                 on:click=move |_| {
                     spawn_local(async move {
                         if edit_username(new_username.get()).await.is_ok() {
@@ -49,55 +54,70 @@ pub fn Settings() -> impl IntoView {
                         }
                     });
                 }
-            >"Change Username"</button>
+            >
+                "Change Username"
+            </button>
 
             <button
-                class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
-                font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"#
+                class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
                 on:click=move |_| {
-                    if changing_password.get() {changing_password.set(false)} else {changing_password.set(true)}
-
+                    if changing_password.get() {
+                        changing_password.set(false)
+                    } else {
+                        changing_password.set(true)
+                    }
                 }
-            >"Change Password"</button>
+            >
+                "Change Password"
+            </button>
 
             <Show when=move || changing_password.get()>
                 <ActionForm action=edit_password>
                     <label>"Old Password"</label>
-                    <input 
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    <input
+                        class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                         type=move || if old_password_hidden.get() { "password" } else { "text" }
-                        name="old_password" 
-                    /><HidePasswordButton hidden=old_password_hidden/>
-                    
+                        name="old_password"
+                    />
+                    <HidePasswordButton hidden=old_password_hidden />
+
                     <label>"New Password"</label>
-                    <input 
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                    <input
+                        class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                         type=move || if new_password_hidden.get() { "password" } else { "text" }
-                        name="new_password" 
-                    /><HidePasswordButton hidden=new_password_hidden/>
-                    
+                        name="new_password"
+                    />
+                    <HidePasswordButton hidden=new_password_hidden />
+
                     <label>"Confirm New Password"</label>
-                    <input 
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                        type=move || if confirm_new_password_hidden.get() { "password" } else { "text" }
-                        name="confirm_new_password" 
-                    /><HidePasswordButton hidden=confirm_new_password_hidden/>
-                    
-                    <button 
-                        class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 
-                        on:click=move |_| {changing_password.set(false)}
-                    >"Cancel"</button>
-                    <input 
-                        class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
-                        font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"# 
-                        type="submit" 
-                        value="Submit" 
+                    <input
+                        class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        type=move || {
+                            if confirm_new_password_hidden.get() { "password" } else { "text" }
+                        }
+                        name="confirm_new_password"
+                    />
+                    <HidePasswordButton hidden=confirm_new_password_hidden />
+
+                    <button
+                        class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                        on:click=move |_| { changing_password.set(false) }
+                    >
+                        "Cancel"
+                    </button>
+                    <input
+                        class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
+                        type="submit"
+                        value="Submit"
                     />
                 </ActionForm>
             </Show>
             <label>
                 <b>"Change Avatar (Max 16 MiB)"</b>
-                <input class="bg-white shadow-sm rounded-lg p-2" type="file" name="file"
+                <input
+                    class="p-2 bg-white rounded-lg shadow-sm"
+                    type="file"
+                    name="file"
                     on:change=move |ev: Event| {
                         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                         if let Some(files) = input.files() && files.length() > 0 {

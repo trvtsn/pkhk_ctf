@@ -33,7 +33,7 @@ pub fn Challenge(
         } else {
             format!(
                 "{base} {}",
-                "bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400"
+                "bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"
             )
         }
     });
@@ -55,19 +55,24 @@ pub fn Challenge(
 
     view! {
         <div
-            class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center"
+            class="content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"
             on:click=move |_| { open.set(true) }
         >
-            <h3 class="text-3xl/8 font-bold">{move || challenge_signal.get().name.clone()}</h3>
+            <h3 class="font-bold text-3xl/8">{move || challenge_signal.get().name.clone()}</h3>
             <p class="text-lg/8">
-                <TruncatedDesc description_signal/>
+                <TruncatedDesc description_signal />
             </p>
             <Difficulty difficulty_signal />
-            <p class="text-lg/8"><b>"Points: "</b>{move || challenge_signal.get().points}</p>
+            <p class="text-lg/8">
+                <b>"Points: "</b>
+                {move || challenge_signal.get().points}
+            </p>
             <br />
-                
-            <label for="flag"><b>"Flag: "</b></label>
-            <input class="border-black border-1 rounded-sm bg-white m-1" bind:value=flag_signal/>
+
+            <label for="flag">
+                <b>"Flag: "</b>
+            </label>
+            <input class="m-1 bg-white rounded-sm border-black border-1" bind:value=flag_signal />
             <button
                 class=move || button_classes.get()
                 disabled=move || solved.get() || incorrect.get()
@@ -75,15 +80,14 @@ pub fn Challenge(
                     let start = start.clone();
                     let stop = stop.clone();
                     let refresh_user = refresh_user;
-                    
                     let flag = flag_signal.get();
                     let challenge = challenge_signal.get();
                     spawn_local(async move {
-                        if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
-                            // change button appearance to red, incorrect
+                        if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await
+                        {
                             if result == ResultStatus::Fail && details == "incorrect solution" {
                                 incorrect.set(true);
-                                stop(); // cancel previous pending timeout (if any)
+                                stop();
                                 start(());
                             } else if result == ResultStatus::Success {
                                 solved.set(true);
@@ -94,7 +98,7 @@ pub fn Challenge(
                     });
                 }
             >
-                { move || submit_btn_text.get() }
+                {move || submit_btn_text.get()}
             </button>
 
             <For
@@ -102,7 +106,9 @@ pub fn Challenge(
                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                 let(a)
             >
-                <a download href=move || format!("/file/{}", a.id) class="underline text-blue-600">{a.file_name}</a>
+                <a download href=move || format!("/file/{}", a.id) class="text-blue-600 underline">
+                    {a.file_name}
+                </a>
             </For>
         </div>
     }

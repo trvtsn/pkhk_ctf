@@ -23,47 +23,55 @@ pub fn Register() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="p-8 justify-center grid grid-col">
+        <div class="grid justify-center p-8 grid-col">
             <h3 class="text-4xl text-center">"Register"</h3>
-            <br/>
+            <br />
             <ActionForm action=register>
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Email"</label>
-                <Transition fallback=|| view! { "..." }>
-                    {available_ui}
-                </Transition>
+                <label class="block mb-1 text-sm font-medium text-gray-700">"Email"</label>
+                <Transition fallback=|| view! { "..." }>{available_ui}</Transition>
 
-                <input 
-                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type="email" 
-                    name="email" 
+                <input
+                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    type="email"
+                    name="email"
                     on:blur=move |ev| {
                         let value = event_target_value(&ev);
                         email.set(value);
                     }
                 />
-                    
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+
+                <label class="block mb-1 text-sm font-medium text-gray-700">"Password"</label>
+                <input
+                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                     type=move || if password_hidden.get() { "password" } else { "text" }
-                    name="password" 
+                    name="password"
                     bind:value=password
-                /><HidePasswordButton hidden=password_hidden/>
-                
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm Password"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                />
+                <HidePasswordButton hidden=password_hidden />
+
+                <label class="block mb-1 text-sm font-medium text-gray-700">
+                    "Confirm Password"
+                </label>
+                <input
+                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                     type=move || if confirm_password_hidden.get() { "password" } else { "text" }
-                    name="confirm_password" 
+                    name="confirm_password"
                     bind:value=confirm_password
-                /><HidePasswordButton hidden=confirm_password_hidden/>
-                <Transition fallback=|| view! { "..." }>
-                    {if password.get() != confirm_password.get() { "Confirmation must match" } else { "" }}
+                />
+                <HidePasswordButton hidden=confirm_password_hidden />
+                <Transition fallback=|| {
+                    view! { "..." }
+                }>
+                    {if password.get() != confirm_password.get() {
+                        "Confirmation must match"
+                    } else {
+                        ""
+                    }}
                 </Transition>
 
                 <input
                     type="submit"
-                    class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50"
+                    class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
                     value="Register"
                 />
             </ActionForm>

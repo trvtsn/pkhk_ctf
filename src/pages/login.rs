@@ -31,29 +31,30 @@ pub fn Login() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="p-8 justify-center grid grid-col">
+        <div class="grid justify-center p-8 grid-col">
             <h3 class="text-4xl text-center">"Login"</h3>
-            <br/>
+            <br />
             <ActionForm action=login>
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Email"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    type="email" 
-                    name="email" 
-                    bind:value=email 
+                <label class="block mb-1 text-sm font-medium text-gray-700">"Email"</label>
+                <input
+                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    type="email"
+                    name="email"
+                    bind:value=email
                 />
-                
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Password"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+
+                <label class="block mb-1 text-sm font-medium text-gray-700">"Password"</label>
+                <input
+                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                     type=move || if password_hidden.get() { "password" } else { "text" }
-                    name="password" 
-                    bind:value=password 
-                /><HidePasswordButton hidden=password_hidden/>
-                
+                    name="password"
+                    bind:value=password
+                />
+                <HidePasswordButton hidden=password_hidden />
+
                 <input
                     type="submit"
-                    class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50"
+                    class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
                     value="Login"
                 />
             </ActionForm>

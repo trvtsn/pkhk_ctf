@@ -5,10 +5,9 @@ use leptos::prelude::*;
 pub fn SiteSettings() -> impl IntoView {
     view! {
         <div class="container">
-            <button 
-                class=r#"ml-auto inline-flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white text-sm 
-                font-semibold shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"#
-            >"Change Favicon"</button>
+            <button class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500">
+                "Change Favicon"
+            </button>
         </div>
     }
 }

@@ -28,39 +28,37 @@ pub fn Log() -> impl IntoView {
     });
 
     view! {
-        <textarea class="server-logs w-full rounded-lg shadow-sm p-4" readonly rows="20">
+        <textarea class="p-4 w-full rounded-lg shadow-sm server-logs" readonly rows="20">
             {move || logs.get()}
         </textarea>
         <div class="flex gap-3 mt-2">
-            <button 
-                class=r#"bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg 
-                text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition"# 
+            <button
+                class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
                 on:click=move |_| logs.set(Vec::new())
-                >"Clear"</button>
-            <button 
-                class=r#"bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400 inline-flex items-center gap-2 rounded-lg 
-                text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition"#
+            >
+                "Clear"
+            </button>
+            <button
+                class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
                 on:click=move |_| {
                     let text = logs.get().join("");
-
                     let current_datetime = Local::now().format("%d_%m_%Y-%H_%M_%S");
                     let file_name = format!("pkhkctf-logs-{}.txt", current_datetime);
-
                     let b64 = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
                     let href = format!("data:text/plain;charset=utf-8;base64,{}", b64);
-
                     let window = leptos::web_sys::window().unwrap();
                     let document = window.document().unwrap();
                     let a = document
                         .create_element("a")
                         .unwrap()
                         .unchecked_into::<leptos::web_sys::HtmlAnchorElement>();
-
                     a.set_href(&href);
                     a.set_download(&file_name);
                     a.click();
                 }
-            >"Export"</button>
+            >
+                "Export"
+            </button>
         </div>
     }
 }

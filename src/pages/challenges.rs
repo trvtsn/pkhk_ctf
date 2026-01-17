@@ -49,40 +49,57 @@ pub fn Challenges() -> impl IntoView {
         }
     });
 
-    let challenges_view = move || { view! { 
+    let challenges_view = move || { view! {
         <div class="challenges">
-            <Transition fallback=move || view! { <div>"Loading..."</div> }>
+            <Transition fallback=move || {
+                view! { <div>"Loading..."</div> }
+            }>
                 {move || {
-                    let mut map = HashMap::<Option<String>, Vec<db::structs::ChallengeWithAttachments>>::new();
+                    let mut map = HashMap::<
+                        Option<String>,
+                        Vec<db::structs::ChallengeWithAttachments>,
+                    >::new();
                     for ch in challenges_resource.get().unwrap_or_default().into_iter() {
                         map.entry(ch.challenge.category.clone()).or_default().push(ch);
                     }
-
-                    let mut groups = map.into_iter().collect::<Vec<(Option<String>, Vec<db::structs::ChallengeWithAttachments>)>>();
+                    let mut groups = map
+                        .into_iter()
+                        .collect::<
+                            Vec<(Option<String>, Vec<db::structs::ChallengeWithAttachments>)>,
+                        >();
+                    groups
+                        .sort_by(|(a, _), (b, _)| {
+                            a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or(""))
+                        });
+                    solved_challenge_ids.set(solved_challenges_resource.get().unwrap_or_default());
 
                     // alphabetical sort, there's probably a better way to do this
-                    groups.sort_by(|(a, _), (b, _)| a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or("")));
 
-                    solved_challenge_ids.set(solved_challenges_resource.get().unwrap_or_default());
-                    
                     view! {
                         <For
                             each=move || groups.clone()
-                            key=|group: &(Option<String>, Vec<db::structs::ChallengeWithAttachments>)| group.0.clone()
+                            key=|
+                                group: &(
+                                    Option<String>,
+                                    Vec<db::structs::ChallengeWithAttachments>,
+                                )|
+                            group.0.clone()
                             let(group)
                         >
-                            <div class="challenge-category p-2">
+                            <div class="p-2 challenge-category">
                                 <h2 class="text-2xl">
-                                    { group.0.clone().unwrap_or_else(|| "Uncategorized".to_string()) }
+                                    {group.0.clone().unwrap_or_else(|| "Uncategorized".to_string())}
                                 </h2>
 
-                                <div class="m-4 grid grid-cols-4 content-stretch">
+                                <div class="grid grid-cols-4 m-4 content-stretch">
                                     <For
                                         each=move || group.1.clone()
-                                        key=|challenge: &db::structs::ChallengeWithAttachments| challenge.challenge.id.clone()
+                                        key=|challenge: &db::structs::ChallengeWithAttachments| {
+                                            challenge.challenge.id.clone()
+                                        }
                                         let(challenge)
                                     >
-                                        <div class="challenge p-2">
+                                        <div class="p-2 challenge">
                                             <Challenge
                                                 cwa=challenge
                                                 solved_challenges=solved_challenge_ids
@@ -102,7 +119,9 @@ pub fn Challenges() -> impl IntoView {
         <NavBar />
         <div class="grid justify-center p-4">
             <h1 class="text-4xl text-center">"Challenges"</h1>
-            <Transition fallback=move || view! { <div>"Loading..."</div> }>
+            <Transition fallback=move || {
+                view! { <div>"Loading..."</div> }
+            }>
                 {move || {
                     if !active_events_resource.get().unwrap_or_default().is_empty() {
                         view! { {challenges_view} }.into_any()

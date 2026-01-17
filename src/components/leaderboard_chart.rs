@@ -21,7 +21,9 @@ pub fn LeaderboardChart(
     });
 
     view! {
-        <Transition fallback=move || view! { <p>"Loading..."</p> }>
+        <Transition fallback=move || {
+            view! { <p>"Loading..."</p> }
+        }>
             {move || {
                 let event_name = event_name.get();
                 let series = series.get().with_y_range(0.0, data.get().y_max);
@@ -35,7 +37,7 @@ pub fn LeaderboardChart(
                             AxisMarker::left_edge().into_inner(),
                             AxisMarker::bottom_edge().into_inner(),
                             XGridLine::default().into_inner(),
-                            YGridLine::default().into_inner()
+                            YGridLine::default().into_inner(),
                         ]
                         tooltip=Tooltip::left_cursor()
                         series=series

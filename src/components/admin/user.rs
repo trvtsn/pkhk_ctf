@@ -41,48 +41,66 @@ pub fn User(
     });
     
     view! {
-        <div class="bg-yale-blue-50 hover:bg-yale-blue-100 rounded-lg p-4 content-center">
-            <h3 class="text-3xl/8 font-bold">{move || username_signal.get().clone()}</h3>
-            <p class="text-lg/8"><b>"ID: "</b> {move || id_signal.get().clone()}</p>
-            <p class="text-lg/8"><b>"E-mail: "</b> {move || email_signal.get().clone()}</p>
-            <p class="text-lg/8"><b>"Role: "</b> {move || role_signal.get().to_string()}</p>
-            <p class="text-lg/8"><b>"Points: "</b> {move || points_signal.get()}</p>
-            <p class="text-lg/8"><b>"Created: "</b> {move || created_signal.get().to_string()}</p>
-            <p class="text-lg/8"><b>"Last active: "</b> {move || last_active_signal.get().to_string()}</p>
+        <div class="content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100">
+            <h3 class="font-bold text-3xl/8">{move || username_signal.get().clone()}</h3>
+            <p class="text-lg/8">
+                <b>"ID: "</b>
+                {move || id_signal.get().clone()}
+            </p>
+            <p class="text-lg/8">
+                <b>"E-mail: "</b>
+                {move || email_signal.get().clone()}
+            </p>
+            <p class="text-lg/8">
+                <b>"Role: "</b>
+                {move || role_signal.get().to_string()}
+            </p>
+            <p class="text-lg/8">
+                <b>"Points: "</b>
+                {move || points_signal.get()}
+            </p>
+            <p class="text-lg/8">
+                <b>"Created: "</b>
+                {move || created_signal.get().to_string()}
+            </p>
+            <p class="text-lg/8">
+                <b>"Last active: "</b>
+                {move || last_active_signal.get().to_string()}
+            </p>
 
             <Show when=move || editing.get()>
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Name"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    name="username" 
-                    value=move || username_signal.get() 
+                <label class="block mb-1 text-sm font-medium text-gray-700">"Name"</label>
+                <input
+                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    name="username"
+                    value=move || username_signal.get()
                     bind:value=username_edit
                 />
 
-                <label class="block text-sm font-medium text-gray-700 mb-1">"E-mail"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    name="email" 
-                    value=move || email_signal.get() 
+                <label class="block mb-1 text-sm font-medium text-gray-700">"E-mail"</label>
+                <input
+                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    name="email"
+                    value=move || email_signal.get()
                     bind:value=email_edit
                 />
 
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Points"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    name="points" 
+                <label class="block mb-1 text-sm font-medium text-gray-700">"Points"</label>
+                <input
+                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    name="points"
                     type="number"
-                    value=move || points_signal.get() 
+                    value=move || points_signal.get()
                     on:change=move |ev: Event| {
                         let value = event_target_value(&ev);
                         points_edit.set(value.parse::<u32>().unwrap_or_default());
                     }
                 />
 
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Role"</label>
-                <select 
-                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                    name="event_id" 
+                <label class="block mb-1 text-sm font-medium text-gray-700">"Role"</label>
+                <select
+                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    name="event_id"
                     bind:value=role_edit
                 >
                     <option value="">"-- Select Role --"</option>
@@ -91,29 +109,41 @@ pub fn User(
                         key=|r: &UserRole| r.to_string()
                         let(role: UserRole)
                     >
-                        <option value={role.to_string()}>{role.to_string()}</option>
+                        <option value=role.to_string()>{role.to_string()}</option>
                     </For>
                 </select>
             </Show>
 
             <Show when=move || editing_password.get()>
-                <label class="block text-sm font-medium text-gray-700 mb-1">"New Password"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                <label class="block mb-1 text-sm font-medium text-gray-700">"New Password"</label>
+                <input
+                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                     type=move || if new_password_hidden.get() { "password" } else { "text" }
-                    name="new_password" 
+                    name="new_password"
                     bind:value=new_password_edit
-                /><HidePasswordButton hidden=new_password_hidden/>
-                
-                <label class="block text-sm font-medium text-gray-700 mb-1">"Confirm New Password"</label>
-                <input 
-                    class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                />
+                <HidePasswordButton hidden=new_password_hidden />
+
+                <label class="block mb-1 text-sm font-medium text-gray-700">
+                    "Confirm New Password"
+                </label>
+                <input
+                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                     type=move || if confirm_new_password_hidden.get() { "password" } else { "text" }
-                    name="confirm_new_password" 
+                    name="confirm_new_password"
                     bind:value=confirm_new_password_edit
-                /><HidePasswordButton hidden=confirm_new_password_hidden/>
-                <Transition fallback=|| {view! { "..." }}>
-                    {move || if new_password_signal.get() != confirm_new_password_signal.get() { "Confirmation must match" } else { "" }}
+                />
+                <HidePasswordButton hidden=confirm_new_password_hidden />
+                <Transition fallback=|| {
+                    view! { "..." }
+                }>
+                    {move || {
+                        if new_password_signal.get() != confirm_new_password_signal.get() {
+                            "Confirmation must match"
+                        } else {
+                            ""
+                        }
+                    }}
                 </Transition>
             </Show>
 
@@ -121,19 +151,24 @@ pub fn User(
             <Show when=move || role_signal.get() != UserRole::Admin.to_string()>
                 <div class="flex flex-row-reverse gap-3 mt-2">
                     <Show when=move || editing.get() || editing_password.get() || deleting.get()>
-                        <button 
-                            class="px-4 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50" 
-                            on:click=move |_| {editing.set(false); deleting.set(false); editing_password.set(false);}
-                        >"Cancel"</button>
+                        <button
+                            class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                            on:click=move |_| {
+                                editing.set(false);
+                                deleting.set(false);
+                                editing_password.set(false);
+                            }
+                        >
+                            "Cancel"
+                        </button>
                     </Show>
 
-                    <button 
-                        type="button" 
+                    <button
+                        type="button"
                         hidden=move || deleting.get() || editing_password.get()
-                        class=r#"inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none 
-                        focus:ring-2 active:scale-95 transition bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400"#
+                        class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
                         on:click=move |_| {
-                            let user_id = id_signal.get(); 
+                            let user_id = id_signal.get();
                             let username = username_edit.get();
                             let email = email_edit.get();
                             let password = new_password_edit.get();
@@ -143,19 +178,18 @@ pub fn User(
                             if editing.get() {
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(
-                                        crate::server::admin::UserAction::Edit { 
-                                            id: user_id, 
-                                            username: username.clone(), 
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Edit {
+                                            id: user_id,
+                                            username: username.clone(),
                                             email: email.clone(),
                                             password: password.clone(),
                                             confirm_password: confirm_password.clone(),
                                             points,
-                                            role: role.clone().into()
-                                        }
-                                    ).await && result == ResultStatus::Success {
+                                            role: role.clone().into(),
+                                        })
+                                        .await && result == ResultStatus::Success
+                                    {
                                         refresh.update(|n| *n += 1);
-
                                         username_signal.set(username);
                                         email_signal.set(email);
                                         new_password_signal.set(password);
@@ -168,23 +202,28 @@ pub fn User(
                             } else {
                                 editing.set(true)
                             }
-                    }>{ move || edit_submit_btn_text.get() }</button>
+                        }
+                    >
+                        {move || edit_submit_btn_text.get()}
+                    </button>
 
-                    <button 
-                        type="button" 
+                    <button
+                        type="button"
                         hidden=move || deleting.get() || editing.get()
-                        class="inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-400"
+                        class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
                         on:click=move |_| {
                             if editing_password.get() {
                                 spawn_local(async move {
-                                    tracing::debug!("editing user password: {}", id_signal.get().clone());
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(
-                                        crate::server::admin::UserAction::EditPassword { 
-                                            id: id_signal.get().clone(), 
+                                    tracing::debug!(
+                                        "editing user password: {}", id_signal.get().clone()
+                                    );
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::EditPassword {
+                                            id: id_signal.get().clone(),
                                             password: new_password_edit.get().clone(),
-                                            confirm_password: confirm_new_password_edit.get().clone()
-                                        }
-                                    ).await && result == ResultStatus::Success {
+                                            confirm_password: confirm_new_password_edit.get().clone(),
+                                        })
+                                        .await && result == ResultStatus::Success
+                                    {
                                         refresh.update(|n| *n += 1);
                                     }
                                 });
@@ -192,19 +231,24 @@ pub fn User(
                             } else {
                                 editing_password.set(true)
                             }
-                    }>{ move || edit_password_submit_btn_text.get() }</button>
+                        }
+                    >
+                        {move || edit_password_submit_btn_text.get()}
+                    </button>
 
                     <button
                         hidden=move || editing.get() || editing_password.get()
-                        class="ml-auto inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm font-semibold shadow-sm hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
                         on:click=move |_| {
                             let id = id_signal.get().clone();
                             if deleting.get() {
                                 spawn_local(async move {
                                     tracing::debug!("deleting user: {id}");
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(
-                                        crate::server::admin::UserAction::Delete { id } 
-                                    ).await && result == ResultStatus::Success {
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Delete {
+                                            id,
+                                        })
+                                        .await && result == ResultStatus::Success
+                                    {
                                         refresh.update(|n| *n += 1);
                                     }
                                 });
@@ -214,7 +258,7 @@ pub fn User(
                             }
                         }
                     >
-                        { move || delete_submit_btn_text.get() }
+                        {move || delete_submit_btn_text.get()}
                     </button>
                 </div>
             </Show>

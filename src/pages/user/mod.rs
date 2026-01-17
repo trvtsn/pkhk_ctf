@@ -27,28 +27,33 @@ pub fn User() -> impl IntoView {
     view! {
         <NavBar />
         <div class="container">
-            <Suspense fallback=move || view! { <div>"Loading..."</div> }>
+            <Suspense fallback=move || {
+                view! { <div>"Loading..."</div> }
+            }>
                 {move || {
                     let user = user_res.get().unwrap_or_default();
-
                     let view = match user {
                         Some(user) => {
                             let avatar = user_avatar.get().unwrap_or_default();
+
                             view! {
                                 <p>{avatar}</p>
                                 <p>{user.username}</p>
-                                <p><b>"Points: "</b>{user.points}</p>
-                                <p><b>"Date Joined: "</b>{user.created_at.to_string()}</p>
-                            }.into_any()
+                                <p>
+                                    <b>"Points: "</b>
+                                    {user.points}
+                                </p>
+                                <p>
+                                    <b>"Date Joined: "</b>
+                                    {user.created_at.to_string()}
+                                </p>
+                            }
+                                .into_any()
                         }
-                        None => {
-                            view! { <NotFound /> }.into_any()
-                        }
+                        None => view! { <NotFound /> }.into_any(),
                     };
 
-                    view! {
-                        {view}
-                    }
+                    view! { {view} }
                 }}
             </Suspense>
         </div>

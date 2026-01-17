@@ -21,15 +21,15 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <!DOCTYPE html>
         <html lang="en">
             <head>
-                <meta charset="utf-8"/>
-                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <AutoReload options=options.clone() />
-                <HydrationScripts options/>
-                <MetaTags/>
-                <link rel="stylesheet" href="/pkg/pkhk_ctf.css"/>
+                <HydrationScripts options />
+                <MetaTags />
+                <link rel="stylesheet" href="/pkg/pkhk_ctf.css" />
             </head>
             <body>
-                <App/>
+                <App />
             </body>
         </html>
     }
@@ -92,9 +92,13 @@ pub fn App() -> impl IntoView {
 
             <Router>
                 <Routes fallback=NotFound>
-                    <Route path=path!("/") view=Home ssr=leptos_router::SsrMode::InOrder/>
-                    <Route path=path!("/login") view=Login ssr=leptos_router::SsrMode::InOrder/>
-                    <Route path=path!("/register") view=Register ssr=leptos_router::SsrMode::InOrder/>
+                    <Route path=path!("/") view=Home ssr=leptos_router::SsrMode::InOrder />
+                    <Route path=path!("/login") view=Login ssr=leptos_router::SsrMode::InOrder />
+                    <Route
+                        path=path!("/register")
+                        view=Register
+                        ssr=leptos_router::SsrMode::InOrder
+                    />
                     <ProtectedRoute
                         path=path!("/admin")
                         redirect_path=|| "/login"
@@ -102,22 +106,33 @@ pub fn App() -> impl IntoView {
                         view=Admin
                         ssr=leptos_router::SsrMode::InOrder
                     ></ProtectedRoute>
-                    <Route path=path!("/challenges") view=Challenges ssr=leptos_router::SsrMode::InOrder/>
-                    <Route path=path!("/leaderboard") view=Leaderboard ssr=leptos_router::SsrMode::InOrder/>
+                    <Route
+                        path=path!("/challenges")
+                        view=Challenges
+                        ssr=leptos_router::SsrMode::InOrder
+                    />
+                    <Route
+                        path=path!("/leaderboard")
+                        view=Leaderboard
+                        ssr=leptos_router::SsrMode::InOrder
+                    />
                     <ProtectedRoute
                         path=path!("/settings")
                         redirect_path=|| "/login"
                         condition=move || Some(user.get().is_some())
                         view=user::settings::Settings
                         ssr=leptos_router::SsrMode::InOrder
-                    >
-                    </ProtectedRoute>
+                    ></ProtectedRoute>
                     <ParentRoute
                         path=path!("/profile")
                         view=user::User
                         ssr=leptos_router::SsrMode::InOrder
                     >
-                        <Route path=path!(":username") view=user::User ssr=leptos_router::SsrMode::InOrder/>
+                        <Route
+                            path=path!(":username")
+                            view=user::User
+                            ssr=leptos_router::SsrMode::InOrder
+                        />
                     </ParentRoute>
                 </Routes>
             </Router>

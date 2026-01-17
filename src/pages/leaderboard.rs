@@ -31,30 +31,35 @@ pub fn Leaderboard() -> impl IntoView {
         }
     });
 
-    view! { 
+    view! {
         <NavBar />
-        <div class="p-4 justify-center grid">
-            <h3 class="text-4xl text-center m-2">"Leaderboard"</h3>
-            <Transition fallback=move || view! { <div>"Loading..."</div> }>
+        <div class="grid justify-center p-4">
+            <h3 class="m-2 text-4xl text-center">"Leaderboard"</h3>
+            <Transition fallback=move || {
+                view! { <div>"Loading..."</div> }
+            }>
                 {move || {
                     let data = leaderboard_data_resource.get().unwrap_or_default();
                     let usernames = data.users.clone();
                     let base = Series::new(|r: &PivotRow| r.ts);
-                    let series = usernames.iter().cloned().fold(base, |s, name| {
-                        let nm = name.clone();
-                        s.line(
-                            Line::new(move |r: &PivotRow| {
-                                r.values.get(&nm).cloned().unwrap_or(f64::NAN)
-                            })
-                            .with_name(name),
-                        )
-                    });
+                    let series = usernames
+                        .iter()
+                        .cloned()
+                        .fold(
+                            base,
+                            |s, name| {
+                                let nm = name.clone();
+                                s.line(
+                                    Line::new(move |r: &PivotRow| {
+                                            r.values.get(&nm).cloned().unwrap_or(f64::NAN)
+                                        })
+                                        .with_name(name),
+                                )
+                            },
+                        );
 
                     view! {
-                        <LeaderboardChart
-                            series=RwSignal::new(series)
-                            data=RwSignal::new(data)
-                        />
+                        <LeaderboardChart series=RwSignal::new(series) data=RwSignal::new(data) />
                     }
                 }}
             </Transition>
