@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::{constants, error_template::AppError, server::{db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, EventMetadata}}}};
+use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
@@ -72,6 +72,7 @@ pub mod structs {
     use time::OffsetDateTime;
 
     pub type DbUser = User;
+    pub type DbUserWithoutPII = UserWithoutPII;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub struct User {
@@ -79,6 +80,15 @@ pub mod structs {
         pub username: String,
         pub email: String,
         pub pw_hash: String,
+        pub created_at: DateTime<Local>,
+        pub last_active_at: DateTime<Local>,
+        pub role: UserRole,
+        pub points: u32
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    pub struct UserWithoutPII {
+        pub username: String,
         pub created_at: DateTime<Local>,
         pub last_active_at: DateTime<Local>,
         pub role: UserRole,
@@ -658,6 +668,71 @@ cfg_if! {
                             Err(e)?
                         }
                     }
+            }
+        }
+
+        impl DbUserWithoutPII {
+            pub async fn get(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match identifier {
+                    UserIdentifier::Id(id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            FROM users 
+                            WHERE id = ?
+                            ", 
+                            id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(user) => Ok(user),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    UserIdentifier::Email(email) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            FROM users 
+                            WHERE email = ?
+                            ", 
+                            email
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(user) => Ok(user),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    UserIdentifier::Username(username) => {
+                        //let pattern = format!("%{username}%");
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            FROM users 
+                            WHERE username = ?
+                            ", 
+                            username
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(user) => Ok(user),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
             }
         }
 

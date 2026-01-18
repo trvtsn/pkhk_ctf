@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}};
-use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::extract::Path;
 #[cfg(feature = "ssr")]
@@ -341,9 +341,9 @@ pub async fn get_user_points() -> Result<u32, AppError> {
     }
 }
 
-#[server(name=GetDbUser, prefix="/api/user", endpoint="info")]
+#[server(name=GetDbUserWithoutPII, prefix="/api/user", endpoint="info")]
 #[instrument]
-pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, AppError> {
+pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<DbUserWithoutPII>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -356,7 +356,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
                 }
             };
             if username.is_some() {
-                match DbUser::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &auth.backend.pool).await {
+                match DbUserWithoutPII::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &auth.backend.pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
@@ -364,7 +364,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
                     }
                 }    
             } else {
-                match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                match DbUserWithoutPII::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);

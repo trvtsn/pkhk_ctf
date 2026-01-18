@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{get_db_user, get_avatar}};
+use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{get_db_user_without_pii, get_avatar}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
@@ -16,7 +16,7 @@ pub fn User() -> impl IntoView {
     
     let user_res = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
-        async move { get_db_user(Some(username)).await.unwrap_or_default() } // leaks pw_hash
+        async move { get_db_user_without_pii(Some(username)).await.unwrap_or_default() } // leaks pw_hash
     });
 
     let user_avatar = Resource::new(move || (), move |_| {

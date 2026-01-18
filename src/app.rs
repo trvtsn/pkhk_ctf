@@ -12,7 +12,7 @@ use crate::{
     pages::{
         admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login::Login,
         not_found::NotFound, register::Register, user,
-    }, server::{db::enums::UserRole, get_db_user}
+    }, server::{db::{enums::UserRole, structs::DbUserWithoutPII}, get_db_user_without_pii}
 };
 
 
@@ -52,9 +52,9 @@ pub fn App() -> impl IntoView {
     provide_context(set_mode);
 
     let refresh_user = RwSignal::new(RefreshUser { iteration: 0 });
-    let user = RwSignal::new(None);
+    let user = RwSignal::<Option<DbUserWithoutPII>>::new(None);
     let user_resource = Resource::new(move || refresh_user.get(), |_| async move {
-        get_db_user(None).await.unwrap_or(None)
+        get_db_user_without_pii(None).await.unwrap_or(None)
     });
 
     // effects arent actually intended to synchronize with the reactive system,

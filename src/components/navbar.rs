@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, server::{LogoutUser, db::{enums::UserRole, structs::DbUser}}};
+use crate::{app::RefreshUser, server::{LogoutUser, db::{enums::UserRole, structs::DbUserWithoutPII}}};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
@@ -6,7 +6,7 @@ use leptos_icons::Icon;
 #[component]
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);
-    let user = expect_context::<RwSignal<Option<DbUser>>>();
+    let user = expect_context::<RwSignal<Option<DbUserWithoutPII>>>();
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     let logout = ServerAction::<LogoutUser>::new();
 

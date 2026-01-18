@@ -720,3 +720,40 @@ pub async fn delete_file(id: String) -> Result<ApiResult<Option<String>>, AppErr
         }
     }
 }
+
+#[server(name=GetDbUser, prefix="/api/admin/user", endpoint="info")]
+#[instrument]
+pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+            if username.is_some() {
+                match DbUser::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &auth.backend.pool).await {
+                    Ok(user) => Ok(user),
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        Err(AppError::InternalError("internal error".to_string()))
+                    }
+                }    
+            } else {
+                match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                    Ok(user) => Ok(user),
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        Err(AppError::InternalError("internal error".to_string()))
+                    }
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
