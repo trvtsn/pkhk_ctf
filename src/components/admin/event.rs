@@ -26,14 +26,14 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
     });
 
     view! {
-        <div class="content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100">
+        <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
             <Show when=move || !editing.get()>
-                <h3 class="font-bold text-3xl/8">{move || name_signal.get().clone()}</h3>
-                <p class="text-lg/8">
+                <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
+                <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
                     {move || id_signal.get().clone()}
                 </p>
-                <p class="text-lg/8">
+                <p class=r#"text-lg/8"#>
                     <b>"Description: "</b>
                     {move || {
                         if let Some(description) = description_signal.get() {
@@ -45,28 +45,30 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                 </p>
                 // <time datetime=move || start_at_signal.get()></time>
                 // <time datetime=move || end_at_signal.get()></time>
-                <p class="text-lg/8">
+                <p class=r#"text-lg/8"#>
                     <b>"Start Date: "</b>
                     {move || start_at_signal.get().to_string()}
                 </p>
-                <p class="text-lg/8">
+                <p class=r#"text-lg/8"#>
                     <b>"End Date: "</b>
                     {move || end_at_signal.get().to_string()}
                 </p>
             </Show>
 
             <Show when=move || editing.get()>
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="name"
                     value=move || name_signal.get()
                     bind:value=name_edit
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Description"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Description"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
                     value=move || description_signal.get()
                     on:change=move |ev: Event| {
@@ -75,9 +77,10 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                     }
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Start Date"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Start Date"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="start_at"
                     value=move || start_at_signal.get().to_string()
@@ -89,9 +92,10 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                     }
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"End Date"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"End Date"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="end_at"
                     value=move || end_at_signal.get().to_string()
@@ -104,10 +108,10 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                 />
             </Show>
 
-            <div class="flex flex-row-reverse gap-3 mt-2">
+            <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
                 <Show when=move || editing.get() || deleting.get()>
                     <button
-                        class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                         on:click=move |_| {
                             editing.set(false);
                             deleting.set(false);
@@ -119,7 +123,9 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                 <button
                     type="button"
                     hidden=move || deleting.get()
-                    class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
+                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                     on:click=move |_| {
                         let event_id = id_signal.get();
                         let name = name_edit.get();
@@ -156,7 +162,9 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <button
                     hidden=move || editing.get()
-                    class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                    bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
+                    focus:ring-yale-blue-500"#
                     on:click=move |_| {
                         if deleting.get() {
                             let event_id = event.id.clone();

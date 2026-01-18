@@ -31,21 +31,23 @@ pub fn Login() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="grid justify-center p-8 grid-col">
-            <h3 class="text-4xl text-center">"Login"</h3>
+        <div class=r#"grid justify-center p-8 grid-col"#>
+            <h3 class=r#"text-4xl text-center"#>"Login"</h3>
             <br />
             <ActionForm action=login>
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Email"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Email"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="email"
                     name="email"
                     bind:value=email
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Password"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Password"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type=move || if password_hidden.get() { "password" } else { "text" }
                     name="password"
                     bind:value=password
@@ -54,7 +56,7 @@ pub fn Login() -> impl IntoView {
 
                 <input
                     type="submit"
-                    class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                     value="Login"
                 />
             </ActionForm>

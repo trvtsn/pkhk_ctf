@@ -31,15 +31,17 @@ pub fn Files() -> impl IntoView {
             upload_action.dispatch_local(form_data);
         }>
             <label for="files">"Upload files..."</label>
-            <input class="p-2 bg-white rounded-lg shadow-sm" type="file" name="files" multiple />
+            <input class=r#"p-2 bg-white rounded-lg shadow-sm"# type="file" name="files" multiple />
             <input
-                class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
+                class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
+                hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                 type="submit"
                 value="Upload"
             />
         </form>
         <p>{move || upload_action_text.get()}</p>
-        <div class="grid grid-cols-4 m-2 files">
+        <div class=r#"grid grid-cols-4 m-2 files"#>
             <For
                 each=move || all_files.get().clone().unwrap_or_default()
                 key=|file: &db::structs::AttachmentWithoutBlob| file.id.clone()

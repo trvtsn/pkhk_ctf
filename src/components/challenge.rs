@@ -55,15 +55,15 @@ pub fn Challenge(
 
     view! {
         <div
-            class="content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"
+            class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#
             on:click=move |_| { open.set(true) }
         >
-            <h3 class="font-bold text-3xl/8">{move || challenge_signal.get().name.clone()}</h3>
-            <p class="text-lg/8">
+            <h3 class=r#"font-bold text-3xl/8"#>{move || challenge_signal.get().name.clone()}</h3>
+            <p class=r#"text-lg/8"#>
                 <TruncatedDesc description_signal />
             </p>
             <Difficulty difficulty_signal />
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"Points: "</b>
                 {move || challenge_signal.get().points}
             </p>
@@ -72,7 +72,10 @@ pub fn Challenge(
             <label for="flag">
                 <b>"Flag: "</b>
             </label>
-            <input class="m-1 bg-white rounded-sm border-black border-1" bind:value=flag_signal />
+            <input
+                class=r#"m-1 bg-white rounded-sm border-black border-1"#
+                bind:value=flag_signal
+            />
             <button
                 class=move || button_classes.get()
                 disabled=move || solved.get() || incorrect.get()
@@ -106,7 +109,11 @@ pub fn Challenge(
                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                 let(a)
             >
-                <a download href=move || format!("/file/{}", a.id) class="text-blue-600 underline">
+                <a
+                    download
+                    href=move || format!("/file/{}", a.id)
+                    class=r#"text-blue-600 underline"#
+                >
                     {a.file_name}
                 </a>
             </For>
@@ -119,9 +126,13 @@ pub fn Difficulty(difficulty_signal: RwSignal<i8>) -> impl IntoView {
     let difficulty = move || difficulty_signal.get_untracked().clamp(1, 5);
 
     view! {
-        <div class="difficulty" role="img" aria-label=format!("Difficulty: {} of 5", difficulty())>
-            <span class="label">
-                <b class="text-lg/8">"Difficulty: "</b>
+        <div
+            class=r#"difficulty"#
+            role="img"
+            aria-label=format!("Difficulty: {} of 5", difficulty())
+        >
+            <span class=r#"label"#>
+                <b class=r#"text-lg/8"#>"Difficulty: "</b>
                 {"⭐".repeat(difficulty() as usize)}
             </span>
         </div>

@@ -26,7 +26,7 @@ pub fn User() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="container">
+        <div class=r#"container"#>
             <Suspense fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>

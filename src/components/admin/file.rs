@@ -24,32 +24,34 @@ pub fn File(
     });
 
     view! {
-        <div class="content-center p-4 m-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100">
-            <h3 class="font-bold text-3xl/8">{file_name.clone()}</h3>
-            <p class="text-lg/8">
+        <div class=r#"content-center p-4 m-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
+            <h3 class=r#"font-bold text-3xl/8"#>{file_name.clone()}</h3>
+            <p class=r#"text-lg/8"#>
                 <b>"ID: "</b>
                 {id.clone()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"MIME Type: "</b>
                 {mime_type.unwrap_or_default()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"File Type: "</b>
                 {file_type.to_string()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"File Size: "</b>
                 {(file_size.unwrap_or_default() as f64) / 1000000_f64}
                 " MB"
             </p>
             {file_url_path.set(format!("/file/{}", id))}
-            <a download href=move || file_url_path.get() class="text-blue-600 underline">
+            <a download href=move || file_url_path.get() class=r#"text-blue-600 underline"#>
                 {file_name}
             </a>
 
             <button
-                class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
+                focus:ring-yale-blue-500"#
                 on:click=move |_| {
                     let id = id.clone();
                     if deleting.get() {

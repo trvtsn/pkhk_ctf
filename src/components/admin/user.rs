@@ -41,53 +41,56 @@ pub fn User(
     });
     
     view! {
-        <div class="content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100">
-            <h3 class="font-bold text-3xl/8">{move || username_signal.get().clone()}</h3>
-            <p class="text-lg/8">
+        <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
+            <h3 class=r#"font-bold text-3xl/8"#>{move || username_signal.get().clone()}</h3>
+            <p class=r#"text-lg/8"#>
                 <b>"ID: "</b>
                 {move || id_signal.get().clone()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"E-mail: "</b>
                 {move || email_signal.get().clone()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"Role: "</b>
                 {move || role_signal.get().to_string()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"Points: "</b>
                 {move || points_signal.get()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"Created: "</b>
                 {move || created_signal.get().to_string()}
             </p>
-            <p class="text-lg/8">
+            <p class=r#"text-lg/8"#>
                 <b>"Last active: "</b>
                 {move || last_active_signal.get().to_string()}
             </p>
 
             <Show when=move || editing.get()>
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="username"
                     value=move || username_signal.get()
                     bind:value=username_edit
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"E-mail"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"E-mail"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="email"
                     value=move || email_signal.get()
                     bind:value=email_edit
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Points"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Points"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="points"
                     type="number"
                     value=move || points_signal.get()
@@ -97,9 +100,10 @@ pub fn User(
                     }
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Role"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Role"</label>
                 <select
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=role_edit
                 >
@@ -115,20 +119,24 @@ pub fn User(
             </Show>
 
             <Show when=move || editing_password.get()>
-                <label class="block mb-1 text-sm font-medium text-gray-700">"New Password"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
+                    "New Password"
+                </label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type=move || if new_password_hidden.get() { "password" } else { "text" }
                     name="new_password"
                     bind:value=new_password_edit
                 />
                 <HidePasswordButton hidden=new_password_hidden />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
                     "Confirm New Password"
                 </label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 
+                    focus:outline-none focus:ring-yale-blue-500"#
                     type=move || if confirm_new_password_hidden.get() { "password" } else { "text" }
                     name="confirm_new_password"
                     bind:value=confirm_new_password_edit
@@ -149,10 +157,10 @@ pub fn User(
 
             // dont show edit and delete buttons for admin users
             <Show when=move || role_signal.get() != UserRole::Admin.to_string()>
-                <div class="flex flex-row-reverse gap-3 mt-2">
+                <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
                     <Show when=move || editing.get() || editing_password.get() || deleting.get()>
                         <button
-                            class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                            class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                             on:click=move |_| {
                                 editing.set(false);
                                 deleting.set(false);
@@ -166,7 +174,9 @@ pub fn User(
                     <button
                         type="button"
                         hidden=move || deleting.get() || editing_password.get()
-                        class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                         on:click=move |_| {
                             let user_id = id_signal.get();
                             let username = username_edit.get();
@@ -210,7 +220,9 @@ pub fn User(
                     <button
                         type="button"
                         hidden=move || deleting.get() || editing.get()
-                        class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                         on:click=move |_| {
                             if editing_password.get() {
                                 spawn_local(async move {
@@ -238,7 +250,9 @@ pub fn User(
 
                     <button
                         hidden=move || editing.get() || editing_password.get()
-                        class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                        bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
                         on:click=move |_| {
                             let id = id_signal.get().clone();
                             if deleting.get() {

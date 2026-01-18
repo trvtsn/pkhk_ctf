@@ -37,11 +37,11 @@ pub fn Admin() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="justify-center p-8 align-center">
-            <h3 class="text-4xl text-center">"Admin"</h3>
-            <div class="grid grid-cols-5 gap-4 m-4">
+        <div class=r#"justify-center p-8 align-center"#>
+            <h3 class=r#"text-4xl text-center"#>"Admin"</h3>
+            <div class=r#"grid grid-cols-5 gap-4 m-4"#>
                 <AdminNavBar />
-                <section class="col-start-2 col-end-6 p-6 bg-white rounded-lg shadow-sm main-panel">
+                <section class=r#"col-start-2 col-end-6 p-6 bg-white rounded-lg shadow-sm main-panel"#>
                     {move || {
                         view! {
                             <Show when=move || selected.get() == AdminSections::SiteSettings>
@@ -80,11 +80,13 @@ pub fn AdminNavBar() -> impl IntoView {
     let selected = use_context::<RwSignal<AdminSections>>().expect("to have found the setter provided");
 
     view! {
-        <nav class="flex flex-col col-start-1 col-end-1 gap-2 p-4 bg-white rounded-lg shadow-sm">
-            <ul class="flex flex-col gap-1" role="menu" aria-label="Admin navigation">
+        <nav class=r#"flex flex-col col-start-1 col-end-1 gap-2 p-4 bg-white rounded-lg shadow-sm"#>
+            <ul class=r#"flex flex-col gap-1"# role="menu" aria-label="Admin navigation">
                 <li>
                     <p
-                        class="flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::SiteSettings)
                     >
                         <Icon icon=i::LuSettings />
@@ -93,7 +95,9 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li>
                     <p
-                        class="flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Events)
                     >
                         <Icon icon=i::LuCalendarRange />
@@ -102,7 +106,9 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li>
                     <p
-                        class="flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Challenges)
                     >
                         <Icon icon=i::MdiBullseyeArrow />
@@ -111,7 +117,9 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li>
                     <p
-                        class="flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Files)
                     >
                         <Icon icon=i::LuFiles />
@@ -120,7 +128,9 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li>
                     <p
-                        class="flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Users)
                     >
                         <Icon icon=i::LuUsers />
@@ -129,7 +139,9 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li>
                     <p
-                        class="flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Log)
                     >
                         <Icon icon=i::LuLogs />

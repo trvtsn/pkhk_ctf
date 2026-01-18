@@ -50,7 +50,7 @@ pub fn Challenges() -> impl IntoView {
     });
 
     let challenges_view = move || { view! {
-        <div class="challenges">
+        <div class=r#"challenges"#>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>
@@ -86,12 +86,12 @@ pub fn Challenges() -> impl IntoView {
                             group.0.clone()
                             let(group)
                         >
-                            <div class="p-2 challenge-category">
-                                <h2 class="text-2xl">
+                            <div class=r#"p-2 challenge-category"#>
+                                <h2 class=r#"text-2xl"#>
                                     {group.0.clone().unwrap_or_else(|| "Uncategorized".to_string())}
                                 </h2>
 
-                                <div class="grid grid-cols-4 m-4 content-stretch">
+                                <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
                                     <For
                                         each=move || group.1.clone()
                                         key=|challenge: &db::structs::ChallengeWithAttachments| {
@@ -99,7 +99,7 @@ pub fn Challenges() -> impl IntoView {
                                         }
                                         let(challenge)
                                     >
-                                        <div class="p-2 challenge">
+                                        <div class=r#"p-2 challenge"#>
                                             <Challenge
                                                 cwa=challenge
                                                 solved_challenges=solved_challenge_ids
@@ -117,8 +117,8 @@ pub fn Challenges() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="grid justify-center p-4">
-            <h1 class="text-4xl text-center">"Challenges"</h1>
+        <div class=r#"grid justify-center p-4"#>
+            <h1 class=r#"text-4xl text-center"#>"Challenges"</h1>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>

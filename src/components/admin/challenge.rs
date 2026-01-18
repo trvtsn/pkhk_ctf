@@ -53,22 +53,22 @@ pub fn Challenge(
     });
 
     view! {
-        <div class="content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100">
+        <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
             <Show when=move || !editing.get() && !deleted.get()>
-                <h3 class="font-bold text-3xl/8">{move || name_signal.get().clone()}</h3>
-                <p class="text-lg/8">
+                <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
+                <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
                     {move || id_signal.get().clone()}
                 </p>
-                <p class="text-lg/8">
+                <p class=r#"text-lg/8"#>
                     <b>"Event ID: "</b>
                     {move || event_id_signal.get().clone()}
                 </p>
-                <p class="text-lg/8">
+                <p class=r#"text-lg/8"#>
                     <TruncatedDesc description_signal />
                 </p>
                 <Difficulty rating=difficulty_signal.get() />
-                <p class="text-lg/8">
+                <p class=r#"text-lg/8"#>
                     <b>"Points: "</b>
                     {points_signal.get()}
                 </p>
@@ -82,7 +82,7 @@ pub fn Challenge(
                     <a
                         download
                         href=move || format!("/file/{}", a.id.clone())
-                        class="text-blue-600 underline"
+                        class=r#"text-blue-600 underline"#
                     >
                         {a.file_name.clone()}
                     </a>
@@ -90,9 +90,10 @@ pub fn Challenge(
             </Show>
 
             <Show when=move || editing.get()>
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Event"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Event"</label>
                 <select
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=event_id_edit
                 >
@@ -108,17 +109,19 @@ pub fn Challenge(
                     </For>
                 </select>
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="name"
                     value=move || name_signal.get()
                     bind:value=name_edit
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Description"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Description"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
                     value=move || description_signal.get().unwrap_or_default()
                     on:change=move |ev: Event| {
@@ -127,9 +130,10 @@ pub fn Challenge(
                     }
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Category"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Category"</label>
                 <select
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="category"
                     on:change=move |ev: Event| {
                         let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
@@ -161,7 +165,8 @@ pub fn Challenge(
                     <option value="__new__">"-- Add New --"</option>
                 </select>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     hidden=move || !category_add_new_selected.get()
                     type="text"
                     id="action_edit_category_input"
@@ -171,9 +176,10 @@ pub fn Challenge(
                     }
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Difficulty"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Difficulty"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="number"
                     name="difficulty"
                     min=0
@@ -185,9 +191,10 @@ pub fn Challenge(
                     }
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Points"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Points"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="number"
                     name="points"
                     value=move || points_signal.get()
@@ -197,16 +204,17 @@ pub fn Challenge(
                     }
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Flag"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Flag"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="flag"
                     bind:value=flag_edit
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Attachment"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
                 <input
-                    class="w-full text-sm"
+                    class=r#"w-full text-sm"#
                     type="file"
                     name="attachment"
                     multiple
@@ -222,10 +230,10 @@ pub fn Challenge(
                 />
             </Show>
 
-            <div class="flex flex-row-reverse gap-3 mt-2">
+            <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
                 <Show when=move || editing.get() || deleting.get()>
                     <button
-                        class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                         on:click=move |_| {
                             spawn_local(async move {
                                 editing.set(false);
@@ -239,7 +247,9 @@ pub fn Challenge(
                 <button
                     type="button"
                     hidden=move || deleting.get()
-                    class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
+                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                     on:click=move |_| {
                         let challenge_id = id_signal.get();
                         let event_id = event_id_edit.get();
@@ -285,7 +295,9 @@ pub fn Challenge(
                 </button>
                 <button
                     hidden=move || editing.get()
-                    class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                    bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
+                    focus:ring-yale-blue-500"#
                     on:click=move |_| {
                         if deleting.get() {
                             let challenge_id = id_signal.get().clone();
@@ -318,9 +330,9 @@ pub fn Difficulty(#[prop(default = 3)] rating: i8) -> impl IntoView {
     let rating = rating.clamp(1, 5);
 
     view! {
-        <div class="difficulty" role="img" aria-label=format!("Difficulty: {} of 5", rating)>
-            <span class="label">
-                <b class="text-lg/8">"Difficulty: "</b>
+        <div class=r#"difficulty"# role="img" aria-label=format!("Difficulty: {} of 5", rating)>
+            <span class=r#"label"#>
+                <b class=r#"text-lg/8"#>"Difficulty: "</b>
                 {"⭐".repeat(rating as usize)}
             </span>
         </div>

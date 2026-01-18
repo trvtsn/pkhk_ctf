@@ -28,18 +28,22 @@ pub fn Log() -> impl IntoView {
     });
 
     view! {
-        <textarea class="p-4 w-full rounded-lg shadow-sm server-logs" readonly rows="20">
+        <textarea class=r#"p-4 w-full rounded-lg shadow-sm server-logs"# readonly rows="20">
             {move || logs.get()}
         </textarea>
-        <div class="flex gap-3 mt-2">
+        <div class=r#"flex gap-3 mt-2"#>
             <button
-                class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
+                class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                 on:click=move |_| logs.set(Vec::new())
             >
                 "Clear"
             </button>
             <button
-                class="inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white rounded-lg transition focus:ring-2 focus:ring-yale-blue-400 focus:outline-none active:scale-95 bg-yale-blue-600 hover:bg-yale-blue-700"
+                class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                 on:click=move |_| {
                     let text = logs.get().join("");
                     let current_datetime = Local::now().format("%d_%m_%Y-%H_%M_%S");

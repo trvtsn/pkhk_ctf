@@ -36,7 +36,7 @@ pub fn TruncatedDesc(description_signal: RwSignal<Option<String>>) -> impl IntoV
         <Show when=move || needs_truncate.get()>
             <button
                 type="button"
-                class="ml-2 text-base text-blue-600 underline cursor-pointer"
+                class=r#"ml-2 text-base text-blue-600 underline cursor-pointer"#
                 on:click=move |_| {
                     desc_expanded.set(!desc_expanded.get());
                 }
@@ -53,7 +53,7 @@ pub fn HidePasswordButton(hidden: RwSignal<bool>) -> impl IntoView {
         <Show when=move || hidden.get()>
             <button
                 type="button"
-                class="ml-2 text-base text-blue-600 underline cursor-pointer"
+                class=r#"ml-2 text-base text-blue-600 underline cursor-pointer"#
                 on:click=move |_| {
                     hidden.set(false);
                 }
@@ -65,7 +65,7 @@ pub fn HidePasswordButton(hidden: RwSignal<bool>) -> impl IntoView {
         <Show when=move || !hidden.get()>
             <button
                 type="button"
-                class="ml-2 text-base text-blue-600 underline cursor-pointer"
+                class=r#"ml-2 text-base text-blue-600 underline cursor-pointer"#
                 on:click=move |_| {
                     hidden.set(true);
                 }

@@ -22,9 +22,9 @@ pub fn Users() -> impl IntoView {
     });
 
     view! {
-        <div class="flex gap-2 mb-4">
+        <div class=r#"flex gap-2 mb-4"#>
             <button
-                class="py-1 px-3 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                class=r#"py-1 px-3 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                 on:click=move |_| {
                     if creating.get() {
                         creating.set(false);
@@ -39,27 +39,30 @@ pub fn Users() -> impl IntoView {
             </button>
         </div>
 
-        <div class="flex flex-col gap-4">
+        <div class=r#"flex flex-col gap-4"#>
             <Show when=move || section.get() == Actions::Create>
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="username"
                     value=move || username_signal.get()
                     bind:value=username_signal
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"E-mail"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"E-mail"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring--500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring--500"#
                     name="email"
                     value=move || email_signal.get()
                     bind:value=email_signal
                 />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Password"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Password"</label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type=move || if password_hidden.get() { "password" } else { "text" }
                     name="password"
                     value=move || password_signal.get()
@@ -67,11 +70,12 @@ pub fn Users() -> impl IntoView {
                 />
                 <HidePasswordButton hidden=password_hidden />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
                     "Confirm Password"
                 </label>
                 <input
-                    class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type=move || if confirm_password_hidden.get() { "password" } else { "text" }
                     name="confirm_password"
                     value=move || confirm_password_signal.get()
@@ -79,9 +83,10 @@ pub fn Users() -> impl IntoView {
                 />
                 <HidePasswordButton hidden=confirm_password_hidden />
 
-                <label class="block mb-1 text-sm font-medium text-gray-700">"Role"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Role"</label>
                 <select
-                    class="py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=role_signal
                 >
@@ -106,17 +111,19 @@ pub fn Users() -> impl IntoView {
                     }}
                 </Transition>
 
-                <div class="flex gap-3 mt-2">
+                <div class=r#"flex gap-3 mt-2"#>
                     <button
                         type="button"
-                        class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                         on:click=move |_| { section.set(Actions::None) }
                     >
                         "Cancel"
                     </button>
                     <button
                         type="button"
-                        class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
+                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold 
+                        text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
+                        bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         on:click=move |_| {
                             let username = username_signal.get().clone();
                             let email = email_signal.get().clone();
@@ -146,7 +153,7 @@ pub fn Users() -> impl IntoView {
         </div>
 
         <Transition fallback=move || view! { <div>"Loading..."</div> }>
-            <div class="flex grid-cols-4 gap-4 p-4 m-4">
+            <div class=r#"flex grid-cols-4 gap-4 p-4 m-4"#>
                 <For
                     each=move || users_resource.get().unwrap_or_default()
                     key=|user: &DbUser| user.id.clone()

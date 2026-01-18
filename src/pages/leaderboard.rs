@@ -33,8 +33,8 @@ pub fn Leaderboard() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="grid justify-center p-4">
-            <h3 class="m-2 text-4xl text-center">"Leaderboard"</h3>
+        <div class=r#"grid justify-center p-4"#>
+            <h3 class=r#"m-2 text-4xl text-center"#>"Leaderboard"</h3>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>

@@ -7,14 +7,14 @@ use leptos::prelude::*;
 pub fn Home() -> impl IntoView {
     view! {
         // <div class="min-h-screen flex flex-col animated-background bg-linear-to-bl from-yale-blue-800 via-lavender-blush-600 to-tomato-jam-600">
-        <div class="flex flex-col min-h-screen bg-linear-to-bl from-yale-blue-800 via-lavender-blush-600 to-tomato-jam-600">
+        <div class=r#"flex flex-col min-h-screen bg-linear-to-bl from-yale-blue-800 via-lavender-blush-600 to-tomato-jam-600"#>
             <NavBar />
-            <div class="flex overflow-auto flex-1 justify-center items-center h-screen text-center">
+            <div class=r#"flex overflow-auto flex-1 justify-center items-center h-screen text-center"#>
                 // <Image src="/public/blurry-gradient-haikei.svg" />
-                <div class="p-8">
-                    <h1 class="text-9xl">"Capture The Flag"</h1>
+                <div class=r#"p-8"#>
+                    <h1 class=r#"text-9xl"#>"Capture The Flag"</h1>
                     <br />
-                    <h3 class="text-4xl">"PKHK"</h3>
+                    <h3 class=r#"text-4xl"#>"PKHK"</h3>
                 </div>
             </div>
         </div>

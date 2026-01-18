@@ -25,11 +25,12 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class="grid justify-center p-4">
+        <div class=r#"grid justify-center p-4"#>
             <label>"Dark Mode"</label>
             <input
                 type="checkbox"
-                on:input=move |ev| { let is_checked = event_target_checked(&ev);
+                on:input=move |ev| {
+                    let is_checked = event_target_checked(&ev);
                     if is_checked {
                         set_mode.set(ColorMode::Dark)
                     } else {
@@ -40,12 +41,15 @@ pub fn Settings() -> impl IntoView {
 
             <label>"Change Username"</label>
             <input
-                class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                 type="text"
                 bind:value=new_username
             />
             <button
-                class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
+                class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
+                hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                 on:click=move |_| {
                     spawn_local(async move {
                         if edit_username(new_username.get()).await.is_ok() {
@@ -59,7 +63,9 @@ pub fn Settings() -> impl IntoView {
             </button>
 
             <button
-                class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
+                class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white
+                rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
+                hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                 on:click=move |_| {
                     if changing_password.get() {
                         changing_password.set(false)
@@ -75,7 +81,8 @@ pub fn Settings() -> impl IntoView {
                 <ActionForm action=edit_password>
                     <label>"Old Password"</label>
                     <input
-                        class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if old_password_hidden.get() { "password" } else { "text" }
                         name="old_password"
                     />
@@ -83,7 +90,8 @@ pub fn Settings() -> impl IntoView {
 
                     <label>"New Password"</label>
                     <input
-                        class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if new_password_hidden.get() { "password" } else { "text" }
                         name="new_password"
                     />
@@ -91,7 +99,8 @@ pub fn Settings() -> impl IntoView {
 
                     <label>"Confirm New Password"</label>
                     <input
-                        class="py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-yale-blue-500 focus:outline-none"
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || {
                             if confirm_new_password_hidden.get() { "password" } else { "text" }
                         }
@@ -100,13 +109,15 @@ pub fn Settings() -> impl IntoView {
                     <HidePasswordButton hidden=confirm_new_password_hidden />
 
                     <button
-                        class="py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                         on:click=move |_| { changing_password.set(false) }
                     >
                         "Cancel"
                     </button>
                     <input
-                        class="inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white rounded-md shadow-sm focus:ring-2 focus:ring-yale-blue-500 focus:outline-none bg-yale-blue-600 hover:bg-yale-blue-500"
+                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                        rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
+                        hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         type="submit"
                         value="Submit"
                     />
@@ -115,7 +126,7 @@ pub fn Settings() -> impl IntoView {
             <label>
                 <b>"Change Avatar (Max 16 MiB)"</b>
                 <input
-                    class="p-2 bg-white rounded-lg shadow-sm"
+                    class=r#"p-2 bg-white rounded-lg shadow-sm"#
                     type="file"
                     name="file"
                     on:change=move |ev: Event| {

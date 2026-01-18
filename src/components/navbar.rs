@@ -23,32 +23,32 @@ pub fn NavBar() -> impl IntoView {
     });
 
     view! {
-        <div class="flex top-0 items-center p-4 w-full shadow-sm bg-white/25">
-            <div class="flex-1"></div>
+        <div class=r#"flex top-0 items-center p-4 w-full shadow-sm bg-white/25"#>
+            <div class=r#"flex-1"#></div>
 
-            <nav class="flex justify-center items-center">
-                <ul class="flex gap-6 items-center p-0 m-0 list-none">
-                    <li class="flex gap-2 items-center">
-                        <a href="/" class="inline-flex gap-2 items-center m-1">
+            <nav class=r#"flex justify-center items-center"#>
+                <ul class=r#"flex gap-6 items-center p-0 m-0 list-none"#>
+                    <li class=r#"flex gap-2 items-center"#>
+                        <a href="/" class=r#"inline-flex gap-2 items-center m-1"#>
                             <Icon icon=i::LuHouse />
                             "Home"
                         </a>
                     </li>
-                    <li class="flex gap-2 items-center">
-                        <a href="/challenges" class="inline-flex gap-2 items-center m-1">
+                    <li class=r#"flex gap-2 items-center"#>
+                        <a href="/challenges" class=r#"inline-flex gap-2 items-center m-1"#>
                             <Icon icon=i::MdiBullseyeArrow />
                             "Challenges"
                         </a>
                     </li>
-                    <li class="flex gap-2 items-center">
-                        <a href="/leaderboard" class="inline-flex gap-2 items-center m-1">
+                    <li class=r#"flex gap-2 items-center"#>
+                        <a href="/leaderboard" class=r#"inline-flex gap-2 items-center m-1"#>
                             <Icon icon=i::LuChartLine />
                             "Leaderboard"
                         </a>
                     </li>
                     <Transition fallback=move || view! { <p>"Loading..."</p> }>
                         <Show when=move || user.get().is_some() && role.get() == UserRole::Admin>
-                            <a href="/admin" class="inline-flex gap-2 items-center m-1">
+                            <a href="/admin" class=r#"inline-flex gap-2 items-center m-1"#>
                                 <Icon icon=i::LuSettings />
                                 "Admin"
                             </a>
@@ -57,13 +57,13 @@ pub fn NavBar() -> impl IntoView {
                 </ul>
             </nav>
 
-            <nav class="flex flex-1 gap-2 justify-end items-center p-2">
-                <ul class="flex gap-4 items-center p-0 m-0 list-none">
+            <nav class=r#"flex flex-1 gap-2 justify-end items-center p-2"#>
+                <ul class=r#"flex gap-4 items-center p-0 m-0 list-none"#>
                     <Transition fallback=move || view! { <p>"Loading..."</p> }>
                         <Show when=move || user.get().is_some()>
-                            <li class="flex gap-2 items-center">
+                            <li class=r#"flex gap-2 items-center"#>
                                 <a
-                                    class="inline-flex gap-2 items-center m-1 cursor-pointer"
+                                    class=r#"inline-flex gap-2 items-center m-1 cursor-pointer"#
                                     on:click=move |_| {
                                         open.set(!open.get());
                                     }
@@ -76,14 +76,14 @@ pub fn NavBar() -> impl IntoView {
                         </Show>
 
                         <Show when=move || user.get().is_none()>
-                            <li class="flex gap-2 items-center">
-                                <a href="/login" class="inline-flex gap-2 items-center m-1">
+                            <li class=r#"flex gap-2 items-center"#>
+                                <a href="/login" class=r#"inline-flex gap-2 items-center m-1"#>
                                     <Icon icon=i::LuLogIn />
                                     "Login"
                                 </a>
                             </li>
-                            <li class="flex gap-2 items-center">
-                                <a href="/register" class="inline-flex gap-2 items-center m-1">
+                            <li class=r#"flex gap-2 items-center"#>
+                                <a href="/register" class=r#"inline-flex gap-2 items-center m-1"#>
                                     <Icon icon=i::LuUserPlus />
                                     "Register"
                                 </a>
@@ -93,26 +93,26 @@ pub fn NavBar() -> impl IntoView {
 
                     <Show when=move || open.get() fallback=|| ()>
                         <nav
-                            class="fixed z-50 flex-col p-4 rounded-md shadow-sm bg-white/25 mt-[15rem]"
+                            class=r#"fixed z-50 flex-col p-4 rounded-md shadow-sm bg-white/25 mt-[15rem]"#
                             on:blur=move |_| { open.set(false) }
                         >
-                            <ul class="flex flex-col gap-4 items-center">
-                                <li class="w-full">
+                            <ul class=r#"flex flex-col gap-4 items-center"#>
+                                <li class=r#"w-full"#>
                                     <a href=move || format!("/profile/{}", username.get())>
                                         <Icon icon=i::LuCircleUser />
                                         "Profile"
                                     </a>
                                 </li>
-                                <li class="w-full">
+                                <li class=r#"w-full"#>
                                     <a href="/settings">
                                         <Icon icon=i::LuUserCog />
                                         "Settings"
                                     </a>
                                 </li>
-                                <li class="w-full">
+                                <li class=r#"w-full"#>
                                     <ActionForm action=logout>
                                         <button
-                                            class="cursor-pointer"
+                                            class=r#"cursor-pointer"#
                                             type="Submit"
                                             on:click=move |_| {
                                                 let iteration = refresh_user.get().iteration + 1;
