@@ -1,8 +1,8 @@
 #[cfg(feature = "ssr")]
-use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}};
-use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
+use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
-use axum::extract::Path;
+use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
@@ -134,6 +134,15 @@ pub fn pool() -> Result<MySqlPool, AppError> {
 #[cfg(feature = "ssr")]
 pub fn init_env() {
     dotenvy::dotenv().ok();
+}
+
+#[cfg(feature = "ssr")]
+pub fn router() -> Router<AppState> {
+    Router::<AppState>::new()
+        .route("/admin_sse", get(admin_sse))
+        .route("/file/{id}", get(download_blob))
+        .route("/avatar/{id}", get(serve_image))
+        .route("/image/{id}", get(serve_image))
 }
 
 #[server(name=Challenges, prefix="/api", endpoint="challenges")]
@@ -539,9 +548,25 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
                 }
             }
 
-            match DbUser::edit_avatar(&user.id, &file_name, &file_blob, &mime_type, &auth.backend.pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed avatar".to_string() }),
-                Err(e) => Err(e.into())
+            let mut tx = auth.backend.pool.begin().await?;
+
+            match DbUser::delete_avatar(&user.id, &mut *tx).await {
+                Ok(_) => {},
+                Err(e) => {
+                    tx.rollback().await?;
+                    return Err(e.into());
+                }
+            }
+
+            match DbUser::edit_avatar(&user.id, &file_name, &file_blob, &mime_type, &mut *tx).await {
+                Ok(_) => {
+                    tx.commit().await?;
+                    Ok(ApiResult { result: ResultStatus::Success, details: "changed avatar".to_string() })
+                },
+                Err(e) => {
+                    tx.rollback().await?;
+                    Err(e.into())
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -549,9 +574,9 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
     }
 }
 
-#[server(name=GetAvatar, prefix="/api/user", endpoint="avatar")]
+#[server(name=GetAvatarBlob, prefix="/api/user", endpoint="avatar")]
 #[instrument]
-pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
+pub async fn get_avatar_blob(username: String) -> Result<Vec<u8>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
@@ -566,6 +591,81 @@ pub async fn get_avatar(username: String) -> Result<Vec<u8>, AppError> {
 
             match DbUser::get_avatar(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
                 Ok(avatar) => Ok(avatar),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetAvatarId, prefix="/api/user", endpoint="avatar_id")]
+#[instrument]
+pub async fn get_avatar_id(identifier: UserIdentifier) -> Result<Option<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+
+            match DbUser::get_avatar_id(&identifier, &auth.backend.pool).await {
+                Ok(id) => Ok(id),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetAttachmentId, prefix="/api", endpoint="attachment_id")]
+#[instrument]
+pub async fn get_attachment_id(identifier: AttachmentIdentifier) -> Result<Option<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            match auth.user {
+                Some(_) => {},
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            }
+
+            match AttachmentWithoutBlob::get_id(&identifier, &auth.backend.pool).await {
+                Ok(id) => Ok(id),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetIllustrationId, prefix="/api", endpoint="illustration_id")]
+#[instrument]
+pub async fn get_illustration_id(identifier: AttachmentIdentifier) -> Result<Option<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            match auth.user {
+                Some(_) => {},
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            }
+
+            match AttachmentWithoutBlob::get_illustration_id(&identifier, &auth.backend.pool).await {
+                Ok(id) => Ok(id),
                 Err(e) => Err(e.into())
             }
         } else {
@@ -629,6 +729,48 @@ pub async fn download_blob(
     (
         [
             (header::CONTENT_TYPE, "application/octet-stream".into()),
+            (header::CONTENT_DISPOSITION, disposition),
+        ],
+        bytes,
+    ).into_response()
+}
+
+#[cfg(feature = "ssr")]
+#[instrument(skip(auth_session))]
+pub async fn serve_image(
+    auth_session: AuthSession,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match auth_session.user {
+        Some(_) => {},
+        None => return (StatusCode::FORBIDDEN).into_response(),
+    } 
+
+    let pool = auth_session.backend.pool;
+    let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id), &pool).await {
+        Ok(Some(f)) => f,
+        Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
+        Err(e) => {
+            tracing::error!(error = ?e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
+        }
+    };
+
+    let bytes = file.file_blob;
+    let content_type = file.mime_type;
+    let disposition = format!(
+        "image; filename=\"{}\"",
+        // sanitize(&filename)
+        file.file_name
+    );
+
+    (
+        [
+            {if content_type.is_some() {
+                (header::CONTENT_TYPE, content_type.unwrap_or_default())
+            } else {
+                (header::CONTENT_TYPE, "application/octet-stream".into())
+            }},
             (header::CONTENT_DISPOSITION, disposition),
         ],
         bytes,

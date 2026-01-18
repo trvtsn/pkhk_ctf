@@ -1,5 +1,5 @@
-use crate::{components::utils::HidePasswordButton, server::{db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult}};
-use leptos::{prelude::*, task::spawn_local, web_sys::Event};
+use crate::{components::utils::HidePasswordButton, server::{admin::upload_avatar, db::{enums::{UserIdentifier, UserRole}, structs::DbUser}, enums::ResultStatus, get_avatar_id, structs::ApiResult}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
 
 #[component]
 pub fn User(
@@ -23,6 +23,22 @@ pub fn User(
     let confirm_new_password_edit = RwSignal::new("".to_string());
     let points_edit = RwSignal::new(user.points);
     let role_edit = RwSignal::new(user.role.to_string());
+    let avatar_edit = RwSignal::new(None);
+
+    let user_avatar = Resource::new(move || refresh.get(), move |_| {
+        let id = id_signal.get();
+        async move { get_avatar_id(UserIdentifier::Id(id)).await.unwrap_or_default() }
+    });
+
+    let avatar_upload_action = Action::new_local(|data: &FormData| {
+        upload_avatar(data.clone().into())
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(api_result)) = avatar_upload_action.value().get() {
+            avatar_edit.set(Some(api_result.details.clone()));
+        }
+    });
 
     let editing = RwSignal::new(false);
     let editing_password = RwSignal::new(false);
@@ -42,6 +58,25 @@ pub fn User(
     
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
+            <Transition fallback=move || {
+                view! { <div>"Loading..."</div> }
+            }>
+                {move || {
+                    if let Some(id) = user_avatar.get().unwrap_or_default() {
+                        view! {
+                            <div class="h-48 w-48 flex justify-center m-auto">
+                                <img 
+                                    src=move || format!("/avatar/{}", id) 
+                                    class=r#"text-blue-600 underline rounded-[50%] 
+                                    object-cover shadow-sm"#
+                                />
+                            </div>
+                        }.into_any()
+                    } else {
+                        "".into_any()
+                    }
+                }}
+            </Transition>
             <h3 class=r#"font-bold text-3xl/8"#>{move || username_signal.get().clone()}</h3>
             <p class=r#"text-lg/8"#>
                 <b>"ID: "</b>
@@ -116,6 +151,22 @@ pub fn User(
                         <option value=role.to_string()>{role.to_string()}</option>
                     </For>
                 </select>
+
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Avatar"</label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="avatar"
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            avatar_upload_action.dispatch_local(fd);
+                        }
+                    }
+                />
             </Show>
 
             <Show when=move || editing_password.get()>
@@ -185,6 +236,7 @@ pub fn User(
                             let confirm_password = confirm_new_password_edit.get();
                             let points = points_edit.get();
                             let role = role_edit.get();
+                            let avatar = avatar_edit.get();
                             if editing.get() {
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
@@ -196,6 +248,7 @@ pub fn User(
                                             confirm_password: confirm_password.clone(),
                                             points,
                                             role: role.clone().into(),
+                                            avatar
                                         })
                                         .await && result == ResultStatus::Success
                                     {

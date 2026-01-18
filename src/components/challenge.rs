@@ -1,6 +1,8 @@
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
+use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::db::structs::ChallengeWithAttachments;
+use crate::server::{get_illustration_id};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
@@ -23,6 +25,11 @@ pub fn Challenge(
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
+    let illustration = Resource::new(move || (), move |_| {
+        let challenge_id = challenge_signal.get().id;
+        async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
+    });
+
     let button_classes = Memo::new(move |_| {
         let base = r#"inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 
             text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition"#;
@@ -42,7 +49,9 @@ pub fn Challenge(
         if solved_challenges.get().contains(&challenge_signal.get().id) { 
             solved.set(true);
             "Solved" 
-        } else { 
+        } else if incorrect.get() { 
+            "Incorrect"
+        } else {
             "Submit"
         }
     });
@@ -58,6 +67,24 @@ pub fn Challenge(
             class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#
             on:click=move |_| { open.set(true) }
         >
+            <Transition fallback=move || {
+                view! { <div>"Loading..."</div> }
+            }>
+                {move || {
+                    if let Some(id) = illustration.get().unwrap_or_default() { 
+                        view! {
+                            <div class="h-48 w-48 flex justify-center m-auto">
+                                <img 
+                                    src=move || format!("/image/{}", id) 
+                                    class=r#"text-blue-600 underline object-cover shadow-sm"#
+                                />
+                            </div>
+                        }.into_any()
+                    } else {
+                        "".into_any()
+                    }
+                }}
+            </Transition>
             <h3 class=r#"font-bold text-3xl/8"#>{move || challenge_signal.get().name.clone()}</h3>
             <p class=r#"text-lg/8"#>
                 <TruncatedDesc description_signal />

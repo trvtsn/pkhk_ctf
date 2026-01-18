@@ -1,6 +1,6 @@
-use crate::{server::{db, enums::ResultStatus, structs::ApiResult}, utils::{html_local_to_datetime}};
+use crate::{server::{admin::{upload_files, upload_illustration}, db::{self, enums::AttachmentIdentifier}, enums::ResultStatus, get_illustration_id, structs::ApiResult}, utils::html_local_to_datetime};
 use chrono::DateTime;
-use leptos::{prelude::*, task::spawn_local, web_sys::Event};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
 
 #[component]
 pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView {
@@ -14,6 +14,29 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
     let description_edit = RwSignal::new(event.description.clone());
     let start_at_edit = RwSignal::new(event.start_at);
     let end_at_edit = RwSignal::new(event.end_at);
+    let attachments_edit = RwSignal::new(None);
+    let illustration_edit = RwSignal::new(None);
+
+    let illustration = Resource::new(move || refresh.get(), move |_| {
+        let event_id = id_signal.get();
+        async move { get_illustration_id(AttachmentIdentifier::EventId(event_id)).await.unwrap_or_default() }
+    });
+
+    let file_upload_action = Action::new_local(|data: &FormData| {
+        upload_files(data.clone().into())
+    });
+
+    let illustration_upload_action = Action::new_local(|data: &FormData| {
+        upload_illustration(data.clone().into())
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(api_result)) = file_upload_action.value().get() {
+            attachments_edit.set(Some(api_result.details.clone()));
+        } else if let Some(Ok(api_result)) = illustration_upload_action.value().get() {
+            illustration_edit.set(Some(api_result.details.clone()));
+        }
+    });
 
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
@@ -25,9 +48,49 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
         if editing.get() { "Confirm Edit".to_string() } else { "Edit".to_string() }
     });
 
+    let uploading_file_text = Memo::new(move |_| {
+        if file_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
+    });
+
+    let uploading_illustration_text = Memo::new(move |_| {
+        if illustration_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
+    });
+
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
             <Show when=move || !editing.get()>
+                <Transition fallback=move || {
+                    view! { <div>"Loading..."</div> }
+                }>
+                    {move || {
+                        if let Some(id) = illustration.get().unwrap_or_default() { 
+                            view! {
+                                <div class="h-48 w-48 flex justify-center m-auto">
+                                    <img 
+                                        src=move || format!("/image/{}", id) 
+                                        class=r#"text-blue-600 underline object-cover shadow-sm"#
+                                    />
+                                </div>
+                            }.into_any()
+                        } else {
+                            "".into_any()
+                        }
+                    }}
+                </Transition>
                 <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
@@ -106,6 +169,39 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                         end_at_edit.set(value);
                     }
                 />
+
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="attachment"
+                    multiple
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            file_upload_action.dispatch_local(fd);
+                        }
+                    }
+                /><p>{move || uploading_file_text.get()}</p>
+
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Illustration"</label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="illustration"
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            illustration_upload_action.dispatch_local(fd);
+                        }
+                    }
+                /><p>{move || uploading_illustration_text.get()}</p>
             </Show>
 
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
@@ -132,6 +228,8 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                         let description = description_edit.get();
                         let start_at = start_at_edit.get();
                         let end_at = end_at_edit.get();
+                        let attachments = attachments_edit.get();
+                        let illustration = illustration_edit.get();
                         if editing.get() {
                             spawn_local(async move {
                                 tracing::debug!("editing event: {}", id_signal.get().clone());
@@ -141,6 +239,8 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                                         description: description.clone().unwrap_or_default(),
                                         start_at,
                                         end_at,
+                                        attachments,
+                                        illustration
                                     })
                                     .await && result == ResultStatus::Success
                                 {

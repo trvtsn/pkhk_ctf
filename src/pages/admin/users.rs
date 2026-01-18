@@ -1,5 +1,5 @@
-use crate::{components::{admin::user::User, utils::HidePasswordButton}, pages::admin::Actions, server::{admin::get_all_users, db::{enums::UserRole, structs::DbUser}, enums::ResultStatus, structs::ApiResult}};
-use leptos::{prelude::*, task::spawn_local};
+use crate::{components::{admin::user::User, utils::HidePasswordButton}, pages::admin::Actions, server::{admin::{get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, structs::ApiResult}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
 
 /// Default Home Page
 #[component]
@@ -16,9 +16,31 @@ pub fn Users() -> impl IntoView {
     let confirm_password_signal = RwSignal::new("".to_string());
     let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
     let role_signal = RwSignal::new("".to_string());
+    let avatar_signal = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
 
     let users_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_users().await.unwrap_or_default()
+    });
+
+    let avatar_upload_action = Action::new_local(|data: &FormData| {
+        upload_avatar(data.clone().into())
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(api_result)) = avatar_upload_action.value().get() {
+            avatar_signal.set(Some(api_result.details.clone()));
+        }
+    });
+
+    let uploading_avatar_text = Memo::new(move |_| {
+        if avatar_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
     });
 
     view! {
@@ -111,6 +133,23 @@ pub fn Users() -> impl IntoView {
                     }}
                 </Transition>
 
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Avatar"</label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="illustration"
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            avatar_upload_action.dispatch_local(fd);
+                        }
+                    }
+                />
+                <p>{uploading_avatar_text.get()}</p>
+
                 <div class=r#"flex gap-3 mt-2"#>
                     <button
                         type="button"
@@ -130,6 +169,7 @@ pub fn Users() -> impl IntoView {
                             let password = password_signal.get().clone();
                             let confirm_password = confirm_password_signal.get().clone();
                             let role = role_signal.get().clone().into();
+                            let avatar = avatar_signal.get();
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Create {
@@ -138,6 +178,7 @@ pub fn Users() -> impl IntoView {
                                         password,
                                         confirm_password,
                                         role,
+                                        avatar
                                     })
                                     .await && result == ResultStatus::Success
                                 {

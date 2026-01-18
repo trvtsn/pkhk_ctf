@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
 
+CREATE UNIQUE INDEX `user_id_UNIQUE` ON `ctfpkhk`.`attachments` (`user_id` ASC) VISIBLE;
+
 CREATE INDEX `fk_attachments_users1_idx` ON `ctfpkhk`.`attachments` (`user_id` ASC) VISIBLE;
 
 CREATE INDEX `fk_attachments_events1_idx` ON `ctfpkhk`.`attachments` (`event_id` ASC) VISIBLE;

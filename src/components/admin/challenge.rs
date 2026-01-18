@@ -1,4 +1,7 @@
 use crate::components::utils::TruncatedDesc;
+use crate::server::admin::upload_illustration;
+use crate::server::db::enums::AttachmentIdentifier;
+use crate::server::{get_illustration_id};
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
 
@@ -27,21 +30,33 @@ pub fn Challenge(
     let category_edit = RwSignal::new(category.clone());
     let difficulty_edit = RwSignal::new(difficulty);
     let points_edit = RwSignal::new(points);
-    let attachments_edit = RwSignal::new(attachments.clone());
+    let attachments_edit = RwSignal::new(Some(attachments.clone()));
     let flag_edit = RwSignal::new("".to_string());
+    let illustration_edit = RwSignal::new(None);
+
+    let illustration = Resource::new(move || refresh.get(), move |_| {
+        let challenge_id = id_signal.get();
+        async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
+    });
 
     let category_add_new_selected = RwSignal::new(false);
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
 
-    let upload_action = Action::new_local(|data: &FormData| {
+    let file_upload_action = Action::new_local(|data: &FormData| {
         upload_files(data.clone().into())
     });
 
+    let illustration_upload_action = Action::new_local(|data: &FormData| {
+        upload_illustration(data.clone().into())
+    });
+
     Effect::new(move |_| {
-        if let Some(Ok(api_result)) = upload_action.value().get() {
-            attachments_signal.set(api_result.details.clone());
+        if let Some(Ok(api_result)) = file_upload_action.value().get() {
+            attachments_edit.set(Some(api_result.details.clone()));
+        } else if let Some(Ok(api_result)) = illustration_upload_action.value().get() {
+            illustration_edit.set(Some(api_result.details.clone()));
         }
     });
 
@@ -52,9 +67,49 @@ pub fn Challenge(
         if editing.get() { "Confirm Edit".to_string() } else { "Edit".to_string() }
     });
 
+    let uploading_file_text = Memo::new(move |_| {
+        if file_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
+    });
+
+    let uploading_illustration_text = Memo::new(move |_| {
+        if illustration_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
+    });
+
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
             <Show when=move || !editing.get() && !deleted.get()>
+                <Transition fallback=move || {
+                    view! { <div>"Loading..."</div> }
+                }>
+                    {move || {
+                        if let Some(id) = illustration.get().unwrap_or_default() { 
+                            view! {
+                                <div class="h-48 w-48 flex justify-center m-auto">
+                                    <img 
+                                        src=move || format!("/image/{}", id) 
+                                        class=r#"text-blue-600 underline object-cover shadow-sm"#
+                                    />
+                                </div>
+                            }.into_any()
+                        } else {
+                            "".into_any()
+                        }
+                    }}
+                </Transition>
                 <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
@@ -224,10 +279,26 @@ pub fn Challenge(
                             let file = files.get(0).unwrap();
                             let fd = FormData::new().unwrap();
                             fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            upload_action.dispatch_local(fd);
+                            file_upload_action.dispatch_local(fd);
                         }
                     }
-                />
+                /><p>{move || uploading_file_text.get()}</p>
+
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Illustration"</label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="illustration"
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            illustration_upload_action.dispatch_local(fd);
+                        }
+                    }
+                /><p>{move || uploading_illustration_text.get()}</p>
             </Show>
 
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
@@ -260,6 +331,7 @@ pub fn Challenge(
                         let points = points_edit.get();
                         let flag = flag_edit.get();
                         let attachments = attachments_edit.get();
+                        let illustration = illustration_edit.get();
                         if editing.get() {
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
@@ -271,7 +343,8 @@ pub fn Challenge(
                                         difficulty,
                                         points,
                                         flag: flag.clone(),
-                                        attachments: Some(attachments.clone()),
+                                        attachments: attachments.clone(),
+                                        illustration: illustration.clone()
                                     })
                                     .await && result == ResultStatus::Success
                                 {
@@ -283,7 +356,7 @@ pub fn Challenge(
                                     category_signal.set(category);
                                     difficulty_signal.set(difficulty);
                                     points_signal.set(points);
-                                    attachments_signal.set(attachments);
+                                    attachments_signal.set(attachments.unwrap_or_default());
                                 }
                             });
                         } else {

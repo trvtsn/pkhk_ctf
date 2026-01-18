@@ -1,4 +1,5 @@
 use crate::pages::admin::Actions;
+use crate::server::admin::upload_illustration;
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments};
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
 use crate::server::structs::ApiResult;
@@ -24,6 +25,7 @@ pub fn Challenges() -> impl IntoView {
     let points = RwSignal::new(0_u32);
     let flag = RwSignal::new("".to_string());
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
+    let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
 
     let refresh = RwSignal::new(0);
     let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
@@ -43,8 +45,12 @@ pub fn Challenges() -> impl IntoView {
         all_events
     });
 
-    let upload_action = Action::new_local(|data: &FormData| {
+    let file_upload_action = Action::new_local(|data: &FormData| {
         upload_files(data.clone().into())
+    });
+
+    let illustration_upload_action = Action::new_local(|data: &FormData| {
+        upload_illustration(data.clone().into())
     });
 
     let UseEventSourceReturn { message, .. } = 
@@ -54,8 +60,10 @@ pub fn Challenges() -> impl IntoView {
         );
 
     Effect::new(move |_| {
-        if let Some(Ok(api_result)) = upload_action.value().get() {
+        if let Some(Ok(api_result)) = file_upload_action.value().get() {
             attachments.set(Some(api_result.details.clone()));
+        } else if let Some(Ok(api_result)) = illustration_upload_action.value().get() {
+            illustration.set(Some(api_result.details.clone()));
         }
 
         if let Some(msg) = message.get() {
@@ -73,8 +81,19 @@ pub fn Challenges() -> impl IntoView {
         if created.get() { "Created!".to_string() } else { "Create".to_string() }
     });
 
-    let uploading_text = Memo::new(move |_| {
-        if upload_action.pending().get() {
+    let uploading_file_text = Memo::new(move |_| {
+        if file_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
+    });
+
+    let uploading_illustration_text = Memo::new(move |_| {
+        if illustration_upload_action.pending().get() {
             "Uploading...".to_string()
         // } else if let Some(Ok(val)) = upload_action.value().get() {
         //     format!("Uploaded: {}", val.details.file_name)
@@ -252,16 +271,38 @@ pub fn Challenges() -> impl IntoView {
                             let file = files.get(0).unwrap();
                             let fd = FormData::new().unwrap();
                             fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            upload_action.dispatch_local(fd);
+                            file_upload_action.dispatch_local(fd);
                         }
                     }
                 />
-                <p>{uploading_text.get()}</p>
+                <p>{uploading_file_text.get()}</p>
+
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
+                    "Illustration (Max 16 MiB)"
+                </label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="illustration"
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            illustration_upload_action.dispatch_local(fd);
+                        }
+                    }
+                />
+                <p>{uploading_illustration_text.get()}</p>
 
                 <div class=r#"flex gap-3 mt-2"#>
                     <button
                         type="button"
                         class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                        on:click=move |_| {
+                            creating.set(false);
+                        }
                     >
                         "Cancel"
                     </button>
@@ -278,6 +319,7 @@ pub fn Challenges() -> impl IntoView {
                             let points = points.get();
                             let flag = flag.get();
                             let attachments = attachments.get();
+                            let illustration = illustration.get();
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Create {
                                         event_id,
@@ -288,6 +330,7 @@ pub fn Challenges() -> impl IntoView {
                                         points,
                                         flag,
                                         attachments,
+                                        illustration
                                     })
                                     .await && result == ResultStatus::Success
                                 {

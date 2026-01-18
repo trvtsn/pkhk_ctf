@@ -1,5 +1,6 @@
-use crate::{components::admin::event::Event, pages::admin::Actions, server::{admin::get_all_events, db, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::admin::event::Event, pages::admin::Actions, server::{admin::{get_all_events, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use leptos::{prelude::*, task:: spawn_local};
+use leptos::{web_sys::{FormData, HtmlInputElement, Event}, wasm_bindgen::JsCast};
 
 /// Default Home Page
 #[component]
@@ -12,9 +13,50 @@ pub fn Events() -> impl IntoView {
     let description_signal = RwSignal::new("".to_string());
     let start_at_signal = RwSignal::new("".to_string());
     let end_at_signal = RwSignal::new("".to_string());
+
+    let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
+    let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     
     let events_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_events().await.unwrap_or_default()
+    });
+
+    let file_upload_action = Action::new_local(|data: &FormData| {
+        upload_files(data.clone().into())
+    });
+
+    let illustration_upload_action = Action::new_local(|data: &FormData| {
+        upload_illustration(data.clone().into())
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(api_result)) = file_upload_action.value().get() {
+            attachments.set(Some(api_result.details.clone()));
+        } else if let Some(Ok(api_result)) = illustration_upload_action.value().get() {
+            illustration.set(Some(api_result.details.clone()));
+        }
+    });
+
+    let uploading_file_text = Memo::new(move |_| {
+        if file_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
+    });
+
+    let uploading_illustration_text = Memo::new(move |_| {
+        if illustration_upload_action.pending().get() {
+            "Uploading...".to_string()
+        // } else if let Some(Ok(val)) = upload_action.value().get() {
+        //     format!("Uploaded: {}", val.details.file_name)
+        // } else {
+        } else {
+            "".to_string()
+        }
     });
 
     view! {
@@ -71,6 +113,40 @@ pub fn Events() -> impl IntoView {
                     bind:value=end_at_signal
                 />
 
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="attachment"
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            file_upload_action.dispatch_local(fd);
+                        }
+                    }
+                />
+                <p>{uploading_file_text.get()}</p>
+
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Illustration"</label>
+                <input
+                    class=r#"w-full text-sm"#
+                    type="file"
+                    name="illustration"
+                    on:change=move |ev: Event| {
+                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                        if let Some(files) = input.files() && files.length() > 0 {
+                            let file = files.get(0).unwrap();
+                            let fd = FormData::new().unwrap();
+                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                            illustration_upload_action.dispatch_local(fd);
+                        }
+                    }
+                />
+                <p>{uploading_illustration_text.get()}</p>
+
                 <div class=r#"flex gap-3 mt-2"#>
                     <button
                         type="button"
@@ -89,6 +165,8 @@ pub fn Events() -> impl IntoView {
                             let description = description_signal.get();
                             let start_at = html_local_to_datetime(start_at_signal.get());
                             let end_at = html_local_to_datetime(end_at_signal.get());
+                            let attachments = attachments.get();
+                            let illustration = illustration.get();
                             spawn_local(async move {
                                 tracing::debug!("creating event...");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Create {
@@ -96,6 +174,8 @@ pub fn Events() -> impl IntoView {
                                         description,
                                         start_at,
                                         end_at,
+                                        attachments,
+                                        illustration
                                     })
                                     .await && result == ResultStatus::Success
                                 {

@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{get_db_user_without_pii, get_avatar}};
+use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{db::enums::UserIdentifier, get_avatar_id, get_db_user_without_pii}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
@@ -16,12 +16,12 @@ pub fn User() -> impl IntoView {
     
     let user_res = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
-        async move { get_db_user_without_pii(Some(username)).await.unwrap_or_default() } // leaks pw_hash
+        async move { get_db_user_without_pii(Some(username)).await.unwrap_or_default() }
     });
 
     let user_avatar = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
-        async move { get_avatar(username).await.unwrap_or_default() }
+        async move { get_avatar_id(UserIdentifier::Username(username)).await.unwrap_or_default() }
     });
 
     view! {
@@ -32,12 +32,26 @@ pub fn User() -> impl IntoView {
             }>
                 {move || {
                     let user = user_res.get().unwrap_or_default();
+                    let avatar_view = {
+                        if let Some(id) = user_avatar.get().unwrap_or_default() {
+                            view! {
+                                <div class="h-64 w-64">
+                                    <img 
+                                        src=move || format!("/avatar/{}", id) 
+                                        class=r#"text-blue-600 underline rounded-[50%] 
+                                        object-cover shadow-sm"#
+                                    />
+                                </div>
+                            }.into_any()
+                        } else {
+                            "".into_any()
+                        }
+                    };
+
                     let view = match user {
                         Some(user) => {
-                            let avatar = user_avatar.get().unwrap_or_default();
-
                             view! {
-                                <p>{avatar}</p>
+                                {avatar_view}
                                 <p>{user.username}</p>
                                 <p>
                                     <b>"Points: "</b>
@@ -47,8 +61,7 @@ pub fn User() -> impl IntoView {
                                     <b>"Date Joined: "</b>
                                     {user.created_at.to_string()}
                                 </p>
-                            }
-                                .into_any()
+                            }.into_any()
                         }
                         None => view! { <NotFound /> }.into_any(),
                     };
