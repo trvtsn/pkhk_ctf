@@ -23,7 +23,7 @@ pub fn Register() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-8 grid-col"#>
+        <div class=r#"grid justify-center p-8 grid-col bg-background text-text"#>
             <h3 class=r#"text-4xl text-center"#>"Register"</h3>
             <br />
             <ActionForm action=register>

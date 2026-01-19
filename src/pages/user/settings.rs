@@ -12,7 +12,8 @@ pub fn Settings() -> impl IntoView {
         edit_avatar(data.clone().into())
     });
     let edit_password = ServerAction::<EditPassword>::new();
-    let set_mode = use_context::<WriteSignal<ColorMode>>().unwrap();
+    let color_mode = use_context::<Signal<ColorMode>>().unwrap();
+    let set_color_mode = use_context::<WriteSignal<ColorMode>>().unwrap();
     let changing_password = RwSignal::new(false);
 
     let edit_avatar_action_text = Memo::new(move |_| {
@@ -29,12 +30,13 @@ pub fn Settings() -> impl IntoView {
             <label>"Dark Mode"</label>
             <input
                 type="checkbox"
+                checked=move || color_mode.get().to_string() == "dark"
                 on:input=move |ev| {
                     let is_checked = event_target_checked(&ev);
                     if is_checked {
-                        set_mode.set(ColorMode::Dark)
+                        set_color_mode.set(ColorMode::Dark)
                     } else {
-                        set_mode.set(ColorMode::Light)
+                        set_color_mode.set(ColorMode::Light)
                     };
                 }
             />
@@ -51,8 +53,9 @@ pub fn Settings() -> impl IntoView {
                 rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
                 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                 on:click=move |_| {
+                    let new_username = new_username.get();
                     spawn_local(async move {
-                        if edit_username(new_username.get()).await.is_ok() {
+                        if edit_username(new_username).await.is_ok() {
                             let iteration = refresh_user.get().iteration + 1;
                             refresh_user.set(RefreshUser { iteration });
                         }

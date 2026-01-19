@@ -88,6 +88,7 @@ pub fn App() -> impl IntoView {
                 </ul>
             }
         }>
+            <leptos_meta::Html attr:data-theme=move || mode.get().to_string() {..} />
             <Title text="PKHK CTF" />
 
             <Router>
