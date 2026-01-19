@@ -71,7 +71,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
     });
 
     view! {
-        <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
+        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover"#>
             <Show when=move || !editing.get()>
                 <Transition fallback=move || {
                     view! { <div>"Loading..."</div> }

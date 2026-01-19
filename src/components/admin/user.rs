@@ -57,7 +57,7 @@ pub fn User(
     });
     
     view! {
-        <div class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#>
+        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover"#>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>

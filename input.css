@@ -18,7 +18,10 @@
     --default-font-family: "Funnel Display", var(--font-sans);
 
     --color-background: var(--color-background);
+    --color-background-secondary: var(--color-background-secondary);
     --color-text: var(--color-text);
+    --color-card: var(--color-card);
+    --color-card-hover: var(--color-card-hover);
     --color-yale-blue-50: #e8f6fd;
     --color-yale-blue-100: #d0edfb;
     --color-yale-blue-200: #a1dcf7;
@@ -82,13 +85,19 @@
 
 @layer base {
     html[data-theme="light"] {
-        --color-background: #f1f3f4;
-        --color-text: #101314;
+        --color-background: var(--color-slate-grey-50);
+        --color-background-secondary: var(--color-slate-grey-100);
+        --color-text: var(--color-slate-grey-950);
+        --color-card: var(--color-yale-blue-50);
+        --color-card-hover: var(--color-yale-blue-100);
     }
 
     html[data-theme="dark"] {
-        --color-background: #101314;
-        --color-text: #f1f3f4;
+        --color-background: var(--color-slate-grey-950);
+        --color-background-secondary: var(--color-slate-grey-900);
+        --color-text: var(--color-slate-grey-50);
+        --color-card: var(--color-yale-blue-800);
+        --color-card-hover: var(--color-yale-blue-900);
     }
 }
 

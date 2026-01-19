@@ -64,7 +64,7 @@ pub fn Challenge(
 
     view! {
         <div
-            class=r#"content-center p-4 rounded-lg bg-yale-blue-50 hover:bg-yale-blue-100"#
+            class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover"#
             on:click=move |_| { open.set(true) }
         >
             <Transition fallback=move || {

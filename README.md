@@ -32,6 +32,7 @@ cargo leptos watch
 ### Security
 
 ### Styling
+- [ ] Create fitting style for dark mode
 
 ### Project Longevity
 - [ ] Add doc comments to pages and components

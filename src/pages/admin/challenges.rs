@@ -14,7 +14,6 @@ use std::{collections::HashMap, time::Duration};
 /// Default Home Page
 #[component]
 pub fn Challenges() -> impl IntoView {
-    let section = RwSignal::new(Actions::None);
     let category_add_new_selected = RwSignal::new(false);
     
     let event_id = RwSignal::new("".to_string());
@@ -110,10 +109,8 @@ pub fn Challenges() -> impl IntoView {
                 on:click=move |_| {
                     if creating.get() {
                         creating.set(false);
-                        section.set(Actions::None);
                     } else {
                         creating.set(true);
-                        section.set(Actions::Create);
                     }
                 }
             >
@@ -122,7 +119,7 @@ pub fn Challenges() -> impl IntoView {
         </div>
 
         <div class=r#"flex flex-col gap-4"#>
-            <Show when=move || section.get() == Actions::Create>
+            <Show when=move || creating.get()>
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Event"</label>
                 <select
                     class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
