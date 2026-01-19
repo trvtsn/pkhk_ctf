@@ -27,7 +27,7 @@ cargo leptos watch
 - [ ] Mitigate any unnecessary hydration/data-processing loops or cycles (to save resources)
 - [ ] Clean up code for better readability, get rid of placeholder code
 - [ ] Properly handle all errors, remove all .unwrap()'s where necessary
-- [ ] Actually make dark mode work
+- [x] Actually make dark mode work
 
 ### Security
 
