@@ -1,4 +1,3 @@
-use crate::pages::admin::Actions;
 use crate::server::admin::upload_illustration;
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments};
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
@@ -120,9 +119,9 @@ pub fn Challenges() -> impl IntoView {
 
         <div class=r#"flex flex-col gap-4"#>
             <Show when=move || creating.get()>
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Event"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Event"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=event_id
@@ -150,7 +149,7 @@ pub fn Challenges() -> impl IntoView {
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -158,7 +157,7 @@ pub fn Challenges() -> impl IntoView {
                     bind:value=name
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Description"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Description"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -166,7 +165,7 @@ pub fn Challenges() -> impl IntoView {
                     bind:value=description
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Category"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Category"</label>
                 <select
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -219,7 +218,7 @@ pub fn Challenges() -> impl IntoView {
                     bind:value=category
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Difficulty"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Difficulty"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -233,7 +232,7 @@ pub fn Challenges() -> impl IntoView {
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Points"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Points"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -246,7 +245,7 @@ pub fn Challenges() -> impl IntoView {
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Flag"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Flag"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -254,7 +253,7 @@ pub fn Challenges() -> impl IntoView {
                     bind:value=flag
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>
                     "Attachment (Max 16 MiB)"
                 </label>
                 <input
@@ -274,7 +273,7 @@ pub fn Challenges() -> impl IntoView {
                 />
                 <p>{uploading_file_text.get()}</p>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>
                     "Illustration (Max 16 MiB)"
                 </label>
                 <input

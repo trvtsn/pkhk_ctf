@@ -79,7 +79,7 @@ pub fn Events() -> impl IntoView {
 
         <div class=r#"flex flex-col gap-4"#>
             <Show when=move || section.get() == Actions::Create>
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -87,7 +87,7 @@ pub fn Events() -> impl IntoView {
                     bind:value=name_signal
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Description"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Description"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -95,7 +95,7 @@ pub fn Events() -> impl IntoView {
                     bind:value=description_signal
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Start Date"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Start Date"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -104,7 +104,7 @@ pub fn Events() -> impl IntoView {
                     bind:value=start_at_signal
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"End Date"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"End Date"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -113,7 +113,7 @@ pub fn Events() -> impl IntoView {
                     bind:value=end_at_signal
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Attachment"</label>
                 <input
                     class=r#"w-full text-sm"#
                     type="file"
@@ -130,7 +130,7 @@ pub fn Events() -> impl IntoView {
                 />
                 <p>{uploading_file_text.get()}</p>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Illustration"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Illustration"</label>
                 <input
                     class=r#"w-full text-sm"#
                     type="file"

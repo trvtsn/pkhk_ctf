@@ -28,7 +28,7 @@ pub fn Log() -> impl IntoView {
     });
 
     view! {
-        <textarea class=r#"p-4 w-full rounded-lg shadow-sm server-logs"# readonly rows="20">
+        <textarea class=r#"p-4 w-full rounded-lg shadow-sm server-logs bg-background"# readonly rows="20">
             {move || logs.get()}
         </textarea>
         <div class=r#"flex gap-3 mt-2"#>

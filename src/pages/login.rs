@@ -31,7 +31,7 @@ pub fn Login() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-8 grid-col bg-background text-text"#>
+        <div class=r#"grid justify-center p-8 grid-col bg-background text-text h-full"#>
             <h3 class=r#"text-4xl text-center"#>"Login"</h3>
             <br />
             <ActionForm action=login>

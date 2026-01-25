@@ -117,7 +117,7 @@ pub fn Challenges() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-4 bg-background text-text"#>
+        <div class=r#"grid justify-center p-4 bg-background text-text h-full"#>
             <h1 class=r#"text-4xl text-center"#>"Challenges"</h1>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }

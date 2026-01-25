@@ -63,7 +63,7 @@ pub fn Users() -> impl IntoView {
 
         <div class=r#"flex flex-col gap-4"#>
             <Show when=move || section.get() == Actions::Create>
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -72,7 +72,7 @@ pub fn Users() -> impl IntoView {
                     bind:value=username_signal
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"E-mail"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"E-mail"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring--500"#
@@ -81,7 +81,7 @@ pub fn Users() -> impl IntoView {
                     bind:value=email_signal
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Password"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Password"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -92,7 +92,7 @@ pub fn Users() -> impl IntoView {
                 />
                 <HidePasswordButton hidden=password_hidden />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>
                     "Confirm Password"
                 </label>
                 <input
@@ -105,9 +105,9 @@ pub fn Users() -> impl IntoView {
                 />
                 <HidePasswordButton hidden=confirm_password_hidden />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Role"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Role"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=role_signal
@@ -133,7 +133,7 @@ pub fn Users() -> impl IntoView {
                     }}
                 </Transition>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Avatar"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Avatar"</label>
                 <input
                     class=r#"w-full text-sm"#
                     type="file"

@@ -26,7 +26,7 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-4"#>
+        <div class=r#"grid justify-center p-4 h-full bg-background text-text"#>
             <label>"Dark Mode"</label>
             <input
                 type="checkbox"
@@ -129,7 +129,7 @@ pub fn Settings() -> impl IntoView {
             <label>
                 <b>"Change Avatar (Max 16 MiB)"</b>
                 <input
-                    class=r#"p-2 bg-white rounded-lg shadow-sm"#
+                    class=r#"p-2 rounded-lg shadow-sm"#
                     type="file"
                     name="file"
                     on:change=move |ev: Event| {

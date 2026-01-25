@@ -37,7 +37,7 @@ pub fn Admin() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"justify-center p-8 align-center bg-background text-text"#>
+        <div class=r#"justify-center p-8 align-center bg-background text-text h-full"#>
             <h3 class=r#"text-4xl text-center"#>"Admin"</h3>
             <div class=r#"grid grid-cols-5 gap-4 m-4"#>
                 <AdminNavBar />
@@ -95,7 +95,7 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li class="bg-background hover:bg-background-secondary">
                     <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Events)
@@ -106,7 +106,7 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li class="bg-background hover:bg-background-secondary">
                     <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Challenges)
@@ -117,7 +117,7 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li class="bg-background">
                     <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Files)
@@ -128,7 +128,7 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li class="bg-background">
                     <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Users)
@@ -139,7 +139,7 @@ pub fn AdminNavBar() -> impl IntoView {
                 </li>
                 <li class="bg-background">
                     <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-gray-700 
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| selected.set(AdminSections::Log)
