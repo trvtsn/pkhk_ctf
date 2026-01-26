@@ -58,6 +58,10 @@ pub fn User() -> impl IntoView {
                                     {user.points}
                                 </p>
                                 <p>
+                                    <b>"Group: "</b>
+                                    {user.group}
+                                </p>
+                                <p>
                                     <b>"Date Joined: "</b>
                                     {user.created_at.to_string()}
                                 </p>

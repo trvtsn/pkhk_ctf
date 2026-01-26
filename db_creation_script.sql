@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`users` (
   `last_active_at` TIMESTAMP NOT NULL,
   `role` VARCHAR(14) NOT NULL,
   `points` INT UNSIGNED NOT NULL,
+  `group` VARCHAR(30) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;

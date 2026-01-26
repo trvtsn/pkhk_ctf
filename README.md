@@ -27,8 +27,9 @@ cargo leptos watch
 - [ ] Clean up code for better readability, get rid of placeholder code
 - [ ] Properly handle all errors, remove all .unwrap()'s where necessary
 - [x] Actually make dark mode work
-- [ ] Add "group" column to DB in "users" table, filter challenges and leaderboard
-- [ ] Add "Group" select to admin create challenge view
+- [x] Add "group" column to DB in "users" table
+- [ ] Filter challenges and leaderboard by user group
+- [x] Add "Group" select to admin create challenge view
 - [ ] Add LDAP/AD functionality
 
 ### Security

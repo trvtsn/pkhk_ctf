@@ -395,6 +395,44 @@ pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
     }
 }
 
+#[server(name=AdminUsersGetAllGroups, prefix="/api/admin/users", endpoint="groups")]
+#[instrument]
+pub async fn get_all_user_groups() -> Result<Vec<String>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+
+            match DbUser::get_all_groups(&auth.backend.pool).await {
+                Ok(groups) => Ok(groups),
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    response.set_status(StatusCode::INTERNAL_SERVER_ERROR);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
 #[server(name=AdminEventsGetAll, prefix="/api/admin", endpoint="events")]
 #[instrument]
 pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
@@ -712,7 +750,8 @@ pub enum UserAction {
         password: String, 
         confirm_password: String,
         role: UserRole,
-        avatar: Option<AttachmentWithoutBlob>
+        avatar: Option<AttachmentWithoutBlob>,
+        group: String
     },
     Delete {
         id: String
@@ -725,7 +764,8 @@ pub enum UserAction {
         confirm_password: String,
         points: u32,
         role: UserRole,
-        avatar: Option<AttachmentWithoutBlob>
+        avatar: Option<AttachmentWithoutBlob>,
+        group: String
     },
     EditPassword {
         id: String,
@@ -759,7 +799,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
             }
 
             match action {
-                UserAction::Create { username, email, password, confirm_password, role, avatar } => {
+                UserAction::Create { username, email, password, confirm_password, role, avatar, group } => {
                     if password != confirm_password {
                         return Err(AppError::BadRequest("password and confirm password must match".to_string()));
                     }
@@ -777,7 +817,8 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         created_at: chrono::Local::now(), 
                         last_active_at: chrono::Local::now(), 
                         role,
-                        points: 0
+                        points: 0,
+                        group
                     };
                     let mut tx = auth.backend.pool.begin().await?;
                     let new_user_id = match DbUser::add(&new_user, &mut *tx).await {
@@ -831,7 +872,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     }
                 }
-                UserAction::Edit { id, username, email, password, confirm_password, points, role, avatar } => {
+                UserAction::Edit { id, username, email, password, confirm_password, points, role, avatar, group } => {
                     let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &auth.backend.pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
@@ -885,6 +926,15 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
 
                     match DbUser::edit_role(&id, &role, &mut *tx).await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            tracing::error!(error = ?e);
+                            tx.rollback().await?;
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                        }
+                    }
+
+                    match DbUser::edit_group(&id, &group, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tracing::error!(error = ?e);

@@ -103,7 +103,8 @@ cfg_if! {
                     created_at: chrono::Local::now(), 
                     last_active_at: chrono::Local::now(), 
                     role: UserRole::Competitor,
-                    points: 0
+                    points: 0,
+                    group: "unassigned".to_string()
                 };
                 let new_user_id = new_user.add(&self.pool).await?;
 

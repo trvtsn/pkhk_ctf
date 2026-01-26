@@ -83,7 +83,8 @@ pub mod structs {
         pub created_at: DateTime<Local>,
         pub last_active_at: DateTime<Local>,
         pub role: UserRole,
-        pub points: u32
+        pub points: u32,
+        pub group: String
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -92,7 +93,8 @@ pub mod structs {
         pub created_at: DateTime<Local>,
         pub last_active_at: DateTime<Local>,
         pub role: UserRole,
-        pub points: u32
+        pub points: u32,
+        pub group: String
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
@@ -272,9 +274,9 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     INSERT INTO users
-                    (id, username, email, pw_hash, created_at, last_active_at, role, points)
+                    (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`)
                     VALUES
-                    (?, ?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ",
                     id.to_string(),
                     username,
@@ -283,7 +285,8 @@ cfg_if! {
                     sqlx::types::chrono::Local::now(),
                     sqlx::types::chrono::Local::now(),
                     "admin",
-                    0
+                    0,
+                    "administrators"
                 )
                     .execute(executor)
                     .await {
@@ -439,13 +442,33 @@ cfg_if! {
                     }
             }
 
+            pub async fn edit_group(id: &String, group: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET `group` = ?
+                    WHERE id = ?
+                    ",
+                    group,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -464,7 +487,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -484,7 +507,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
                             FROM users 
                             WHERE username = ?
                             ", 
@@ -506,13 +529,40 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
                     FROM users 
                     "
                 )
                     .fetch_all(executor)
                     .await {
                         Ok(users) => Ok(users),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_all_groups(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT `group`
+                    FROM users 
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(rows) => {
+                            let mut groups = Vec::<String>::new();
+                            for row in rows.iter() {
+                                let group = &row.group;
+                                if !group.is_empty() {
+                                    groups.push(group.clone());
+                                }
+                            }
+                            groups.dedup();
+                            Ok(groups)
+                        },
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -705,8 +755,8 @@ cfg_if! {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
-                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(),
                     self.username,
@@ -715,7 +765,8 @@ cfg_if! {
                     self.created_at,
                     self.last_active_at,
                     self.role.to_string(),
-                    self.points
+                    self.points,
+                    self.group
                 )
                     .execute(executor)
                     .await {
@@ -773,7 +824,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -792,7 +843,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -812,7 +863,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
                             FROM users 
                             WHERE username = ?
                             ", 

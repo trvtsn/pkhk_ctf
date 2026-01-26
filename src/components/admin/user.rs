@@ -1,11 +1,13 @@
-use crate::{components::utils::HidePasswordButton, server::{admin::upload_avatar, db::{enums::{UserIdentifier, UserRole}, structs::DbUser}, enums::ResultStatus, get_avatar_id, structs::ApiResult}};
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
+use crate::{components::utils::HidePasswordButton, server::{admin::{get_all_user_groups, upload_avatar}, db::{enums::{UserIdentifier, UserRole}, structs::DbUser}, enums::ResultStatus, get_avatar_id, structs::ApiResult}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
 
 #[component]
 pub fn User(
     user: DbUser,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
+    let group_add_new_selected = RwSignal::new(false);
+    
     let id_signal = RwSignal::new(user.id.clone());
     let username_signal = RwSignal::new(user.username.clone());
     let email_signal = RwSignal::new(user.email.clone());
@@ -16,18 +18,24 @@ pub fn User(
     let points_signal = RwSignal::new(user.points);
     let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
     let role_signal = RwSignal::new(user.role.to_string());
+    let group_signal = RwSignal::new(user.group.clone());
 
-    let username_edit = RwSignal::new(user.username.clone());
-    let email_edit = RwSignal::new(user.email.clone());
+    let username_edit = RwSignal::new(user.username);
+    let email_edit = RwSignal::new(user.email);
     let new_password_edit = RwSignal::new("".to_string());
     let confirm_new_password_edit = RwSignal::new("".to_string());
     let points_edit = RwSignal::new(user.points);
     let role_edit = RwSignal::new(user.role.to_string());
     let avatar_edit = RwSignal::new(None);
+    let group_edit = RwSignal::new(user.group);
 
     let user_avatar = Resource::new(move || refresh.get(), move |_| {
         let id = id_signal.get();
         async move { get_avatar_id(UserIdentifier::Id(id)).await.unwrap_or_default() }
+    });
+
+    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_user_groups().await.unwrap_or_default()
     });
 
     let avatar_upload_action = Action::new_local(|data: &FormData| {
@@ -102,6 +110,10 @@ pub fn User(
                 <b>"Last active: "</b>
                 {move || last_active_signal.get().to_string()}
             </p>
+            <p class=r#"text-lg/8"#>
+                <b>"Group: "</b>
+                {move || group_signal.get().to_string()}
+            </p>
 
             <Show when=move || editing.get()>
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
@@ -151,6 +163,59 @@ pub fn User(
                         <option value=role.to_string()>{role.to_string()}</option>
                     </For>
                 </select>
+
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Group"</label>
+                <select
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    name="group"
+                    on:change=move |ev: Event| {
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let doc = leptos::web_sys::window().unwrap().document().unwrap();
+                        let new_input = doc
+                            .get_element_by_id("action_create_group_input")
+                            .unwrap()
+                            .unchecked_into::<HtmlInputElement>();
+                        if sel.value() == "__new__" {
+                            let _ = sel.remove_attribute("name");
+                            let _ = new_input.set_attribute("name", "group");
+                            group_add_new_selected.set(true);
+                        } else {
+                            let _ = sel.set_attribute("name", "group");
+                            let _ = new_input.remove_attribute("name");
+                            group_add_new_selected.set(false);
+                        }
+                        group_edit.set(sel.value())
+                    }
+                >
+                    <option value="">"-- Select Group --"</option>
+                    <Suspense fallback=move || {
+                        view! { <div>"Loading..."</div> }
+                    }>
+                        {move || {
+                            let groups = groups_resource.get().unwrap_or_default();
+                            view! {
+                                <For
+                                    each=move || groups.clone()
+                                    key=|group: &String| group.clone()
+                                    let(group)
+                                >
+                                    <option value=group.clone()>{group.clone()}</option>
+                                </For>
+                            }
+                        }}
+
+                    </Suspense>
+                    <option value="__new__">"-- Add New --"</option>
+                </select>
+                <input
+                    class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    hidden=move || !group_add_new_selected.get()
+                    type="text"
+                    id="action_create_group_input"
+                    bind:value=group_edit
+                />
 
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Avatar"</label>
                 <input
@@ -237,6 +302,7 @@ pub fn User(
                             let points = points_edit.get();
                             let role = role_edit.get();
                             let avatar = avatar_edit.get();
+                            let group = group_edit.get();
                             if editing.get() {
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
@@ -248,7 +314,8 @@ pub fn User(
                                             confirm_password: confirm_password.clone(),
                                             points,
                                             role: role.clone().into(),
-                                            avatar
+                                            avatar,
+                                            group
                                         })
                                         .await && result == ResultStatus::Success
                                     {

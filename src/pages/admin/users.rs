@@ -1,5 +1,5 @@
-use crate::{components::{admin::user::User, utils::HidePasswordButton}, pages::admin::Actions, server::{admin::{get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, structs::ApiResult}};
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
+use crate::{components::{admin::user::User, utils::HidePasswordButton}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, structs::ApiResult}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
 
 /// Default Home Page
 #[component]
@@ -9,6 +9,7 @@ pub fn Users() -> impl IntoView {
     let creating = RwSignal::new(false);
     let password_hidden = RwSignal::new(true);
     let confirm_password_hidden = RwSignal::new(true);
+    let group_add_new_selected = RwSignal::new(false);
     
     let username_signal = RwSignal::new("".to_string());
     let email_signal = RwSignal::new("".to_string());
@@ -17,9 +18,14 @@ pub fn Users() -> impl IntoView {
     let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
     let role_signal = RwSignal::new("".to_string());
     let avatar_signal = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
+    let group_signal = RwSignal::<String>::new("".to_string());
 
     let users_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_users().await.unwrap_or_default()
+    });
+
+    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_user_groups().await.unwrap_or_default()
     });
 
     let avatar_upload_action = Action::new_local(|data: &FormData| {
@@ -133,6 +139,59 @@ pub fn Users() -> impl IntoView {
                     }}
                 </Transition>
 
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Group"</label>
+                <select
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    name="group"
+                    on:change=move |ev: Event| {
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let doc = leptos::web_sys::window().unwrap().document().unwrap();
+                        let new_input = doc
+                            .get_element_by_id("action_create_group_input")
+                            .unwrap()
+                            .unchecked_into::<HtmlInputElement>();
+                        if sel.value() == "__new__" {
+                            let _ = sel.remove_attribute("name");
+                            let _ = new_input.set_attribute("name", "group");
+                            group_add_new_selected.set(true);
+                        } else {
+                            let _ = sel.set_attribute("name", "group");
+                            let _ = new_input.remove_attribute("name");
+                            group_add_new_selected.set(false);
+                        }
+                        group_signal.set(sel.value())
+                    }
+                >
+                    <option value="">"-- Select Group --"</option>
+                    <Suspense fallback=move || {
+                        view! { <div>"Loading..."</div> }
+                    }>
+                        {move || {
+                            let groups = groups_resource.get().unwrap_or_default();
+                            view! {
+                                <For
+                                    each=move || groups.clone()
+                                    key=|group: &String| group.clone()
+                                    let(group)
+                                >
+                                    <option value=group.clone()>{group.clone()}</option>
+                                </For>
+                            }
+                        }}
+
+                    </Suspense>
+                    <option value="__new__">"-- Add New --"</option>
+                </select>
+                <input
+                    class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    hidden=move || !group_add_new_selected.get()
+                    type="text"
+                    id="action_create_group_input"
+                    bind:value=group_signal
+                />
+
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Avatar"</label>
                 <input
                     class=r#"w-full text-sm"#
@@ -170,6 +229,7 @@ pub fn Users() -> impl IntoView {
                             let confirm_password = confirm_password_signal.get().clone();
                             let role = role_signal.get().clone().into();
                             let avatar = avatar_signal.get();
+                            let group = group_signal.get();
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Create {
@@ -178,7 +238,8 @@ pub fn Users() -> impl IntoView {
                                         password,
                                         confirm_password,
                                         role,
-                                        avatar
+                                        avatar,
+                                        group
                                     })
                                     .await && result == ResultStatus::Success
                                 {
