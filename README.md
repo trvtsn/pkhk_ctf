@@ -23,16 +23,21 @@ cargo leptos watch
 ## To-Do List
 
 ### Functionality
-- [ ] Add both MySQL and SurrealDB database options to .env
 - [ ] Mitigate any unnecessary hydration/data-processing loops or cycles (to save resources)
 - [ ] Clean up code for better readability, get rid of placeholder code
 - [ ] Properly handle all errors, remove all .unwrap()'s where necessary
 - [x] Actually make dark mode work
+- [ ] Add "group" column to DB in "users" table, filter challenges and leaderboard
+- [ ] Add "Group" select to admin create challenge view
+- [ ] Add LDAP/AD functionality
 
 ### Security
 
 ### Styling
 - [ ] Create fitting style for dark mode
+- [ ] Remove flag input box on challenge solve
+- [ ] Fix tooltip color on leaderboard hover
+- [ ] Fix select option color
 
 ### Project Longevity
 - [ ] Add doc comments to pages and components
