@@ -1,4 +1,4 @@
-use crate::server::admin::upload_illustration;
+use crate::server::admin::{get_all_user_groups, upload_illustration};
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments};
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
 use crate::server::structs::ApiResult;
@@ -22,6 +22,7 @@ pub fn Challenges() -> impl IntoView {
     let difficulty = RwSignal::new(0_i8);
     let points = RwSignal::new(0_u32);
     let flag = RwSignal::new("".to_string());
+    let visible_to_group = RwSignal::new("".to_string());
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
 
@@ -41,6 +42,9 @@ pub fn Challenges() -> impl IntoView {
         let all_events = get_all_events().await.unwrap_or_default();
         events_signal.set(all_events.clone());
         all_events
+    });
+    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_user_groups().await.unwrap_or_default()
     });
 
     let file_upload_action = Action::new_local(|data: &FormData| {
@@ -253,6 +257,33 @@ pub fn Challenges() -> impl IntoView {
                     bind:value=flag
                 />
 
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Group"</label>
+                <select
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    name="visible_to_group"
+                    bind:value=visible_to_group
+                >
+                    <option value="">"-- Select Group --"</option>
+                    <option value="all">"All"</option>
+                    <Suspense fallback=move || {
+                        view! { <div>"Loading..."</div> }
+                    }>
+                        {move || {
+                            let groups = groups_resource.get().unwrap_or_default();
+                            view! {
+                                <For
+                                    each=move || groups.clone()
+                                    key=|group: &String| group.clone()
+                                    let(group)
+                                >
+                                    <option value={group.clone()}>{group.clone()}</option>
+                                </For>
+                            }
+                        }}
+                    </Suspense>
+                </select>
+
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>
                     "Attachment (Max 16 MiB)"
                 </label>
@@ -314,6 +345,7 @@ pub fn Challenges() -> impl IntoView {
                             let difficulty = difficulty.get();
                             let points = points.get();
                             let flag = flag.get();
+                            let visible_to_group = visible_to_group.get();
                             let attachments = attachments.get();
                             let illustration = illustration.get();
                             spawn_local(async move {
@@ -325,6 +357,7 @@ pub fn Challenges() -> impl IntoView {
                                         difficulty,
                                         points,
                                         flag,
+                                        visible_to_group,
                                         attachments,
                                         illustration
                                     })

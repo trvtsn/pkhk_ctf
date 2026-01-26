@@ -28,7 +28,8 @@ cargo leptos watch
 - [ ] Properly handle all errors, remove all .unwrap()'s where necessary
 - [x] Actually make dark mode work
 - [x] Add "group" column to DB in "users" table
-- [ ] Filter challenges and leaderboard by user group
+- [x] Filter challenges and leaderboard by user group
+- [ ] Add multi-select for "visible to group" on admin event/challenge create/edit
 - [x] Add "Group" select to admin create challenge view
 - [ ] Add LDAP/AD functionality
 
@@ -36,7 +37,7 @@ cargo leptos watch
 
 ### Styling
 - [ ] Create fitting style for dark mode
-- [ ] Remove flag input box on challenge solve
+- [x] Remove flag input box on challenge solve
 - [ ] Fix tooltip color on leaderboard hover
 - [ ] Fix select option color
 

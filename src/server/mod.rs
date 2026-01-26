@@ -151,6 +151,25 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
             let challenges = match db::structs::Challenge::get_all(&auth.backend.pool).await {
                 Ok(challenges) => challenges,
                 Err(e) => Err(e)?
@@ -158,7 +177,12 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
                 let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &auth.backend.pool).await?;
-                cwa.push(ChallengeWithAttachments { challenge, attachments });
+                if db_user.group == challenge.visible_to_group || db_user.role == UserRole::Admin || challenge.visible_to_group == "all".to_string() {
+                    cwa.push(ChallengeWithAttachments { challenge, attachments });
+                } else {
+                    continue;
+                }
+                
             }
             Ok(cwa)
         } else {
@@ -173,17 +197,49 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
-            let active_event_id = match get_active_events().await {
-                Ok(active_events) => active_events.first().unwrap().id.clone(),
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    "05ea8233-b9f1-4b29-bc3a-025161bddf6d".to_string() // perpetual event in db
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            // should be active_event_ids in the future
+            let active_event_id = match get_active_events().await {
+                Ok(active_events) => {
+                    let mut active_event_id = "".to_string();
+                    for active_event in active_events {
+                        if active_event.visible_to_group == db_user.group || db_user.role == UserRole::Admin || active_event.visible_to_group == "all".to_string() {
+                            active_event_id = active_event.id;
+                            break;
+                        }
+                    }
+                    active_event_id
+                },
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
                 }
             };
 
             let meta = match db::structs::Event::get_metadata(&active_event_id, &auth.backend.pool).await {
                 Ok(meta) => meta,
-                Err(e) => Err(e)?
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
             };
 
             let event_name = meta.name.unwrap_or("".to_string());

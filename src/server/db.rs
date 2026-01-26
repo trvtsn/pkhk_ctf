@@ -130,7 +130,8 @@ pub mod structs {
         pub description: Option<String>,
         pub category: Option<String>,
         pub difficulty: i8,
-        pub points: u32
+        pub points: u32,
+        pub visible_to_group: String
     }
 
     #[derive(Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
@@ -145,7 +146,8 @@ pub mod structs {
         pub name: String,
         pub description: Option<String>,
         pub start_at: DateTime<Local>,
-        pub end_at: DateTime<Local>
+        pub end_at: DateTime<Local>,
+        pub visible_to_group: String
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -891,15 +893,16 @@ cfg_if! {
                 difficulty: &i8, 
                 points: &u32, 
                 flag_hash: &String, 
+                visible_to_group: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO challenges
-                    (id, event_id, name, description, category, difficulty, points, flag_hash)
+                    (id, event_id, name, description, category, difficulty, points, flag_hash, visible_to_group)
                     VALUES 
-                    (?, ?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(),
                     event_id,
@@ -908,7 +911,8 @@ cfg_if! {
                     category,
                     difficulty,
                     points,
-                    flag_hash
+                    flag_hash,
+                    visible_to_group
                 )
                     .execute(executor)
                     .await {
@@ -948,13 +952,14 @@ cfg_if! {
                 difficulty: &i8, 
                 points: &u32, 
                 flag_hash: &String, 
+                visible_to_group: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE challenges
                     SET
-                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?
+                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?, visible_to_group = ?
                     WHERE 
                     id = ?
                     ", 
@@ -965,6 +970,7 @@ cfg_if! {
                     difficulty,
                     points,
                     flag_hash,
+                    visible_to_group,
                     id
                 )
                     .execute(executor)
@@ -981,7 +987,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, category, difficulty, points
+                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_group
                     FROM challenges 
                     WHERE id = ?
                     ", 
@@ -1001,7 +1007,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, category, difficulty, points
+                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_group
                     FROM challenges
                     "
                 )
@@ -2538,21 +2544,23 @@ cfg_if! {
                 description: &String, 
                 start_at: &DateTime<Local>, 
                 end_at: &DateTime<Local>, 
+                visible_to_group: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO events
-                    (id, name, description, start_at, end_at)
+                    (id, name, description, start_at, end_at, visible_to_group)
                     VALUES 
-                    (?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(), 
                     name,
                     description,
                     start_at,
-                    end_at
+                    end_at,
+                    visible_to_group
                 )
                     .execute(executor)
                     .await {
@@ -2589,18 +2597,20 @@ cfg_if! {
                 description: &String, 
                 start_at: &DateTime<Local>, 
                 end_at: &DateTime<Local>, 
+                visible_to_group: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE events
-                    SET name = ?, description = ?, start_at = ?, end_at = ?
+                    SET name = ?, description = ?, start_at = ?, end_at = ?, visible_to_group = ?
                     WHERE id = ?
                     ", 
                     name,
                     description,
                     start_at,
                     end_at,
+                    visible_to_group,
                     id
                 )
                     .execute(executor)
@@ -2617,7 +2627,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                    SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`, visible_to_group
                     FROM events 
                     WHERE id = ?
                     ", 
@@ -2637,7 +2647,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                    SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`, visible_to_group
                     FROM events 
                     "
                 )

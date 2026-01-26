@@ -100,6 +100,7 @@ pub fn Challenge(
                 <b>"Flag: "</b>
             </label>
             <input
+                hidden=move || solved.get()
                 class=r#"m-1 bg-white rounded-sm border-black border-1"#
                 bind:value=flag_signal
             />

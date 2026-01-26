@@ -1,5 +1,5 @@
 use crate::components::utils::TruncatedDesc;
-use crate::server::admin::upload_illustration;
+use crate::server::admin::{get_all_user_groups, upload_illustration};
 use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::{get_illustration_id};
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
@@ -13,7 +13,7 @@ pub fn Challenge(
     events: RwSignal<Vec<db::structs::Event>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments } = cwa;
-    let Challenge { id, event_id, name, description, category, difficulty, points } = challenge;
+    let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_group } = challenge;
 
     let id_signal = RwSignal::new(id);
     let event_id_signal = RwSignal::new(event_id.clone());
@@ -23,6 +23,7 @@ pub fn Challenge(
     let difficulty_signal = RwSignal::new(difficulty);
     let points_signal = RwSignal::new(points);
     let attachments_signal = RwSignal::new(attachments.clone());
+    let visible_to_group_signal = RwSignal::new(visible_to_group.clone());
 
     let event_id_edit = RwSignal::new(event_id);
     let name_edit = RwSignal::new(name.clone());
@@ -33,6 +34,7 @@ pub fn Challenge(
     let attachments_edit = RwSignal::new(Some(attachments.clone()));
     let flag_edit = RwSignal::new("".to_string());
     let illustration_edit = RwSignal::new(None);
+    let visible_to_group_edit = RwSignal::new(visible_to_group);
 
     let illustration = Resource::new(move || refresh.get(), move |_| {
         let challenge_id = id_signal.get();
@@ -43,6 +45,10 @@ pub fn Challenge(
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
+
+    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_user_groups().await.unwrap_or_default()
+    });
 
     let file_upload_action = Action::new_local(|data: &FormData| {
         upload_files(data.clone().into())
@@ -126,6 +132,10 @@ pub fn Challenge(
                 <p class=r#"text-lg/8"#>
                     <b>"Points: "</b>
                     {points_signal.get()}
+                </p>
+                <p class=r#"text-lg/8"#>
+                    <b>"Visible To Group: "</b>
+                    {visible_to_group_signal.get()}
                 </p>
                 <br />
 
@@ -267,6 +277,33 @@ pub fn Challenge(
                     bind:value=flag_edit
                 />
 
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Group"</label>
+                <select
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    name="visible_to_group"
+                    bind:value=visible_to_group_edit
+                >
+                    <option value="">"-- Select Group --"</option>
+                    <option value="all">"All"</option>
+                    <Suspense fallback=move || {
+                        view! { <div>"Loading..."</div> }
+                    }>
+                        {move || {
+                            let groups = groups_resource.get().unwrap_or_default();
+                            view! {
+                                <For
+                                    each=move || groups.clone()
+                                    key=|group: &String| group.clone()
+                                    let(group)
+                                >
+                                    <option value={group.clone()}>{group.clone()}</option>
+                                </For>
+                            }
+                        }}
+                    </Suspense>
+                </select>
+
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
                 <input
                     class=r#"w-full text-sm"#
@@ -330,6 +367,7 @@ pub fn Challenge(
                         let difficulty = difficulty_edit.get();
                         let points = points_edit.get();
                         let flag = flag_edit.get();
+                        let visible_to_group = visible_to_group_edit.get();
                         let attachments = attachments_edit.get();
                         let illustration = illustration_edit.get();
                         if editing.get() {
@@ -343,6 +381,7 @@ pub fn Challenge(
                                         difficulty,
                                         points,
                                         flag: flag.clone(),
+                                        visible_to_group,
                                         attachments: attachments.clone(),
                                         illustration: illustration.clone()
                                     })

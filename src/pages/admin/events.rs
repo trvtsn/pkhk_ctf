@@ -1,4 +1,4 @@
-use crate::{components::admin::event::Event, pages::admin::Actions, server::{admin::{get_all_events, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::admin::event::Event, pages::admin::Actions, server::{admin::{get_all_events, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use leptos::{prelude::*, task:: spawn_local};
 use leptos::{web_sys::{FormData, HtmlInputElement, Event}, wasm_bindgen::JsCast};
 
@@ -13,12 +13,16 @@ pub fn Events() -> impl IntoView {
     let description_signal = RwSignal::new("".to_string());
     let start_at_signal = RwSignal::new("".to_string());
     let end_at_signal = RwSignal::new("".to_string());
+    let visible_to_group_signal = RwSignal::new("".to_string());
 
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     
     let events_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_events().await.unwrap_or_default()
+    });
+    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_user_groups().await.unwrap_or_default()
     });
 
     let file_upload_action = Action::new_local(|data: &FormData| {
@@ -113,6 +117,33 @@ pub fn Events() -> impl IntoView {
                     bind:value=end_at_signal
                 />
 
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Group"</label>
+                <select
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    name="visible_to_group"
+                    bind:value=visible_to_group_signal
+                >
+                    <option value="">"-- Select Group --"</option>
+                    <option value="all">"All"</option>
+                    <Suspense fallback=move || {
+                        view! { <div>"Loading..."</div> }
+                    }>
+                        {move || {
+                            let groups = groups_resource.get().unwrap_or_default();
+                            view! {
+                                <For
+                                    each=move || groups.clone()
+                                    key=|group: &String| group.clone()
+                                    let(group)
+                                >
+                                    <option value={group.clone()}>{group.clone()}</option>
+                                </For>
+                            }
+                        }}
+                    </Suspense>
+                </select>
+
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Attachment"</label>
                 <input
                     class=r#"w-full text-sm"#
@@ -165,6 +196,7 @@ pub fn Events() -> impl IntoView {
                             let description = description_signal.get();
                             let start_at = html_local_to_datetime(start_at_signal.get());
                             let end_at = html_local_to_datetime(end_at_signal.get());
+                            let visible_to_group = visible_to_group_signal.get();
                             let attachments = attachments.get();
                             let illustration = illustration.get();
                             spawn_local(async move {
@@ -174,6 +206,7 @@ pub fn Events() -> impl IntoView {
                                         description,
                                         start_at,
                                         end_at,
+                                        visible_to_group,
                                         attachments,
                                         illustration
                                     })

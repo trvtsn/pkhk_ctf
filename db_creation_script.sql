@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`events` (
   `description` TEXT NULL DEFAULT NULL,
   `start_at` TIMESTAMP NOT NULL,
   `end_at` TIMESTAMP NOT NULL,
+  `visible_to_group` VARCHAR(30) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`challenges` (
   `difficulty` TINYINT NOT NULL,
   `points` INT UNSIGNED NOT NULL,
   `flag_hash` VARCHAR(100) NOT NULL,
+  `visible_to_group` VARCHAR(30) NOT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_challenges_events1`
     FOREIGN KEY (`event_id`)
