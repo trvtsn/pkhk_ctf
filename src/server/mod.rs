@@ -177,7 +177,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
                 let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &auth.backend.pool).await?;
-                if db_user.group == challenge.visible_to_group || db_user.role == UserRole::Admin || challenge.visible_to_group == "all".to_string() {
+                if challenge.visible_to_groups.contains(&db_user.group) || db_user.role == UserRole::Admin || challenge.visible_to_groups.contains(&"all".to_string()) {
                     cwa.push(ChallengeWithAttachments { challenge, attachments });
                 } else {
                     continue;
@@ -221,7 +221,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 Ok(active_events) => {
                     let mut active_event_id = "".to_string();
                     for active_event in active_events {
-                        if active_event.visible_to_group == db_user.group || db_user.role == UserRole::Admin || active_event.visible_to_group == "all".to_string() {
+                        if active_event.visible_to_groups.contains(&db_user.group) || db_user.role == UserRole::Admin || active_event.visible_to_groups.contains(&"all".to_string()) {
                             active_event_id = active_event.id;
                             break;
                         }

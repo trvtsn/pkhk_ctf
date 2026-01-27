@@ -3,7 +3,7 @@ use crate::server::admin::{get_all_user_groups, upload_illustration};
 use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::{get_illustration_id};
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
 #[component]
 pub fn Challenge(
@@ -13,7 +13,7 @@ pub fn Challenge(
     events: RwSignal<Vec<db::structs::Event>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments } = cwa;
-    let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_group } = challenge;
+    let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups } = challenge;
 
     let id_signal = RwSignal::new(id);
     let event_id_signal = RwSignal::new(event_id.clone());
@@ -23,7 +23,7 @@ pub fn Challenge(
     let difficulty_signal = RwSignal::new(difficulty);
     let points_signal = RwSignal::new(points);
     let attachments_signal = RwSignal::new(attachments.clone());
-    let visible_to_group_signal = RwSignal::new(visible_to_group.clone());
+    let visible_to_groups_signal = RwSignal::new(visible_to_groups.clone());
 
     let event_id_edit = RwSignal::new(event_id);
     let name_edit = RwSignal::new(name.clone());
@@ -34,7 +34,7 @@ pub fn Challenge(
     let attachments_edit = RwSignal::new(Some(attachments.clone()));
     let flag_edit = RwSignal::new("".to_string());
     let illustration_edit = RwSignal::new(None);
-    let visible_to_group_edit = RwSignal::new(visible_to_group);
+    let visible_to_groups_edit = RwSignal::new(visible_to_groups);
 
     let illustration = Resource::new(move || refresh.get(), move |_| {
         let challenge_id = id_signal.get();
@@ -134,8 +134,8 @@ pub fn Challenge(
                     {points_signal.get()}
                 </p>
                 <p class=r#"text-lg/8"#>
-                    <b>"Visible To Group: "</b>
-                    {visible_to_group_signal.get()}
+                    <b>"Visible To Groups: "</b>
+                    {visible_to_groups_signal.get().replace(",", ", ")}
                 </p>
                 <br />
 
@@ -235,6 +235,7 @@ pub fn Challenge(
                     hidden=move || !category_add_new_selected.get()
                     type="text"
                     id="action_edit_category_input"
+                    value=""
                     on:change=move |ev: Event| {
                         let value = event_target_value(&ev);
                         category_edit.set(Some(value));
@@ -277,14 +278,28 @@ pub fn Challenge(
                     bind:value=flag_edit
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Group"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="visible_to_group"
-                    bind:value=visible_to_group_edit
+                    name="visible_to_groups"
+                    multiple=true
+                    on:change=move |ev: Event| {
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let selected = sel.selected_options();
+                        let mut picked: Vec<String> = Vec::new();
+
+                        for i in 0..selected.length() {
+                            if let Some(item) = selected.item(i) {
+                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                    picked.push(opt.value());
+                                }
+                            }
+                        }
+
+                        visible_to_groups_edit.set(picked.join(","));
+                    }
                 >
-                    <option value="">"-- Select Group --"</option>
                     <option value="all">"All"</option>
                     <Suspense fallback=move || {
                         view! { <div>"Loading..."</div> }
@@ -367,7 +382,7 @@ pub fn Challenge(
                         let difficulty = difficulty_edit.get();
                         let points = points_edit.get();
                         let flag = flag_edit.get();
-                        let visible_to_group = visible_to_group_edit.get();
+                        let visible_to_groups = visible_to_groups_edit.get();
                         let attachments = attachments_edit.get();
                         let illustration = illustration_edit.get();
                         if editing.get() {
@@ -381,7 +396,7 @@ pub fn Challenge(
                                         difficulty,
                                         points,
                                         flag: flag.clone(),
-                                        visible_to_group,
+                                        visible_to_groups,
                                         attachments: attachments.clone(),
                                         illustration: illustration.clone()
                                     })

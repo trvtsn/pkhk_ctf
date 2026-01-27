@@ -1,5 +1,5 @@
 use crate::{components::{admin::user::User, utils::HidePasswordButton}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, structs::ApiResult}};
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
 /// Default Home Page
 #[component]
@@ -144,6 +144,7 @@ pub fn Users() -> impl IntoView {
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="group"
+                    multiple=true
                     on:change=move |ev: Event| {
                         let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
                         let doc = leptos::web_sys::window().unwrap().document().unwrap();
@@ -160,7 +161,19 @@ pub fn Users() -> impl IntoView {
                             let _ = new_input.remove_attribute("name");
                             group_add_new_selected.set(false);
                         }
-                        group_signal.set(sel.value())
+
+                        let selected = sel.selected_options();
+                        let mut picked: Vec<String> = Vec::new();
+
+                        for i in 0..selected.length() {
+                            if let Some(item) = selected.item(i) {
+                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                    picked.push(opt.value());
+                                }
+                            }
+                        }
+
+                        group_signal.set(picked.join(","));
                     }
                 >
                     <option value="">"-- Select Group --"</option>
@@ -175,14 +188,23 @@ pub fn Users() -> impl IntoView {
                                     key=|group: &String| group.clone()
                                     let(group)
                                 >
-                                    <option value=group.clone()>{group.clone()}</option>
+                                    <option value={group.clone()}>{group.clone()}</option>
                                 </For>
                             }
                         }}
-
                     </Suspense>
                     <option value="__new__">"-- Add New --"</option>
                 </select>
+                <input
+                    class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    hidden=move || !group_add_new_selected.get()
+                    type="text"
+                    id="action_create_group_input"
+                    value=""
+                    bind:value=group_signal
+                />
+
                 <input
                     class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#

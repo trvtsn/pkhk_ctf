@@ -1,6 +1,6 @@
 use crate::{components::admin::event::Event, pages::admin::Actions, server::{admin::{get_all_events, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use leptos::{prelude::*, task:: spawn_local};
-use leptos::{web_sys::{FormData, HtmlInputElement, Event}, wasm_bindgen::JsCast};
+use leptos::{web_sys::{FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
 
 /// Default Home Page
 #[component]
@@ -13,7 +13,7 @@ pub fn Events() -> impl IntoView {
     let description_signal = RwSignal::new("".to_string());
     let start_at_signal = RwSignal::new("".to_string());
     let end_at_signal = RwSignal::new("".to_string());
-    let visible_to_group_signal = RwSignal::new("".to_string());
+    let visible_to_groups_signal = RwSignal::new(vec![]);
 
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
@@ -117,14 +117,28 @@ pub fn Events() -> impl IntoView {
                     bind:value=end_at_signal
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Group"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="visible_to_group"
-                    bind:value=visible_to_group_signal
+                    name="visible_to_groups"
+                    multiple=true
+                    on:change=move |ev: Event| {
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let selected = sel.selected_options();
+                        let mut picked: Vec<String> = Vec::new();
+
+                        for i in 0..selected.length() {
+                            if let Some(item) = selected.item(i) {
+                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                    picked.push(opt.value());
+                                }
+                            }
+                        }
+
+                        visible_to_groups_signal.set(picked);
+                    }
                 >
-                    <option value="">"-- Select Group --"</option>
                     <option value="all">"All"</option>
                     <Suspense fallback=move || {
                         view! { <div>"Loading..."</div> }
@@ -196,7 +210,7 @@ pub fn Events() -> impl IntoView {
                             let description = description_signal.get();
                             let start_at = html_local_to_datetime(start_at_signal.get());
                             let end_at = html_local_to_datetime(end_at_signal.get());
-                            let visible_to_group = visible_to_group_signal.get();
+                            let visible_to_groups = visible_to_groups_signal.get().join(",");
                             let attachments = attachments.get();
                             let illustration = illustration.get();
                             spawn_local(async move {
@@ -206,7 +220,7 @@ pub fn Events() -> impl IntoView {
                                         description,
                                         start_at,
                                         end_at,
-                                        visible_to_group,
+                                        visible_to_groups,
                                         attachments,
                                         illustration
                                     })

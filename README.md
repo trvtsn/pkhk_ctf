@@ -34,6 +34,8 @@ cargo leptos watch
 - [ ] Add LDAP/AD functionality
 
 ### Security
+- [ ] Sanitize text inputs
+- [ ] Disallow special characters in text inputs where necessary
 
 ### Styling
 - [ ] Create fitting style for dark mode

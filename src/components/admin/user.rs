@@ -1,5 +1,5 @@
 use crate::{components::utils::HidePasswordButton, server::{admin::{get_all_user_groups, upload_avatar}, db::{enums::{UserIdentifier, UserRole}, structs::DbUser}, enums::ResultStatus, get_avatar_id, structs::ApiResult}};
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
 #[component]
 pub fn User(
@@ -112,7 +112,7 @@ pub fn User(
             </p>
             <p class=r#"text-lg/8"#>
                 <b>"Group: "</b>
-                {move || group_signal.get().to_string()}
+                {move || group_signal.get().replace(",", ", ")}
             </p>
 
             <Show when=move || editing.get()>
@@ -169,6 +169,7 @@ pub fn User(
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="group"
+                    multiple=true
                     on:change=move |ev: Event| {
                         let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
                         let doc = leptos::web_sys::window().unwrap().document().unwrap();
@@ -185,10 +186,22 @@ pub fn User(
                             let _ = new_input.remove_attribute("name");
                             group_add_new_selected.set(false);
                         }
-                        group_edit.set(sel.value())
+
+                        let selected = sel.selected_options();
+                        let mut picked: Vec<String> = Vec::new();
+
+                        for i in 0..selected.length() {
+                            if let Some(item) = selected.item(i) {
+                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                    picked.push(opt.value());
+                                }
+                            }
+                        }
+
+                        group_edit.set(picked.join(","));
                     }
                 >
-                    <option value="">"-- Select Group --"</option>
+                    <option value="__new__">"-- Add New --"</option>
                     <Suspense fallback=move || {
                         view! { <div>"Loading..."</div> }
                     }>
@@ -200,13 +213,11 @@ pub fn User(
                                     key=|group: &String| group.clone()
                                     let(group)
                                 >
-                                    <option value=group.clone()>{group.clone()}</option>
+                                    <option value={group.clone()}>{group.clone()}</option>
                                 </For>
                             }
                         }}
-
                     </Suspense>
-                    <option value="__new__">"-- Add New --"</option>
                 </select>
                 <input
                     class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
@@ -214,6 +225,7 @@ pub fn User(
                     hidden=move || !group_add_new_selected.get()
                     type="text"
                     id="action_create_group_input"
+                    value=""
                     bind:value=group_edit
                 />
 

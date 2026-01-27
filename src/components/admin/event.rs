@@ -1,6 +1,6 @@
 use crate::{server::{admin::{get_all_user_groups, upload_files, upload_illustration}, db::{self, enums::AttachmentIdentifier}, enums::ResultStatus, get_illustration_id, structs::ApiResult}, utils::html_local_to_datetime};
 use chrono::DateTime;
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
 
 #[component]
 pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView {
@@ -9,13 +9,13 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
     let description_signal = RwSignal::new(event.description.clone());
     let start_at_signal = RwSignal::new(event.start_at);
     let end_at_signal = RwSignal::new(event.end_at);
-    let visible_to_group_signal = RwSignal::new(event.visible_to_group.clone());
+    let visible_to_groups_signal = RwSignal::new(event.visible_to_groups.clone());
 
     let name_edit = RwSignal::new(event.name.clone());
     let description_edit = RwSignal::new(event.description.clone());
     let start_at_edit = RwSignal::new(event.start_at);
     let end_at_edit = RwSignal::new(event.end_at);
-    let visible_to_group_edit = RwSignal::new(event.visible_to_group);
+    let visible_to_groups_edit = RwSignal::new(event.visible_to_groups);
     let attachments_edit = RwSignal::new(None);
     let illustration_edit = RwSignal::new(None);
 
@@ -114,8 +114,8 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                 // <time datetime=move || start_at_signal.get()></time>
                 // <time datetime=move || end_at_signal.get()></time>
                 <p class=r#"text-lg/8"#>
-                    <b>"Visible To Group: "</b>
-                    {move || visible_to_group_signal.get().to_string()}
+                    <b>"Visible To Groups: "</b>
+                    {move || visible_to_groups_signal.get().replace(",", ", ")}
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Start Date: "</b>
@@ -179,14 +179,28 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Group"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="visible_to_group"
-                    bind:value=visible_to_group_edit
+                    name="visible_to_groups"
+                    multiple=true
+                    on:change=move |ev: Event| {
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let selected = sel.selected_options();
+                        let mut picked: Vec<String> = Vec::new();
+
+                        for i in 0..selected.length() {
+                            if let Some(item) = selected.item(i) {
+                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                    picked.push(opt.value());
+                                }
+                            }
+                        }
+
+                        visible_to_groups_edit.set(picked.join(","));
+                    }
                 >
-                    <option value="">"-- Select Group --"</option>
                     <option value="all">"All"</option>
                     <Suspense fallback=move || {
                         view! { <div>"Loading..."</div> }
@@ -264,7 +278,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                         let description = description_edit.get();
                         let start_at = start_at_edit.get();
                         let end_at = end_at_edit.get();
-                        let visible_to_group = visible_to_group_edit.get();
+                        let visible_to_groups = visible_to_groups_edit.get();
                         let attachments = attachments_edit.get();
                         let illustration = illustration_edit.get();
                         if editing.get() {
@@ -276,7 +290,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                                         description: description.clone().unwrap_or_default(),
                                         start_at,
                                         end_at,
-                                        visible_to_group,
+                                        visible_to_groups,
                                         attachments,
                                         illustration
                                     })

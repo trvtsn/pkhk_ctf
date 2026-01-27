@@ -22,7 +22,7 @@ pub enum ChallengeAction {
         difficulty: i8, 
         points: u32, 
         flag: String,
-        visible_to_group: String,
+        visible_to_groups: String,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     },
@@ -38,7 +38,7 @@ pub enum ChallengeAction {
         difficulty: i8, 
         points: u32, 
         flag: String,
-        visible_to_group: String,
+        visible_to_groups: String,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     }
@@ -69,10 +69,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
             }
 
             match action {
-                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_group, attachments, illustration } => {
+                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
-                    let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_group, &mut *tx).await {
+                    let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &mut *tx).await {
                         Ok(result) => result,
                         Err(e) => {
                             tx.rollback().await?;
@@ -144,10 +144,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
                 }
-                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_group, attachments, illustration } => {
+                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
-                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_group, &mut *tx).await {
+                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tx.rollback().await?;
@@ -206,7 +206,7 @@ pub enum EventAction {
         description: String, 
         start_at: DateTime<Local>, 
         end_at: DateTime<Local>,
-        visible_to_group: String,
+        visible_to_groups: String,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     },
@@ -219,7 +219,7 @@ pub enum EventAction {
         description: String, 
         start_at: DateTime<Local>, 
         end_at: DateTime<Local>,
-        visible_to_group: String,
+        visible_to_groups: String,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     }
@@ -250,9 +250,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
             }
 
             match action {
-                EventAction::Create { name, description, start_at, end_at, visible_to_group, attachments, illustration } => {
+                EventAction::Create { name, description, start_at, end_at, visible_to_groups, attachments, illustration } => {
                     let mut tx = auth.backend.pool.begin().await?;
-                    let new_event_id = match db::structs::Event::add(&name, &description, &start_at, &end_at, &visible_to_group, &mut *tx).await {
+                    let new_event_id = match db::structs::Event::add(&name, &description, &start_at, &end_at, &visible_to_groups, &mut *tx).await {
                         Ok(result) => result,
                         Err(e) => {
                             tracing::error!(error = ?e);
@@ -308,9 +308,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                         }
                     }
                 }
-                EventAction::Edit { id, name, description, start_at, end_at, visible_to_group, attachments, illustration } => {
+                EventAction::Edit { id, name, description, start_at, end_at, visible_to_groups, attachments, illustration } => {
                     let mut tx = auth.backend.pool.begin().await?;
-                    match db::structs::Event::edit(&id, &name, &description, &start_at, &end_at, &visible_to_group, &mut *tx).await {
+                    match db::structs::Event::edit(&id, &name, &description, &start_at, &end_at, &visible_to_groups, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tracing::error!(error = ?e);

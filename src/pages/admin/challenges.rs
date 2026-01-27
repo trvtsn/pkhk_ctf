@@ -5,7 +5,7 @@ use crate::server::structs::ApiResult;
 use crate::{components::admin::challenge::Challenge, server::{admin::{upload_files, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
 use gloo_timers::future::sleep;
 use leptos::prelude::*;
-use leptos::{web_sys::{FormData, HtmlInputElement, Event, HtmlSelectElement}, wasm_bindgen::JsCast, task::spawn_local};
+use leptos::{web_sys::{FormData, HtmlInputElement, Event, HtmlSelectElement, HtmlOptionElement}, wasm_bindgen::JsCast, task::spawn_local};
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
 use std::{collections::HashMap, time::Duration};
@@ -22,7 +22,7 @@ pub fn Challenges() -> impl IntoView {
     let difficulty = RwSignal::new(0_i8);
     let points = RwSignal::new(0_u32);
     let flag = RwSignal::new("".to_string());
-    let visible_to_group = RwSignal::new("".to_string());
+    let visible_to_groups = RwSignal::new(vec![]);
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
 
@@ -219,6 +219,7 @@ pub fn Challenges() -> impl IntoView {
                     hidden=move || !category_add_new_selected.get()
                     type="text"
                     id="action_create_category_input"
+                    value=""
                     bind:value=category
                 />
 
@@ -257,14 +258,35 @@ pub fn Challenges() -> impl IntoView {
                     bind:value=flag
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Group"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="visible_to_group"
-                    bind:value=visible_to_group
+                    name="visible_to_groups"
+                    multiple=true
+                    on:change=move |ev: Event| {
+                        let select = match ev.current_target() {
+                            Some(t) => match t.dyn_into::<HtmlSelectElement>() {
+                                Ok(s) => s,
+                                Err(_) => return,
+                            },
+                            None => return
+                        };
+
+                        let selected = select.selected_options();
+                        let mut picked: Vec<String> = Vec::new();
+
+                        for i in 0..selected.length() {
+                            if let Some(item) = selected.item(i) {
+                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                    picked.push(opt.value());
+                                }
+                            }
+                        }
+
+                        visible_to_groups.set(picked);
+                    }
                 >
-                    <option value="">"-- Select Group --"</option>
                     <option value="all">"All"</option>
                     <Suspense fallback=move || {
                         view! { <div>"Loading..."</div> }
@@ -345,7 +367,7 @@ pub fn Challenges() -> impl IntoView {
                             let difficulty = difficulty.get();
                             let points = points.get();
                             let flag = flag.get();
-                            let visible_to_group = visible_to_group.get();
+                            let visible_to_groups = visible_to_groups.get().join(",");
                             let attachments = attachments.get();
                             let illustration = illustration.get();
                             spawn_local(async move {
@@ -357,7 +379,7 @@ pub fn Challenges() -> impl IntoView {
                                         difficulty,
                                         points,
                                         flag,
-                                        visible_to_group,
+                                        visible_to_groups,
                                         attachments,
                                         illustration
                                     })
