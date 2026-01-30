@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 // Top-Level pages
 use crate::{
     pages::{
-        admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login::Login,
+        admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login,
         not_found::NotFound, register::Register, user,
     }, server::{db::{enums::UserRole, structs::DbUserWithoutPII}, get_db_user_without_pii}
 };
@@ -94,7 +94,16 @@ pub fn App() -> impl IntoView {
             <Router>
                 <Routes fallback=NotFound>
                     <Route path=path!("/") view=Home ssr=leptos_router::SsrMode::InOrder />
-                    <Route path=path!("/login") view=Login ssr=leptos_router::SsrMode::InOrder />
+                    <Route
+                        path=path!("/login")
+                        view=login::Login
+                        ssr=leptos_router::SsrMode::InOrder
+                    />
+                    <Route
+                        path=path!("/login/ldap")
+                        view=login::ldap::Login
+                        ssr=leptos_router::SsrMode::InOrder
+                    />
                     <Route
                         path=path!("/register")
                         view=Register

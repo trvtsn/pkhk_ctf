@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
@@ -326,28 +326,19 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
 
 #[server(name=LoginUser, prefix="/api", endpoint="login")]
 #[instrument(skip(password))]
-pub async fn login_user(email: String, password: String) -> Result<ApiResult<Option<User>>, AppError> { // impl IntoResponse (can serve 403 that way)
+pub async fn login_user(email: String, password: String, auth_type: AuthType) -> Result<ApiResult<Option<User>>, AppError> { // impl IntoResponse (can serve 403 that way)
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            // Note that you can still use `leptos_axum::extract().await?` if you want, but since we
-            // called `provide_context` from the `server_fn_handler` in `main`, we can do it this way
-            // and it feels faster. Get the AuthSession.
             let mut auth = use_context::<AuthSession>().unwrap();
-
-            // The SqliteBackend we defined has the `Self::Credential` type set to a `(String,String)` tuple
-            // which is meant to be the username/password pair. This is just an example, you probably want
-            // something more robust to handle different auth scenarios like Oauth and whatnot. Maybe I'll add
-            // those in later if I can figure out how.
-            let creds = Credentials { user_identifier: UserIdentifier::Email(email), password };
+            let creds = Credentials { user_identifier: UserIdentifier::Email(email), password, auth_type };
             let user: Option<User> = auth.backend.authenticate(creds).await?;
 
-            // If the authentication was successful, we actually have to tell the AuthSession that the user
-            // is now logged in. This happens when we call `auth.login(user)`. This will also be the first
-            // place where you actually get a session id sent back to the browser unless you've done other stuff
-            // with your sessions elsewhere.
             if let Some(user) = user.as_ref() {
                 match auth.login(user).await {
-                    Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) }), // update last_active_date in db
+                    Ok(_) => {
+                        // update last_active_date in db
+                        Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
+                    },
                     Err(e) => {
                         tracing::error!(error = ?e);
                         Err(AppError::InternalError("internal error".to_string()))

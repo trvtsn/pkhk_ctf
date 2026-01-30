@@ -11,6 +11,9 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 use tracing::instrument;
 
 #[cfg(feature = "ssr")]
+use crate::server::backend::enums::AuthType;
+
+#[cfg(feature = "ssr")]
 pub type AuthSession = axum_login::AuthSession<Backend>;
 
 #[cfg(feature = "ssr")]
@@ -19,6 +22,7 @@ pub mod structs {
     use serde::{Deserialize, Serialize};
     #[cfg(feature = "ssr")]
     use sqlx::MySqlPool;
+    use super::enums::AuthType;
 
     #[derive(Debug, Clone)]
     pub struct Backend {
@@ -28,7 +32,19 @@ pub mod structs {
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub struct Credentials {
         pub user_identifier: UserIdentifier,
-        pub password: String
+        pub password: String,
+        pub auth_type: AuthType
+    }
+}
+
+pub mod enums {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub enum AuthType {
+        Normal,
+        Ldap
     }
 }
 
@@ -129,14 +145,64 @@ cfg_if! {
 
             #[instrument]
             async fn authenticate(&self, creds: Self::Credentials) -> Result<Option<Self::User>, Self::Error> {
-                let db_user = match DbUser::get(&creds.user_identifier, &self.pool).await {
-                    Ok(Some(user)) => user,
-                    Ok(None) => return Ok(None),
-                    Err(e) => return Err(Self::Error::DatabaseError(e.to_string()))
+                let user = match creds.auth_type {
+                    AuthType::Normal => {
+                        match DbUser::get(&creds.user_identifier, &self.pool).await {
+                            Ok(Some(user)) => user,
+                            Ok(None) => return Ok(None),
+                            Err(e) => return Err(e.into())
+                        }
+                    },
+                    AuthType::Ldap => {
+                        todo!(); // also make sure that the ldap user exists in the first place and if supplied creds are correct before proceeding
+                        let username: String = todo!(); // get username from LDAP/AD server
+                        let mut email = "".to_string(); 
+                        if let UserIdentifier::Email(email_cred) = creds.user_identifier {
+                            email = email_cred;
+                        };
+                        let pw_hash = hash_string(creds.password)?;
+                        let group = todo!(); // get group from LDAP/AD server
+
+                        if let Ok(None) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
+                            let mut tx = self.pool.begin().await?;
+                            let new_user = DbUser { 
+                                id: "".to_string(), 
+                                username, 
+                                email, 
+                                pw_hash, 
+                                created_at: chrono::Local::now(), 
+                                last_active_at: chrono::Local::now(), 
+                                role: UserRole::Competitor,
+                                points: 0,
+                                group: "unassigned".to_string()
+                            };
+
+                            let new_user_id = match new_user.add_ldap(&mut *tx).await {
+                                Ok(id) => {
+                                    tx.commit().await?;
+                                    id
+                                },
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    return Err(e.into());
+                                }
+                            };
+                            
+                            match DbUser::get_ldap(&UserIdentifier::Id(new_user_id), &mut *tx).await {
+                                Ok(Some(user)) => user,
+                                Ok(None) => return Ok(None),
+                                Err(e) => return Err(e.into())
+                            }
+                        } else if let Ok(Some(user)) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
+                            user
+                        } else {
+                            return Ok(None)
+                        }
+                    }
                 };
 
-                if let Ok(()) = verify_hash(creds.password, db_user.clone().pw_hash) {
-                    Ok(Some(db_user.to_user().await?))
+                if let Ok(()) = verify_hash(creds.password, user.clone().pw_hash) {
+                    Ok(Some(user.to_user().await?))
                 } else {
                     Err(Self::Error::InternalError("wrong pw".to_string()))
                 }
@@ -144,7 +210,6 @@ cfg_if! {
 
             #[instrument]
             async fn get_user(&self, user_id: &UserId<Self>) -> Result<Option<Self::User>, Self::Error> {
-                tracing::info!("DbUser::get()");
                 match DbUser::get(&UserIdentifier::Id(user_id.clone()), &self.pool).await {
                     Ok(Some(user)) => Ok(Some(user.to_user().await.expect(""))),
                     Ok(None) => Err(Self::Error::InternalError("".to_string())),
@@ -153,16 +218,6 @@ cfg_if! {
             }
         }
 
-        // impl AuthzBackend for Backend {
-        //     type Permission = Permission;
-
-        //     async fn get_user_permissions(
-        //         &self,
-        //         _user: &Self::User,
-        //     ) -> Result<HashSet<Self::Permission>, Self::Error> {
-                
-        //     }
-        // }
 
         impl DbUser {
             #[instrument]

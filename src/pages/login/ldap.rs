@@ -55,11 +55,18 @@ pub fn Login() -> impl IntoView {
                 <HidePasswordButton hidden=password_hidden />
 
                 <input
+                    hidden=true
+                    name="auth_type"
+                    value="ldap"
+                />
+
+                <input
                     type="submit"
                     class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
                     value="Login"
                 />
             </ActionForm>
+            <a href="/login">"Go back to /login"</a>
         </div>
     }
 }

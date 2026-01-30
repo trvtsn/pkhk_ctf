@@ -705,6 +705,69 @@ cfg_if! {
                 }
             }
 
+            pub async fn get_ldap(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match identifier {
+                    UserIdentifier::Id(id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            FROM users 
+                            WHERE id = ? AND auth_type = \"ldap\"
+                            ", 
+                            id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(user) => Ok(user),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    UserIdentifier::Email(email) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            FROM users 
+                            WHERE email = ? AND auth_type = \"ldap\"
+                            ", 
+                            email
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(user) => Ok(user),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    UserIdentifier::Username(username) => {
+                        //let pattern = format!("%{username}%");
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            FROM users 
+                            WHERE username = ? AND auth_type = \"ldap\"
+                            ", 
+                            username
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(user) => Ok(user),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
+            }
+
             pub async fn is_username_available(username: &String, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
                 match sqlx::query!(
                     "
@@ -757,8 +820,8 @@ cfg_if! {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
-                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`, auth_type) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(),
                     self.username,
@@ -768,7 +831,36 @@ cfg_if! {
                     self.last_active_at,
                     self.role.to_string(),
                     self.points,
-                    self.group
+                    self.group,
+                    "normal"
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(id.to_string()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn add_ldap(&self, executor: impl MySqlExecutor<'_>) -> anyhow::Result<String> {
+                let id = uuid::Uuid::new_v4();
+                match sqlx::query!(
+                    "
+                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`, auth_type) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ", 
+                    id.to_string(),
+                    self.username,
+                    self.email,
+                    self.pw_hash,
+                    self.created_at,
+                    self.last_active_at,
+                    self.role.to_string(),
+                    self.points,
+                    self.group,
+                    "ldap"
                 )
                     .execute(executor)
                     .await {
