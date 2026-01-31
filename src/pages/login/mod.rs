@@ -68,7 +68,12 @@ pub fn Login() -> impl IntoView {
                     value="Login"
                 />
             </ActionForm>
-            <a href="/login/ldap">"Login with LDAP"</a>
+            <a 
+                class="text-blue-600 underline object-cover shadow-sm"
+                href="/login/ldap"
+            >
+                "Login with LDAP"
+            </a>
         </div>
     }
 }

@@ -3,6 +3,7 @@ use argon2::PasswordHasher;
 #[cfg(feature = "ssr")]
 use axum_login::{AuthnBackend, AuthUser, UserId};
 use cfg_if::cfg_if;
+#[cfg(feature = "ssr")]
 use ldap3::{LdapConn, SearchEntry};
 use password_hash::SaltString;
 #[cfg(feature = "ssr")]
@@ -164,7 +165,8 @@ cfg_if! {
                         let mut group = "".to_string();
 
                         let ldap_args = match LdapArgs::get(&self.pool).await {
-                            Ok(args) => args,
+                            Ok(Some(args)) => args,
+                            Ok(None) => return Ok(None),
                             Err(e) => return Err(e.into())
                         };
 

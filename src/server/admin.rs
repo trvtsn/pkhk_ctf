@@ -3,6 +3,7 @@ use crate::server::{AuthSession, hash_string, build_and_broadcast};
 use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs}}, enums::ResultStatus, structs::ApiResult}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
+#[cfg(feature = "ssr")]
 use ldap3::LdapConn;
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
@@ -1118,15 +1119,98 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppE
 
             match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()) {
                 Ok(res) => {
-                    if let Ok(res) = res.clone().success() {
-                        Ok(ApiResult { result: ResultStatus::Success, details: Some(res.to_string()) })
-                    } else if let Ok(res) = res.non_error() {
-                        Ok(ApiResult { result: ResultStatus::Fail, details: Some(res.to_string()) })
-                    } else {
-                        Ok(ApiResult { result: ResultStatus::Fail, details: None })
+                    match res.success() {
+                        Ok(res) => Ok(ApiResult { result: ResultStatus::Success, details: Some(res.to_string()) }),
+                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
                     }
                 },
                 Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetLdap, prefix="/api/admin/ldap", endpoint="get")]
+#[instrument]
+pub async fn get_ldap() -> Result<Option<LdapArgs>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+            
+            match LdapArgs::get(&auth.backend.pool).await {
+                Ok(args) => Ok(args),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=UpdateLdap, prefix="/api/admin", endpoint="ldap")]
+#[instrument]
+pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+            
+            let mut ldap = match LdapConn::new(args.url.as_str()) {
+                Ok(conn) => conn,
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+            };
+
+            match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()) {
+                Ok(res) => {
+                    match res.success() {
+                        Ok(_) => {},
+                        Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    }
+                },
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+            }
+
+            // bind_pw should be hashed, but how to connect with a hashed password?
+            match LdapArgs::update(&args.url, &args.bind_dn, &args.bind_pw, &args.base_dn, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: None }),
+                Err(e) => {
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("Bind succeeded but failed to update DB row: {e}")) })
+                }
             }
         } else {
             Err(AppError::NoServerConnection)

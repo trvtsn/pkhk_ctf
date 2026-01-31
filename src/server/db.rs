@@ -27,6 +27,7 @@ cfg_if! {
             let pool = connect().await?;
             DB.set(pool).expect("DB already initialized");
             add_admin().await?;
+            add_empty_ldap_row().await?;
             
             Ok(())
         }
@@ -44,6 +45,19 @@ cfg_if! {
             }
 
             match DbUser::add_admin(username, email, &pw_hash, get_db_ref()).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.into())
+            }
+        }
+
+        pub async fn add_empty_ldap_row() -> Result<(), AppError> {
+            match LdapArgs::get(get_db_ref()).await {
+                Ok(Some(_)) => return Ok(()),
+                Ok(None) => {},
+                Err(e) => return Err(e.into())
+            }
+
+            match LdapArgs::insert(&"".to_string(), &"".to_string(), &"".to_string(), &"".to_string(), get_db_ref()).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e.into())
             }
@@ -169,7 +183,7 @@ pub mod structs {
         pub solved_at: OffsetDateTime
     }
 
-    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[derive(Debug, Default, Clone, Deserialize, Serialize)]
     pub struct LdapArgs {
         pub url: String,
         pub bind_dn: String,
@@ -3038,7 +3052,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get(executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
+            pub async fn get(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -3046,7 +3060,7 @@ cfg_if! {
                     FROM ldap
                     "
                 )
-                    .fetch_one(executor)
+                    .fetch_optional(executor)
                     .await {
                         Ok(ldap_args) => Ok(ldap_args),
                         Err(e) => {

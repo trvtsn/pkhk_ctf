@@ -1,6 +1,5 @@
 use cfg_if::cfg_if;
 use http::status::StatusCode;
-use ldap3::LdapError;
 use leptos::{prelude::*, server_fn::codec::JsonEncoding};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -69,6 +68,7 @@ impl FromServerFnError for AppError {
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         use crate::server::backend::structs::Backend;
+        use ldap3::LdapError;
         
         impl From<sqlx::Error> for AppError {
             fn from(value: sqlx::Error) -> Self {

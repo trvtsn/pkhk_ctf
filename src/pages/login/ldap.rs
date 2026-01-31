@@ -66,7 +66,12 @@ pub fn Login() -> impl IntoView {
                     value="Login"
                 />
             </ActionForm>
-            <a href="/login">"Go back to /login"</a>
+            <a 
+                class="text-blue-600 underline object-cover shadow-sm"
+                href="/login"
+            >
+                "Go back to /login"
+            </a>
         </div>
     }
 }
