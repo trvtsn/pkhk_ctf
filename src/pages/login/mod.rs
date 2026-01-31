@@ -1,6 +1,6 @@
 pub mod ldap;
 
-use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{LoginUser, get_user}};
+use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{LoginUser, get_user, is_ldap_enabled}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
@@ -23,6 +23,26 @@ pub fn Login() -> impl IntoView {
             }
         }
     );
+
+    let ldap_enabled_resource = Resource::new(move || (), move |_| async move {
+        is_ldap_enabled().await.unwrap_or_default()
+    });
+
+    let ldap_login_view = Suspend::new(async move {
+        let is_ldap_enabled = ldap_enabled_resource.await;
+        if is_ldap_enabled {
+            view! {
+                <a 
+                    class="text-blue-600"
+                    href="/login/ldap"
+                >
+                    "Login with LDAP"
+                </a>
+            }.into_any()
+        } else {
+            "".into_any()
+        }
+    });
 
     Effect::new(move || {
         if let Some(Some(_)) = logged_in_user.get() {
@@ -68,12 +88,7 @@ pub fn Login() -> impl IntoView {
                     value="Login"
                 />
             </ActionForm>
-            <a 
-                class="text-blue-600 underline object-cover shadow-sm"
-                href="/login/ldap"
-            >
-                "Login with LDAP"
-            </a>
+            {ldap_login_view}
         </div>
     }
 }

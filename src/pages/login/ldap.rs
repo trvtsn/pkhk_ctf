@@ -1,4 +1,4 @@
-use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{LoginUser, get_user}};
+use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{LoginUser, get_user, is_ldap_enabled}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
@@ -22,10 +22,21 @@ pub fn Login() -> impl IntoView {
         }
     );
 
+    let ldap_enabled_resource = Resource::new(move || (), move |_| async move {
+        is_ldap_enabled().await.unwrap_or_default()
+    });
+
     Effect::new(move || {
         if let Some(Some(_)) = logged_in_user.get() {
             let nav = use_navigate();
             nav("/", Default::default());
+        }
+
+        if let Some(enabled) = ldap_enabled_resource.get() {
+            if !enabled {
+                let nav = use_navigate();
+                nav("/login", Default::default());
+            }
         }
     });
 
@@ -67,7 +78,7 @@ pub fn Login() -> impl IntoView {
                 />
             </ActionForm>
             <a 
-                class="text-blue-600 underline object-cover shadow-sm"
+                class="text-blue-600"
                 href="/login"
             >
                 "Go back to /login"

@@ -1207,9 +1207,81 @@ pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, Ap
 
             // bind_pw should be hashed, but how to connect with a hashed password?
             match LdapArgs::update(&args.url, &args.bind_dn, &args.bind_pw, &args.base_dn, &auth.backend.pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: None }),
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated LDAP configuration".to_string()) }),
                 Err(e) => {
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("Bind succeeded but failed to update DB row: {e}")) })
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("bind succeeded but failed to update DB row: {e}")) })
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=EnableLdap, prefix="/api/admin/ldap", endpoint="enable")]
+#[instrument]
+pub async fn enable_ldap() -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+
+            match LdapArgs::enable(&auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully enabled LDAP authentication".to_string()) }),
+                Err(e) => {
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("Failed to update DB row: {e}")) })
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=DisableLdap, prefix="/api/admin/ldap", endpoint="disable")]
+#[instrument]
+pub async fn disable_ldap() -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+            
+            match LdapArgs::disable(&auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully disabled LDAP authentication".to_string()) }),
+                Err(e) => {
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("failed to update DB row: {e}")) })
                 }
             }
         } else {

@@ -3141,6 +3141,29 @@ cfg_if! {
                         }
                     }
             }
+
+            pub async fn get_status(executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT enabled
+                    FROM ldap
+                    "
+                )
+                    .fetch_one(executor)
+                    .await {
+                        Ok(row) => {
+                            match row.enabled {
+                                0 => Ok(false),
+                                1 => Ok(true),
+                                _ => Ok(false)
+                            }
+                        },
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
         }
     }
 }

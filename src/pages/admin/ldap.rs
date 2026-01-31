@@ -1,4 +1,4 @@
-use crate::{components::utils::HidePasswordButton, server::{admin::get_ldap, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::utils::HidePasswordButton, server::{admin::{disable_ldap, enable_ldap, get_ldap, update_ldap, test_ldap}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local};
 
 /// Default Home Page
@@ -14,7 +14,6 @@ pub fn Ldap() -> impl IntoView {
     let base_dn = RwSignal::new("".to_string());
     let enabled = RwSignal::new(SqlBool(true));
 
-    let ldap_args = RwSignal::new(LdapArgs::default());
     let ldap_resource = Resource::new(move || (), move |_| async move {
         get_ldap().await.unwrap_or_default()
     });
@@ -33,12 +32,12 @@ pub fn Ldap() -> impl IntoView {
             view! { <div>"Loading..."</div> }
         }>
             {move || {
-                Suspend::new(async move {
-                    match ldap_resource.await {
-                        Some(args) => ldap_args.set(args),
-                        None => {}
-                    }
-                });
+                let ldap_args = ldap_resource.get().unwrap_or_default().unwrap_or_default();
+                ldap_url.set(ldap_args.url.clone());
+                bind_dn.set(ldap_args.bind_dn.clone());
+                bind_pw.set(ldap_args.bind_pw.clone());
+                base_dn.set(ldap_args.base_dn.clone());
+                enabled.set(ldap_args.enabled);
 
                 view! {
                     <div 
@@ -47,13 +46,19 @@ pub fn Ldap() -> impl IntoView {
                         <label>"Enable"</label>
                         <input
                             type="checkbox"
-                            checked=move || enabled.get().0
+                            checked=move || enabled.get().0 
                             on:input=move |ev| {
                                 let is_checked = event_target_checked(&ev);
                                 if is_checked {
-                                    enabled.set(SqlBool(true))
+                                    enabled.set(SqlBool(true));
+                                    spawn_local(async move {
+                                        _ = enable_ldap().await;
+                                    });
                                 } else {
-                                    enabled.set(SqlBool(false))
+                                    enabled.set(SqlBool(false));
+                                    spawn_local(async move {
+                                        _ = disable_ldap().await;
+                                    });
                                 };
                             }
                         />
@@ -70,7 +75,7 @@ pub fn Ldap() -> impl IntoView {
                             class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             name="name"
-                            value=move || ldap_args.get().url
+                            value=move || ldap_url.get()
                             bind:value=ldap_url
                         />
 
@@ -79,7 +84,7 @@ pub fn Ldap() -> impl IntoView {
                             class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             name="name"
-                            value=move || ldap_args.get().bind_dn
+                            value=move || bind_dn.get()
                             bind:value=bind_dn
                         />
 
@@ -89,7 +94,7 @@ pub fn Ldap() -> impl IntoView {
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             type=move || if password_hidden.get() { "password" } else { "text" }
                             name="password"
-                            value=move || ldap_args.get().bind_pw
+                            value=move || bind_pw.get()
                             bind:value=bind_pw
                         />
                         <HidePasswordButton hidden=password_hidden />
@@ -99,7 +104,7 @@ pub fn Ldap() -> impl IntoView {
                             class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             name="name"
-                            value=move || ldap_args.get().base_dn
+                            value=move || base_dn.get()
                             bind:value=base_dn
                         />
 
@@ -114,7 +119,7 @@ pub fn Ldap() -> impl IntoView {
                                     let base_dn = base_dn.get();
                                     let enabled = enabled.get();
                                     spawn_local(async move {
-                                        if let Ok(ApiResult { result, details }) = crate::server::admin::test_ldap(LdapArgs {
+                                        if let Ok(ApiResult { result, details }) = test_ldap(LdapArgs {
                                                 url,
                                                 bind_dn,
                                                 bind_pw,
@@ -148,7 +153,7 @@ pub fn Ldap() -> impl IntoView {
                                     let base_dn = base_dn.get();
                                     let enabled = enabled.get();
                                     spawn_local(async move {
-                                        if let Ok(ApiResult { result, details }) = crate::server::admin::update_ldap(LdapArgs {
+                                        if let Ok(ApiResult { result, details }) = update_ldap(LdapArgs {
                                                 url,
                                                 bind_dn,
                                                 bind_pw,
