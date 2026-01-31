@@ -1,5 +1,6 @@
 use cfg_if::cfg_if;
 use http::status::StatusCode;
+use ldap3::LdapError;
 use leptos::{prelude::*, server_fn::codec::JsonEncoding};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -83,6 +84,12 @@ cfg_if! {
 
         impl From<axum_login::Error<Backend>> for AppError {
             fn from(value: axum_login::Error<Backend>) -> Self {
+                Self::InternalError(value.to_string())
+            }
+        }
+
+        impl From<LdapError> for AppError {
+            fn from(value: LdapError) -> Self {
                 Self::InternalError(value.to_string())
             }
         }

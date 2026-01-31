@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata}}};
+use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata, LdapArgs}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
@@ -167,6 +167,14 @@ pub mod structs {
         pub event: Event,
         pub challenge: Challenge,
         pub solved_at: OffsetDateTime
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub struct LdapArgs {
+        pub url: String,
+        pub bind_dn: String,
+        pub bind_pw: String,
+        pub base_dn: String
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -2951,6 +2959,114 @@ cfg_if! {
                             }
                             Ok(solved_challenge_ids)
                         },
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+        }
+    
+        impl LdapArgs {
+            pub async fn insert(
+                url: &String, 
+                bind_dn: &String, 
+                bind_pw: &String, 
+                base_dn: &String, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    INSERT INTO ldap (url, bind_dn, bind_pw, base_dn)
+                    VALUES (?, ?, ?, ?)
+                    ",
+                    url,
+                    bind_dn,
+                    bind_pw,
+                    base_dn,
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn update(
+                url: &String, 
+                bind_dn: &String, 
+                bind_pw: &String, 
+                base_dn: &String, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE ldap
+                    SET url = ?, bind_dn = ?, bind_pw = ?, base_dn = ?
+                    ",
+                    url,
+                    bind_dn,
+                    bind_pw,
+                    base_dn,
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn delete(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    DELETE FROM ldap
+                    "
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get(executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT url, bind_dn, bind_pw, base_dn
+                    FROM ldap
+                    "
+                )
+                    .fetch_one(executor)
+                    .await {
+                        Ok(ldap_args) => Ok(ldap_args),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_optional(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT url, bind_dn, bind_pw, base_dn
+                    FROM ldap
+                    "
+                )
+                    .fetch_optional(executor)
+                    .await {
+                        Ok(ldap_args) => Ok(ldap_args),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

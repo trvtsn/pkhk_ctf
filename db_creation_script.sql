@@ -118,6 +118,20 @@ CREATE INDEX `file_name_idx` ON `ctfpkhk`.`attachments` (`file_name` ASC) VISIBL
 
 
 -- -----------------------------------------------------
+-- Table `ctfpkhk`.`ldap`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctfpkhk`.`ldap` (
+  `restriction` ENUM('') NOT NULL,
+  `url` VARCHAR(100) NOT NULL,
+  `bind_dn` VARCHAR(100) NOT NULL,
+  `bind_pw` VARCHAR(64) NOT NULL,
+  `base_dn` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`restriction`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb3;
+
+
+-- -----------------------------------------------------
 -- Table `ctfpkhk`.`submissions`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (

@@ -3,6 +3,7 @@ use argon2::PasswordHasher;
 #[cfg(feature = "ssr")]
 use axum_login::{AuthnBackend, AuthUser, UserId};
 use cfg_if::cfg_if;
+use ldap3::{LdapConn, SearchEntry};
 use password_hash::SaltString;
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
@@ -12,6 +13,7 @@ use tracing::instrument;
 
 #[cfg(feature = "ssr")]
 use crate::server::backend::enums::AuthType;
+use crate::server::db::structs::LdapArgs;
 
 #[cfg(feature = "ssr")]
 pub type AuthSession = axum_login::AuthSession<Backend>;
@@ -154,14 +156,45 @@ cfg_if! {
                         }
                     },
                     AuthType::Ldap => {
-                        todo!(); // also make sure that the ldap user exists in the first place and if supplied creds are correct before proceeding
-                        let username: String = todo!(); // get username from LDAP/AD server
                         let mut email = "".to_string(); 
-                        if let UserIdentifier::Email(email_cred) = creds.user_identifier {
-                            email = email_cred;
+                        if let UserIdentifier::Email(ref email_cred) = creds.user_identifier {
+                            email = email_cred.to_string();
                         };
-                        let pw_hash = hash_string(creds.password)?;
-                        let group = todo!(); // get group from LDAP/AD server
+                        let mut username = "".to_string();
+                        let mut group = "".to_string();
+
+                        let ldap_args = match LdapArgs::get(&self.pool).await {
+                            Ok(args) => args,
+                            Err(e) => return Err(e.into())
+                        };
+
+                        let mut ldap = LdapConn::new(ldap_args.url.as_str()).unwrap();
+                        let target_dn = format!("CN={},{}", email, ldap_args.base_dn);
+                        let result = match ldap.simple_bind(target_dn.as_str(), creds.password.as_str()) {
+                            Ok(res) => res.success(),
+                            Err(e) => return Err(e.into())
+                        };
+                        if result.is_err() {
+                            return Ok(None);
+                        }
+
+                        let filter = format!("(sAMAccountName={})", email);
+                        let attrs = vec!["distinguisedName", "sAMAccountName", "memberOf"];
+                        let (entries, _res) = ldap.search(ldap_args.base_dn.as_str(), ldap3::Scope::Subtree, &filter, attrs)?.success()?;
+                        if entries.is_empty() {
+                            return Ok(None);
+                        }
+
+                        for entry in entries {
+                            let se = SearchEntry::construct(entry);
+
+                            username = se.attrs.get("sAMAccountName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
+                            if let Some(groups) = se.attrs.get("memberOf") {
+                                group = groups.first().cloned().unwrap_or_default();
+                            }
+                        }
+
+                        let pw_hash = hash_string(creds.password.clone())?;
 
                         if let Ok(None) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
                             let mut tx = self.pool.begin().await?;
@@ -174,14 +207,11 @@ cfg_if! {
                                 last_active_at: chrono::Local::now(), 
                                 role: UserRole::Competitor,
                                 points: 0,
-                                group: "unassigned".to_string()
+                                group
                             };
 
                             let new_user_id = match new_user.add_ldap(&mut *tx).await {
-                                Ok(id) => {
-                                    tx.commit().await?;
-                                    id
-                                },
+                                Ok(id) => id,
                                 Err(e) => {
                                     tx.rollback().await?;
                                     return Err(e.into());
@@ -189,9 +219,18 @@ cfg_if! {
                             };
                             
                             match DbUser::get_ldap(&UserIdentifier::Id(new_user_id), &mut *tx).await {
-                                Ok(Some(user)) => user,
-                                Ok(None) => return Ok(None),
-                                Err(e) => return Err(e.into())
+                                Ok(Some(user)) => {
+                                    tx.commit().await?;
+                                    user
+                                },
+                                Ok(None) => {
+                                    tx.rollback().await?;
+                                    return Ok(None)
+                                },
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    return Err(e.into())
+                                }
                             }
                         } else if let Ok(Some(user)) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
                             user

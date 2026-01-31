@@ -1,12 +1,13 @@
 pub mod challenges;
 pub mod events;
+pub mod ldap;
 pub mod log;
 pub mod site_settings;
 pub mod users;
 pub mod files;
 
 use super::admin::{challenges::Challenges, events::Events, log::Log, site_settings::SiteSettings, users::Users, files::Files};
-use crate::{components::navbar::NavBar};
+use crate::{components::navbar::NavBar, pages::admin::ldap::Ldap};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
@@ -18,7 +19,8 @@ pub enum AdminSections {
     Challenges,
     Files,
     Users,
-    Log
+    Log,
+    Ldap
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,6 +64,10 @@ pub fn Admin() -> impl IntoView {
 
                             <Show when=move || selected.get() == AdminSections::Users>
                                 <Users />
+                            </Show>
+
+                            <Show when=move || selected.get() == AdminSections::Ldap>
+                                <Ldap />
                             </Show>
 
                             <Show when=move || selected.get() == AdminSections::Log>
@@ -135,6 +141,17 @@ pub fn AdminNavBar() -> impl IntoView {
                     >
                         <Icon icon=i::LuUsers />
                         "Users"
+                    </p>
+                </li>
+                <li class="bg-background">
+                    <p
+                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
+                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
+                        on:click=move |_| selected.set(AdminSections::Ldap)
+                    >
+                        <Icon icon=i::LuServerCog />
+                        "LDAP"
                     </p>
                 </li>
                 <li class="bg-background">

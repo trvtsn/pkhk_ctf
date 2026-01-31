@@ -1,8 +1,9 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs}}, enums::ResultStatus, structs::ApiResult}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
+use ldap3::LdapConn;
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
@@ -1045,14 +1046,24 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
             let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
                 }
             };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+
             if username.is_some() {
                 match DbUser::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &auth.backend.pool).await {
                     Ok(user) => Ok(user),
@@ -1069,6 +1080,53 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
                         Err(AppError::InternalError("internal error".to_string()))
                     }
                 }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=TestLdap, prefix="/api/admin", endpoint="test_ldap")]
+#[instrument]
+pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+            
+            let mut ldap = match LdapConn::new(args.url.as_str()) {
+                Ok(conn) => conn,
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+            };
+
+            match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()) {
+                Ok(res) => {
+                    if let Ok(res) = res.clone().success() {
+                        Ok(ApiResult { result: ResultStatus::Success, details: Some(res.to_string()) })
+                    } else if let Ok(res) = res.non_error() {
+                        Ok(ApiResult { result: ResultStatus::Fail, details: Some(res.to_string()) })
+                    } else {
+                        Ok(ApiResult { result: ResultStatus::Fail, details: None })
+                    }
+                },
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
             }
         } else {
             Err(AppError::NoServerConnection)
