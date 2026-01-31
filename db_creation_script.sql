@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`ldap` (
   `bind_dn` VARCHAR(100) NOT NULL,
   `bind_pw` VARCHAR(64) NOT NULL,
   `base_dn` VARCHAR(100) NOT NULL,
+  `enabled` TINYINT NOT NULL,
   PRIMARY KEY (`restriction`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;

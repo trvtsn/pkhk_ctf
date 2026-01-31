@@ -188,7 +188,8 @@ pub mod structs {
         pub url: String,
         pub bind_dn: String,
         pub bind_pw: String,
-        pub base_dn: String
+        pub base_dn: String,
+        pub enabled: SqlBool
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -196,6 +197,25 @@ pub mod structs {
         pub name: Option<String>,
         pub first_submission: Option<OffsetDateTime>,
         pub last_submission: Option<OffsetDateTime>,
+    }
+
+    #[derive(Default, Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct SqlBool(pub bool);
+
+    impl From<i8> for SqlBool {
+        fn from(value: i8) -> Self {
+            match value {
+                0 => Self(false),
+                1 => Self(true),
+                _ => panic!("invalid boolean value {value}"),
+            }
+        }
+    }
+
+    impl Into<bool> for SqlBool {
+        fn into(self) -> bool {
+            self.0
+        }
     }
 }
 
@@ -3036,6 +3056,23 @@ cfg_if! {
                     }
             }
 
+            pub async fn enable(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE ldap
+                    SET enabled = 1
+                    "
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn delete(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
@@ -3052,11 +3089,28 @@ cfg_if! {
                     }
             }
 
+            pub async fn disable(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE ldap
+                    SET enabled = 0
+                    "
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT url, bind_dn, bind_pw, base_dn
+                    SELECT url, bind_dn, bind_pw, base_dn, enabled
                     FROM ldap
                     "
                 )
@@ -3074,7 +3128,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT url, bind_dn, bind_pw, base_dn
+                    SELECT url, bind_dn, bind_pw, base_dn, enabled
                     FROM ldap
                     "
                 )
