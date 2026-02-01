@@ -4,7 +4,7 @@ use argon2::PasswordHasher;
 use axum_login::{AuthnBackend, AuthUser, UserId};
 use cfg_if::cfg_if;
 #[cfg(feature = "ssr")]
-use ldap3::{LdapConn, SearchEntry};
+use ldap3::{LdapConnAsync, SearchEntry};
 use password_hash::SaltString;
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
@@ -170,20 +170,25 @@ cfg_if! {
                             Err(e) => return Err(e.into())
                         };
 
-                        let mut ldap = LdapConn::new(ldap_args.url.as_str()).unwrap();
-                        let target_dn = format!("CN={},{}", email, ldap_args.base_dn);
-                        let result = match ldap.simple_bind(target_dn.as_str(), creds.password.as_str()) {
-                            Ok(res) => res.success(),
-                            Err(e) => return Err(e.into())
-                        };
-                        if result.is_err() {
-                            return Ok(None);
-                        }
+                        let (conn, mut ldap) = LdapConnAsync::new(ldap_args.url.as_str()).await?;
+                        ldap3::drive!(conn);
 
-                        let filter = format!("(sAMAccountName={})", email);
-                        let attrs = vec!["distinguisedName", "sAMAccountName", "memberOf"];
-                        let (entries, _res) = ldap.search(ldap_args.base_dn.as_str(), ldap3::Scope::Subtree, &filter, attrs)?.success()?;
+                        match ldap.simple_bind(email.as_str(), creds.password.as_str()).await {
+                            Ok(res) => if res.success().is_err() { 
+                                ldap.unbind().await?;
+                                return Ok(None) 
+                            },
+                            Err(e) => {
+                                ldap.unbind().await?;
+                                return Err(e.into())
+                            }
+                        };
+
+                        let filter = format!("(userPrincipalName={})", email);
+                        let attrs = vec!["userPrincipalName", "sAMAccountName", "memberOf"];
+                        let (entries, _res) = ldap.search(ldap_args.base_dn.as_str(), ldap3::Scope::Subtree, &filter, attrs).await?.success()?;
                         if entries.is_empty() {
+                            ldap.unbind().await?;
                             return Ok(None);
                         }
 
@@ -191,11 +196,13 @@ cfg_if! {
                             let se = SearchEntry::construct(entry);
 
                             username = se.attrs.get("sAMAccountName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
+                            email = se.attrs.get("userPrincipalName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
                             if let Some(groups) = se.attrs.get("memberOf") {
                                 group = groups.first().cloned().unwrap_or_default();
                             }
                         }
 
+                        ldap.unbind().await?;
                         let pw_hash = hash_string(creds.password.clone())?;
 
                         if let Ok(None) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {

@@ -4,7 +4,7 @@ use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, 
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
-use ldap3::LdapConnAsync;
+use ldap3::{LdapConnAsync, LdapConnSettings};
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
@@ -1200,7 +1200,8 @@ pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, Ap
                 return Err(AppError::Forbidden);
             }
             
-            let (conn, mut ldap) = match LdapConnAsync::new(args.url.as_str()).await {
+            let ldap_conn_settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
+            let (conn, mut ldap) = match LdapConnAsync::with_settings(ldap_conn_settings, &args.url.as_str()).await {
                 Ok(conn) => conn,
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
             };
