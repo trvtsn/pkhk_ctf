@@ -318,9 +318,9 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     INSERT INTO users
-                    (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`)
+                    (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`, auth_type)
                     VALUES
-                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ",
                     id.to_string(),
                     username,
@@ -330,7 +330,8 @@ cfg_if! {
                     sqlx::types::chrono::Local::now(),
                     "admin",
                     0,
-                    "administrators"
+                    "administrator",
+                    "normal"
                 )
                     .execute(executor)
                     .await {
@@ -3011,13 +3012,14 @@ cfg_if! {
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
-                    INSERT INTO ldap (url, bind_dn, bind_pw, base_dn)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO ldap (url, bind_dn, bind_pw, base_dn, enabled)
+                    VALUES (?, ?, ?, ?, ?)
                     ",
                     url,
                     bind_dn,
                     bind_pw,
                     base_dn,
+                    0
                 )
                     .execute(executor)
                     .await {

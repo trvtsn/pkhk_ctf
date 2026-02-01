@@ -4,7 +4,7 @@ use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, 
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
-use ldap3::LdapConn;
+use ldap3::LdapConnAsync;
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
@@ -1112,19 +1112,29 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppE
                 return Err(AppError::Forbidden);
             }
             
-            let mut ldap = match LdapConn::new(args.url.as_str()) {
+            let (conn, mut ldap) = match LdapConnAsync::new(args.url.as_str()).await {
                 Ok(conn) => conn,
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
             };
+            ldap3::drive!(conn);
 
-            match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()) {
+            match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()).await {
                 Ok(res) => {
                     match res.success() {
-                        Ok(res) => Ok(ApiResult { result: ResultStatus::Success, details: Some(res.to_string()) }),
-                        Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                        Ok(res) => {
+                            ldap.unbind().await?;
+                            Ok(ApiResult { result: ResultStatus::Success, details: Some(res.to_string()) })
+                        },
+                        Err(e) => {
+                            ldap.unbind().await?;
+                            Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                        }
                     }
                 },
-                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                Err(e) => {
+                    ldap.unbind().await?;
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                }
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -1190,15 +1200,16 @@ pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, Ap
                 return Err(AppError::Forbidden);
             }
             
-            let mut ldap = match LdapConn::new(args.url.as_str()) {
+            let (conn, mut ldap) = match LdapConnAsync::new(args.url.as_str()).await {
                 Ok(conn) => conn,
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
             };
+            ldap3::drive!(conn);
 
-            match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()) {
+            match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()).await {
                 Ok(res) => {
                     match res.success() {
-                        Ok(_) => {},
+                        Ok(_) => ldap.unbind().await?,
                         Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
                     }
                 },

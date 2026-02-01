@@ -29,9 +29,10 @@ cargo leptos watch
 - [x] Actually make dark mode work
 - [x] Add "group" column to DB in "users" table
 - [x] Filter challenges and leaderboard by user group
-- [ ] Add multi-select for "visible to group" on admin event/challenge create/edit
+- [x] Add multi-select for "visible to group" on admin event/challenge create/edit
 - [x] Add "Group" select to admin create challenge view
-- [ ] Add LDAP/AD functionality
+- [x] Add LDAP/AD functionality
+- [ ] Add LDAPS
 
 ### Security
 - [ ] Sanitize text inputs
