@@ -32,7 +32,11 @@ cargo leptos watch
 - [x] Add multi-select for "visible to group" on admin event/challenge create/edit
 - [x] Add "Group" select to admin create challenge view
 - [x] Add LDAP/AD functionality
-- [ ] Add LDAPS
+- [ ] Add LDAPS/ work in progress needs certs from DC2 
+- [ ] Create CTF Realm to Proxmox
+- [ ] Create competitor pools, permissions, accesses in Proxmox
+- [ ] Create Kali Linux Proxmox template
+- [ ] Create script to automate clone & start process in Proxmox
 
 ### Security
 - [ ] Sanitize text inputs
