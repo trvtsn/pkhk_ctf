@@ -9,27 +9,31 @@ use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 // use thaw::*;
 
 #[component]
-pub fn Challenge(
-    cwa: ChallengeWithAttachments,
+pub fn ChallengePopup(
+    cwa_popup: RwSignal<ChallengeWithAttachments>,
     solved_challenges: RwSignal<Vec<String>>,
-    overlay_triggered: RwSignal<bool>,
-    cwa_popup: RwSignal<ChallengeWithAttachments>
+    overlay_triggered: RwSignal<bool>
 ) -> impl IntoView {
-    let ChallengeWithAttachments { challenge, attachments } = cwa.clone();
-    let challenge_signal = RwSignal::new(challenge.clone());
-    let description_signal = RwSignal::new(challenge.description.clone());
-    let difficulty_signal = RwSignal::new(challenge.difficulty);
+    let description_signal = RwSignal::new(None);
     let flag_signal = RwSignal::new("".to_string());
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
-    let vm_started = RwSignal::new(false); // use db resource to check for active proxmox instances
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let illustration = Resource::new(move || (), move |_| {
-        let challenge_id = challenge_signal.get().id;
+        let challenge_id = cwa_popup.get().challenge.id;
         async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
+    });
+
+    let card_classes = Memo::new(move |_| {
+        let base = "content-center p-4 rounded-lg absolute inset-0 flex items-center justify-center z-20";
+        if overlay_triggered.get() {
+            base.to_string()
+        } else {
+            format!("{base} hidden")
+        }
     });
 
     let button_classes = Memo::new(move |_| {
@@ -48,7 +52,7 @@ pub fn Challenge(
     });
 
     let submit_btn_text = Memo::new(move |_| {
-        if solved_challenges.get().contains(&challenge_signal.get().id) { 
+        if solved_challenges.get().contains(&cwa_popup.get().challenge.id) { 
             solved.set(true);
             "Solved" 
         } else if incorrect.get() { 
@@ -66,8 +70,15 @@ pub fn Challenge(
 
     view! {
         <div
-            class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover"#
+            class=move || card_classes.get()
         >
+            <button 
+                class="cursor-pointer"
+                on:click=move |_| overlay_triggered.set(false)
+            >
+                "x"
+            </button>
+
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>
@@ -86,14 +97,22 @@ pub fn Challenge(
                     }
                 }}
             </Transition>
-            <h3 class=r#"font-bold text-3xl/8"#>{move || challenge_signal.get().name.clone()}</h3>
+            <h3 class=r#"font-bold text-3xl/8"#>{move || cwa_popup.get().challenge.name.clone()}</h3>
             <p class=r#"text-lg/8"#>
-                <TruncatedDesc description=description_signal />
+            <Transition fallback=move || {
+                view! { <div>"..."</div> }
+            }>
+                {move || {
+                    description_signal.set(cwa_popup.get().challenge.description);
+                    view! { <TruncatedDesc description=description_signal /> }
+                }}
+            </Transition>
+                
             </p>
-            <Difficulty difficulty_signal />
+            <Difficulty difficulty=cwa_popup />
             <p class=r#"text-lg/8"#>
                 <b>"Points: "</b>
-                {move || challenge_signal.get().points}
+                {move || cwa_popup.get().challenge.points}
             </p>
             <br />
 
@@ -113,7 +132,7 @@ pub fn Challenge(
                     let stop = stop.clone();
                     let refresh_user = refresh_user;
                     let flag = flag_signal.get();
-                    let challenge = challenge_signal.get();
+                    let challenge = cwa_popup.get().challenge;
                     spawn_local(async move {
                         if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await
                         {
@@ -134,7 +153,7 @@ pub fn Challenge(
             </button>
 
             <For
-                each=move || attachments.clone()
+                each=move || cwa_popup.get().attachments.clone()
                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                 let(a)
             >
@@ -146,71 +165,12 @@ pub fn Challenge(
                     {a.file_name}
                 </a>
             </For>
-
-            <button
-                class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                on:click=move |_| {
-                    overlay_triggered.set(true);
-                    cwa_popup.set(cwa.clone());
-                }
-            >
-                "View"
-            </button>
-
-            <Show when=move || !vm_started.get()>
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        vm_started.set(true);
-                    }
-                >
-                    "Start VM"
-                </button>
-            </Show>
-            <Show when=move || vm_started.get()>
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        todo!();
-                    }
-                >
-                    "Restart VM"
-                </button>
-
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        todo!();
-                    }
-                >
-                    "Add Time (+30 min)"
-                </button>
-
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        todo!();
-                    }
-                >
-                    "Destroy VM"
-                </button>
-            </Show>
         </div>
     }
 }
 
 #[component]
-pub fn Difficulty(difficulty_signal: RwSignal<i8>) -> impl IntoView {
+pub fn Difficulty(difficulty: RwSignal<ChallengeWithAttachments>) -> impl IntoView {
     view! {
         <Transition fallback=move || {
             view! { <div>"..."</div> }
@@ -220,11 +180,11 @@ pub fn Difficulty(difficulty_signal: RwSignal<i8>) -> impl IntoView {
                     <div
                         class=r#"difficulty"#
                         role="img"
-                        aria-label=format!("Difficulty: {} of 5", difficulty_signal.get())
+                        aria-label=format!("Difficulty: {} of 5", difficulty.get().challenge.difficulty)
                     >
                         <span class=r#"label"#>
                             <b class=r#"text-lg/8"#>"Difficulty: "</b>
-                            {"⭐".repeat(difficulty_signal.get() as usize)}
+                            {"⭐".repeat(difficulty.get().challenge.difficulty as usize)}
                         </span>
                     </div>
                 }

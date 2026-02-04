@@ -4,9 +4,9 @@ use leptos_icons::Icon;
 
 /// Default Home Page
 #[component]
-pub fn TruncatedDesc(description_signal: RwSignal<Option<String>>) -> impl IntoView {
+pub fn TruncatedDesc(description: RwSignal<Option<String>>) -> impl IntoView {
     let description = Memo::new(move |_| {
-        description_signal.get().unwrap_or_default()
+        description.get().unwrap_or_default()
     });
 
     let desc_max_len = 200usize;
@@ -73,5 +73,24 @@ pub fn HidePasswordButton(hidden: RwSignal<bool>) -> impl IntoView {
                 <Icon icon=i::LuEyeOff />
             </button>
         </Show>
+    }
+}
+
+#[component]
+pub fn DimmingOverlay(overlay_triggered: RwSignal<bool>) -> impl IntoView {
+    let classes = Memo::new(move |_| {
+        let base = "absolute inset-0 bg-black/45 backdrop-blur-[1px] z-10";
+        if overlay_triggered.get() {
+            base.to_string()
+        } else {
+            format!("{base} hidden")
+        }
+    });
+
+    view! {
+        <div
+            class=move || classes.get()
+            aria-hidden=move || !overlay_triggered.get()
+        ></div>
     }
 }

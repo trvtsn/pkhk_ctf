@@ -23,7 +23,7 @@ pub fn NavBar() -> impl IntoView {
     });
 
     view! {
-        <div class=r#"flex top-0 items-center p-4 w-full shadow-sm bg-background text-text"#>
+        <div class=r#"flex top-0 items-center p-4 w-full shadow-sm bg-background text-text z-15"#>
             <div class=r#"flex-1"#></div>
 
             <nav class=r#"flex justify-center items-center"#>

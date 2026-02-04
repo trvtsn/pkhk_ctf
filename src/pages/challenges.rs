@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, navbar::NavBar}, server::{db, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -9,6 +9,8 @@ use std::collections::HashMap;
 /// Default Home Page
 #[component]
 pub fn Challenges() -> impl IntoView {
+    let cwa_popup = RwSignal::new(ChallengeWithAttachments::default());
+    let overlay_triggered = RwSignal::new(false);
     let refresh = RwSignal::new(0);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     let challenges_resource = Resource::new(move || refresh.get(), move |_| async move {
@@ -50,6 +52,7 @@ pub fn Challenges() -> impl IntoView {
     });
 
     let challenges_view = move || { view! {
+        <DimmingOverlay overlay_triggered />
         <div class=r#"challenges"#>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
@@ -103,6 +106,8 @@ pub fn Challenges() -> impl IntoView {
                                             <Challenge
                                                 cwa=challenge
                                                 solved_challenges=solved_challenge_ids
+                                                overlay_triggered
+                                                cwa_popup=cwa_popup
                                             />
                                         </div>
                                     </For>
@@ -118,6 +123,7 @@ pub fn Challenges() -> impl IntoView {
     view! {
         <NavBar />
         <div class=r#"grid justify-center p-4 bg-background text-text h-full"#>
+            <ChallengePopup cwa_popup=cwa_popup solved_challenges=solved_challenge_ids overlay_triggered />
             <h1 class=r#"text-4xl text-center"#>"Challenges"</h1>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }

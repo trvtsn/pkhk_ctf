@@ -126,7 +126,7 @@ pub fn Challenge(
                     {move || event_id_signal.get().clone()}
                 </p>
                 <p class=r#"text-lg/8"#>
-                    <TruncatedDesc description_signal />
+                    <TruncatedDesc description=description_signal />
                 </p>
                 <Difficulty rating=difficulty_signal.get() />
                 <p class=r#"text-lg/8"#>

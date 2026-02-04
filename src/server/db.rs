@@ -1,6 +1,8 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata, LdapArgs}}};
+#![allow(clippy::too_many_arguments)]
+use crate::server::db::structs::ProxmoxInstance;
+use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, ProxmoxInstanceIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata, LdapArgs}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
@@ -217,6 +219,16 @@ pub mod structs {
             self.0
         }
     }
+
+    #[derive(Debug, Default, Clone, Deserialize, Serialize)]
+    pub struct ProxmoxInstance {
+        pub id: String,
+        pub challenge_id: String,
+        pub user_id: String,
+        pub vm_id: u32,
+        pub created_at: DateTime<Local>,
+        pub end_at: DateTime<Local>
+    }
 }
 
 pub mod enums {
@@ -250,6 +262,13 @@ pub mod enums {
     pub enum FileIdentifier {
         Id(String),
         FileName(String)
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub enum ProxmoxInstanceIdentifier {
+        Id(String),
+        VmId(u32),
+        UserId(String)
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
@@ -3165,6 +3184,102 @@ cfg_if! {
                             Err(e)?
                         }
                     }
+            }
+        }
+        
+        impl ProxmoxInstance {
+            pub async fn add(
+                challenge_id: &String, 
+                user_id: &String, 
+                vm_id: &String, 
+                created_at: &DateTime<Local>, 
+                end_at: &DateTime<Local>, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
+                match sqlx::query!(
+                    "
+                    INSERT INTO proxmox_instances 
+                    (id, challenge_id, user_id, vm_id, created_at, end_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ",
+                    id.to_string(),
+                    challenge_id,
+                    user_id,
+                    vm_id,
+                    created_at,
+                    end_at
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get(identifier: &ProxmoxInstanceIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match identifier {
+                    ProxmoxInstanceIdentifier::Id(id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(proxmox_instance) => Ok(proxmox_instance),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    ProxmoxInstanceIdentifier::VmId(vm_id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE vm_id = ?
+                            ", 
+                            vm_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(proxmox_instance) => Ok(proxmox_instance),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    ProxmoxInstanceIdentifier::UserId(user_id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE user_id = ?
+                            ", 
+                            user_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(proxmox_instance) => Ok(proxmox_instance),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
             }
         }
     }
