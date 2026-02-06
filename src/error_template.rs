@@ -93,6 +93,12 @@ cfg_if! {
                 Self::InternalError(value.to_string())
             }
         }
+
+        impl From<reqwest::Error> for AppError {
+            fn from(value: reqwest::Error) -> Self {
+                Self::InternalError(value.to_string())
+            }
+        }
     }
 }
 

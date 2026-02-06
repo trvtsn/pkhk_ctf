@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, structs::{ApiResponse, ApiResult, TicketData}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -25,6 +25,7 @@ pub enum ChallengeAction {
         points: u32, 
         flag: String,
         visible_to_groups: String,
+        vm_id: Option<String>,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     },
@@ -41,6 +42,7 @@ pub enum ChallengeAction {
         points: u32, 
         flag: String,
         visible_to_groups: String,
+        vm_id: Option<String>,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     }
@@ -71,10 +73,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
             }
 
             match action {
-                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration } => {
+                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_id } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
-                    let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &mut *tx).await {
+                    let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_id, &mut *tx).await {
                         Ok(result) => result,
                         Err(e) => {
                             tx.rollback().await?;
@@ -146,10 +148,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
                 }
-                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration } => {
+                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_id } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = auth.backend.pool.begin().await?;
-                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &mut *tx).await {
+                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_id, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tx.rollback().await?;
@@ -1294,6 +1296,156 @@ pub async fn disable_ldap() -> Result<ApiResult<Option<String>>, AppError> {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully disabled LDAP authentication".to_string()) }),
                 Err(e) => {
                     Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("failed to update DB row: {e}")) })
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetProxmoxConf, prefix="/api/admin/proxmox", endpoint="config")]
+#[instrument]
+pub async fn get_proxmox_conf() -> Result<Option<ProxmoxArgs>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+            
+            match ProxmoxArgs::get(&auth.backend.pool).await {
+                Ok(args) => Ok(args),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=UpdateProxmox, prefix="/api/admin/proxmox", endpoint="update")]
+#[instrument]
+pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+            
+            // test creds, then update in db
+            // API Token: curl -H 'Authorization: PVEAPIToken=...'
+            // Ticket: curl -k -d 'username=root@pam' --data-urlencode 'password=xxxxxxxxx' /api2/json/access/ticket
+
+            match ProxmoxArgs::update(&args.base_url, &args.api_path, &args.node, &args.username, &args.password, &args.api_token, &args.auth_type, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated Proxmox configuration".to_string()) }),
+                Err(e) => {
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("connection succeeded but failed to update DB row: {e}")) })
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=TestProxmox, prefix="/api/admin/proxmox", endpoint="test")]
+#[instrument]
+pub async fn test_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let user = auth.user.unwrap_or_default();
+            let response = expect_context::<ResponseOptions>();
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            if db_user.role != UserRole::Admin {
+                response.set_status(StatusCode::FORBIDDEN);
+                return Err(AppError::Forbidden);
+            }
+            
+            let client = reqwest::Client::builder()
+                .danger_accept_invalid_certs(true)
+                .build()?;
+
+            let base_url = args.base_url.trim_end_matches("/");
+            let api_path = args.api_path.trim_end_matches("/");
+            if let Some(token) = args.api_token {
+                let url = format!("{base_url}/{api_path}/version");
+                let auth_value = format!("PVEAPIToken={}", token);
+                let resp = client
+                    .get(&url)
+                    .header(reqwest::header::AUTHORIZATION, auth_value)
+                    .send()
+                    .await?;
+
+                if resp.status().is_success() {
+                    Ok(ApiResult { result: ResultStatus::Success, details: Some("success".to_string()) })
+                } else {
+                    let body = resp.text().await.unwrap_or_default();
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("token auth failed: {}", body)) })
+                }
+            } else {
+                let username = args.username.unwrap_or_default();
+                let password = args.password.unwrap_or_default();
+                let url = format!("{base_url}/{api_path}/access/ticket");
+                let body = serde_urlencoded::to_string(&[("username", username), ("password", password)]).unwrap_or_default();
+
+                let resp = client
+                    .post(url)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .body(body)
+                    .send()
+                    .await?;
+
+                if resp.status().is_success() {
+                    let parsed = resp.json::<ApiResponse<TicketData>>().await?;
+                    if parsed.data.ticket.is_empty() {
+                        Ok(ApiResult { result: ResultStatus::Fail, details: Some("no ticket returned".to_string()) })
+                    } else {
+                        Ok(ApiResult { result: ResultStatus::Success, details: Some("success".to_string()) })
+                    }
+                } else {
+                    let body = resp.text().await.unwrap_or_default();
+                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("ticket auth failed: {}", body)) })
                 }
             }
         } else {

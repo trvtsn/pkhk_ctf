@@ -13,7 +13,7 @@ pub fn Challenge(
     events: RwSignal<Vec<db::structs::Event>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments } = cwa;
-    let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups } = challenge;
+    let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_id } = challenge;
 
     let id_signal = RwSignal::new(id);
     let event_id_signal = RwSignal::new(event_id.clone());
@@ -24,6 +24,7 @@ pub fn Challenge(
     let points_signal = RwSignal::new(points);
     let attachments_signal = RwSignal::new(attachments.clone());
     let visible_to_groups_signal = RwSignal::new(visible_to_groups.clone());
+    let proxmox_vm_id_signal = RwSignal::new(vm_id);
 
     let event_id_edit = RwSignal::new(event_id);
     let name_edit = RwSignal::new(name.clone());
@@ -35,6 +36,7 @@ pub fn Challenge(
     let flag_edit = RwSignal::new("".to_string());
     let illustration_edit = RwSignal::new(None);
     let visible_to_groups_edit = RwSignal::new(visible_to_groups);
+    let proxmox_vm_id_edit = RwSignal::new(None);
 
     let illustration = Resource::new(move || refresh.get(), move |_| {
         let challenge_id = id_signal.get();
@@ -319,6 +321,18 @@ pub fn Challenge(
                     </Suspense>
                 </select>
 
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM ID"</label>
+                <input
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    name="vm_id"
+                    value=move || proxmox_vm_id_signal.get().unwrap_or_default()
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        proxmox_vm_id_edit.set(Some(value));
+                    }
+                />
+
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
                 <input
                     class=r#"w-full text-sm"#
@@ -385,6 +399,7 @@ pub fn Challenge(
                         let visible_to_groups = visible_to_groups_edit.get();
                         let attachments = attachments_edit.get();
                         let illustration = illustration_edit.get();
+                        let vm_id = proxmox_vm_id_edit.get();
                         if editing.get() {
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
@@ -398,7 +413,8 @@ pub fn Challenge(
                                         flag: flag.clone(),
                                         visible_to_groups,
                                         attachments: attachments.clone(),
-                                        illustration: illustration.clone()
+                                        illustration: illustration.clone(),
+                                        vm_id
                                     })
                                     .await && result == ResultStatus::Success
                                 {

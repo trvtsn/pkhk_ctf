@@ -61,12 +61,13 @@ async fn main() {
     use axum_login::{AuthManagerLayerBuilder, tower_sessions::{Expiry, SessionManagerLayer}};
     use leptos::{logging::log, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use pkhk_ctf::{app::*, server::{backend::structs::Backend, db}};
+    use pkhk_ctf::{app::*, server::{self, backend::structs::Backend, db}};
     use tower_sessions_sqlx_store::MySqlStore;
 
     init_tracing();
     init_env();
     _ = db::init_db().await;
+    _ = server::proxmox::create_proxmox_realm().await;
     let pool = get_db();
 
     tracing::info!(app = "tracing-sse-logs", version = "0.1.0", "server starting");

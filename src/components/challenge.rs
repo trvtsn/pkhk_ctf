@@ -23,7 +23,6 @@ pub fn Challenge(
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
-    let vm_started = RwSignal::new(false); // use db resource to check for active proxmox instances
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
@@ -158,53 +157,6 @@ pub fn Challenge(
             >
                 "View"
             </button>
-
-            <Show when=move || !vm_started.get()>
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        vm_started.set(true);
-                    }
-                >
-                    "Start VM"
-                </button>
-            </Show>
-            <Show when=move || vm_started.get()>
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        todo!();
-                    }
-                >
-                    "Restart VM"
-                </button>
-
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        todo!();
-                    }
-                >
-                    "Add Time (+30 min)"
-                </button>
-
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        todo!();
-                    }
-                >
-                    "Destroy VM"
-                </button>
-            </Show>
         </div>
     }
 }

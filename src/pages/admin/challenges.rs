@@ -25,6 +25,7 @@ pub fn Challenges() -> impl IntoView {
     let visible_to_groups = RwSignal::new(vec![]);
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
+    let vm_id = RwSignal::new(None);
 
     let refresh = RwSignal::new(0);
     let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
@@ -306,6 +307,17 @@ pub fn Challenges() -> impl IntoView {
                     </Suspense>
                 </select>
 
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM ID"</label>
+                <input
+                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    name="vm_id"
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        vm_id.set(Some(value));
+                    }
+                />
+
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>
                     "Attachment (Max 16 MiB)"
                 </label>
@@ -370,6 +382,7 @@ pub fn Challenges() -> impl IntoView {
                             let visible_to_groups = visible_to_groups.get().join(",");
                             let attachments = attachments.get();
                             let illustration = illustration.get();
+                            let vm_id = vm_id.get();
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Create {
                                         event_id,
@@ -380,8 +393,9 @@ pub fn Challenges() -> impl IntoView {
                                         points,
                                         flag,
                                         visible_to_groups,
+                                        vm_id,
                                         attachments,
-                                        illustration
+                                        illustration,
                                     })
                                     .await && result == ResultStatus::Success
                                 {

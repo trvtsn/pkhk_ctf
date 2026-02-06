@@ -56,6 +56,8 @@ base64 = "0.22.1"
 async-stream = "0.3.6"
 gloo-timers = "0.3.0"
 ldap3 = { version = "0.12.1", optional = true }
+reqwest = { version = "0.13.1", features = ["json", "cookies", "default-tls"], optional = true }
+serde_urlencoded = "0.7.1"
 
 [features]
 hydrate = [
@@ -86,7 +88,8 @@ ssr = [
     "dep:uuid",
     "leptos-use/ssr",
     "leptos-use/axum",
-    "dep:ldap3"
+    "dep:ldap3",
+    "dep:reqwest"
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode

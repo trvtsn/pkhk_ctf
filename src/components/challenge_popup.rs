@@ -2,7 +2,7 @@ use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::db::structs::ChallengeWithAttachments;
-use crate::server::{get_illustration_id};
+use crate::server::{get_illustration_id, get_user_active_vms, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
@@ -19,12 +19,17 @@ pub fn ChallengePopup(
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
+    let vm_started = RwSignal::new(false); // use db resource to check for active proxmox instances
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let illustration = Resource::new(move || (), move |_| {
         let challenge_id = cwa_popup.get().challenge.id;
         async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
+    });
+
+    let active_vms = Resource::new(move || (), move |_| {
+        async move { get_user_active_vms().await.unwrap_or_default() }
     });
 
     let card_classes = Memo::new(move |_| {
@@ -165,6 +170,62 @@ pub fn ChallengePopup(
                     {a.file_name}
                 </a>
             </For>
+
+            <Show when=move || !vm_started.get()>
+                <button
+                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                    on:click=move |_| {
+                        let challenge = cwa_popup.get().challenge;
+                        vm_started.set(true);
+                        spawn_local(async move {
+                            if let Ok(ApiResult { result, details }) = start_vm(challenge).await
+                            {
+                                if result == ResultStatus::Fail && details == "failed to start vm" {
+                                    vm_started.set(false);
+                                }
+                            }
+                        });
+                    }
+                >
+                    "Start VM"
+                </button>
+            </Show>
+            <Show when=move || vm_started.get()>
+                <button
+                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                    on:click=move |_| {
+                        todo!();
+                    }
+                >
+                    "Restart VM"
+                </button>
+
+                <button
+                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                    on:click=move |_| {
+                        todo!();
+                    }
+                >
+                    "Add Time (+30 min)"
+                </button>
+
+                <button
+                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                    on:click=move |_| {
+                        todo!();
+                    }
+                >
+                    "Destroy VM"
+                </button>
+            </Show>
         </div>
     }
 }

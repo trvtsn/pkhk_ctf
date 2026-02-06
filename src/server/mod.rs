@@ -1,12 +1,12 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{ProxmoxInstanceIdentifier, UserIdentifier, UserRole}, get_db_ref, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs, ProxmoxInstance}}, enums::ResultStatus, proxmox::get_next_free_vm_id, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Duration, Local};
 use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
@@ -23,6 +23,7 @@ pub mod admin;
 pub mod auth;
 pub mod backend;
 pub mod db;
+pub mod proxmox;
 pub mod structs {
     use crate::server::{enums::ResultStatus};
     use chrono::{DateTime, Local};
@@ -77,7 +78,22 @@ pub mod structs {
         pub users: Vec<String>,
         pub rows: Vec<PivotRow>,
     }
+
+    
+    #[derive(Deserialize)]
+    pub struct ApiResponse<T> {
+        pub data: T,
+    }
+
+    #[derive(Deserialize)]
+    pub struct TicketData {
+        pub ticket: String,
+        pub CSRFPreventionToken: Option<String>,
+        pub username: Option<String>,
+    }
+
 }
+
 pub mod enums {
     use serde::{Deserialize, Serialize};
     use std::str::FromStr;
@@ -915,6 +931,159 @@ pub async fn is_ldap_enabled() -> Result<bool, AppError> {
             
             match LdapArgs::get_status(&auth.backend.pool).await {
                 Ok(enabled) => Ok(enabled),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=StartVM, prefix="/api", endpoint="start_vm")]
+#[instrument]
+pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            let new_vm_id = match crate::server::proxmox::start_vm(challenge.clone(), db_user.clone()).await {
+                Ok(new_vm_id) => new_vm_id,
+                Err(e) => return Err(e.into())
+            };
+
+            let start_at = Local::now();
+            let end_at = start_at + Duration::minutes(60);
+            match ProxmoxInstance::add(&challenge.id, &user.id, &new_vm_id, &start_at, &end_at, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has started".to_string() }),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=RestartVM, prefix="/api", endpoint="restart_vm")]
+#[instrument]
+pub async fn restart_vm(vm_id: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+
+            match crate::server::proxmox::restart_vm(vm_id).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been restarted".to_string() }),
+                Err(e) => Err(e)
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=DestroyVM, prefix="/api", endpoint="destroy_vm")]
+#[instrument]
+pub async fn destroy_vm(vm_id: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+
+            let proxmox_instance = match ProxmoxInstance::get(&ProxmoxInstanceIdentifier::VmId(vm_id.clone()), &auth.backend.pool).await {
+                Ok(proxmox_instance) => proxmox_instance.unwrap_or_default(),
+                Err(e) => return Err(e.into())
+            };
+
+            match crate::server::proxmox::destroy_vm(vm_id).await {
+                Ok(_) => {},
+                Err(e) => return Err(e)
+            }
+
+            match ProxmoxInstance::delete(&proxmox_instance.id, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been deleted".to_string() }),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AddVMTime, prefix="/api", endpoint="add_vm_time")]
+#[instrument]
+pub async fn add_vm_time(vm_id: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+            
+            match ProxmoxInstance::add_time(&vm_id, &auth.backend.pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "added time to vm".to_string() }),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetUserActiveVMs, prefix="/api", endpoint="get_active_vms")]
+#[instrument]
+pub async fn get_user_active_vms() -> Result<Vec<ProxmoxInstance>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let auth = use_context::<AuthSession>().unwrap();
+            let response = expect_context::<ResponseOptions>();
+            let user = match auth.user {
+                Some(user) => user,
+                None => {
+                    response.set_status(StatusCode::FORBIDDEN);
+                    return Err(AppError::Forbidden);
+                }
+            };
+
+            match ProxmoxInstance::get_all(&Some(ProxmoxInstanceIdentifier::UserId(user.id)), &auth.backend.pool).await {
+                Ok(vms) => Ok(vms),
                 Err(e) => Err(e.into())
             }
         } else {

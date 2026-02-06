@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
-
-#![allow(clippy::too_many_arguments)]
+use crate::server::db::enums::ProxmoxAuthType;
+use crate::server::db::structs::ProxmoxArgs;
 use crate::server::db::structs::ProxmoxInstance;
 use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, ProxmoxInstanceIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata, LdapArgs}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
@@ -30,6 +30,7 @@ cfg_if! {
             DB.set(pool).expect("DB already initialized");
             add_admin().await?;
             add_empty_ldap_row().await?;
+            add_empty_proxmox_row().await?;
             
             Ok(())
         }
@@ -65,6 +66,19 @@ cfg_if! {
             }
         }
 
+        pub async fn add_empty_proxmox_row() -> Result<(), AppError> {
+            match ProxmoxArgs::get(get_db_ref()).await {
+                Ok(Some(_)) => return Ok(()),
+                Ok(None) => {},
+                Err(e) => return Err(e.into())
+            }
+
+            match ProxmoxArgs::insert(&"".to_string(), &"/api2/json".to_string(), &None, &None, &None, &ProxmoxAuthType::ApiToken, get_db_ref()).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.into())
+            }
+        }
+
         async fn connect() -> Result<MySqlPool, sqlx::Error> {
             let pool = MySqlPoolOptions::new()
                 .max_connections(20)
@@ -82,7 +96,7 @@ cfg_if! {
 }
 
 pub mod structs {
-    use crate::server::db::enums::{FileType, UserRole};
+    use crate::server::db::enums::{FileType, ProxmoxAuthType, UserRole};
     use chrono::{DateTime, Local};
     use serde::{Deserialize, Serialize};
     use time::OffsetDateTime;
@@ -147,7 +161,8 @@ pub mod structs {
         pub category: Option<String>,
         pub difficulty: i8,
         pub points: u32,
-        pub visible_to_groups: String // comma separated string
+        pub visible_to_groups: String, // comma separated string
+        pub vm_id: Option<String>
     }
 
     #[derive(Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
@@ -192,6 +207,17 @@ pub mod structs {
         pub bind_pw: String,
         pub base_dn: String,
         pub enabled: SqlBool
+    }
+
+    #[derive(Debug, Default, Clone, Deserialize, Serialize)]
+    pub struct ProxmoxArgs {
+        pub base_url: String,
+        pub api_path: String,
+        pub node: String,
+        pub username: Option<String>,
+        pub password: Option<String>,
+        pub api_token: Option<String>,
+        pub auth_type: ProxmoxAuthType
     }
 
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -267,8 +293,10 @@ pub mod enums {
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub enum ProxmoxInstanceIdentifier {
         Id(String),
-        VmId(u32),
-        UserId(String)
+        VmId(String),
+        UserId(String),
+        ChallengeId(String),
+        ChallengeAndUserId((String, String))
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
@@ -323,6 +351,33 @@ pub mod enums {
                 FileType::Attachment => "attachment",
                 FileType::Illustration => "illustration",
                 FileType::Avatar => "avatar",
+            };
+            write!(f, "{s}")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
+    pub enum ProxmoxAuthType {
+        Ticket,
+        #[default]
+        ApiToken
+    }
+
+    impl From<String> for ProxmoxAuthType {
+        fn from(s: String) -> Self {
+            match s.to_lowercase().as_str() {
+                "ticket" => ProxmoxAuthType::Ticket,
+                "api_token" => ProxmoxAuthType::ApiToken,
+                _ => ProxmoxAuthType::Ticket
+            }
+        }
+    }
+
+    impl std::fmt::Display for ProxmoxAuthType {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let s = match self {
+                ProxmoxAuthType::Ticket => "ticket",
+                ProxmoxAuthType::ApiToken => "api_token",
             };
             write!(f, "{s}")
         }
@@ -1048,15 +1103,16 @@ cfg_if! {
                 points: &u32, 
                 flag_hash: &String, 
                 visible_to_groups: &String, 
+                vm_id: &Option<String>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO challenges
-                    (id, event_id, name, description, category, difficulty, points, flag_hash, visible_to_groups)
+                    (id, event_id, name, description, category, difficulty, points, flag_hash, visible_to_groups, vm_id)
                     VALUES 
-                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(),
                     event_id,
@@ -1066,7 +1122,8 @@ cfg_if! {
                     difficulty,
                     points,
                     flag_hash,
-                    visible_to_groups
+                    visible_to_groups,
+                    vm_id
                 )
                     .execute(executor)
                     .await {
@@ -1107,15 +1164,15 @@ cfg_if! {
                 points: &u32, 
                 flag_hash: &String, 
                 visible_to_groups: &String, 
+                vm_id: &Option<String>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE challenges
                     SET
-                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?, visible_to_groups = ?
-                    WHERE 
-                    id = ?
+                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?, visible_to_groups = ?, vm_id = ?
+                    WHERE id = ?
                     ", 
                     event_id,
                     name,
@@ -1125,6 +1182,7 @@ cfg_if! {
                     points,
                     flag_hash,
                     visible_to_groups,
+                    vm_id,
                     id
                 )
                     .execute(executor)
@@ -1141,7 +1199,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups
+                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_id
                     FROM challenges 
                     WHERE id = ?
                     ", 
@@ -1161,7 +1219,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups
+                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_id
                     FROM challenges
                     "
                 )
@@ -3279,7 +3337,347 @@ cfg_if! {
                                 }
                             }
                     }
+                    ProxmoxInstanceIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE challenge_id = ?
+                            ", 
+                            challenge_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(proxmox_instance) => Ok(proxmox_instance),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    ProxmoxInstanceIdentifier::ChallengeAndUserId((challenge_id, user_id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE challenge_id = ? AND user_id = ?
+                            ", 
+                            challenge_id,
+                            user_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(proxmox_instance) => Ok(proxmox_instance),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
                 }
+            }
+
+            pub async fn get_all(identifier: &Option<ProxmoxInstanceIdentifier>, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match identifier {
+                    Some(ProxmoxInstanceIdentifier::Id(id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE id = ?
+                            ",
+                            id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(proxmox_instances) => Ok(proxmox_instances),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    Some(ProxmoxInstanceIdentifier::VmId(vm_id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE vm_id = ?
+                            ", 
+                            vm_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(proxmox_instances) => Ok(proxmox_instances),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    Some(ProxmoxInstanceIdentifier::UserId(user_id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE user_id = ?
+                            ", 
+                            user_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(proxmox_instances) => Ok(proxmox_instances),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    Some(ProxmoxInstanceIdentifier::ChallengeId(challenge_id)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE challenge_id = ?
+                            ", 
+                            challenge_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(proxmox_instances) => Ok(proxmox_instances),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    Some(ProxmoxInstanceIdentifier::ChallengeAndUserId((challenge_id, user_id))) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances 
+                            WHERE challenge_id = ? AND user_id = ?
+                            ", 
+                            challenge_id,
+                            user_id
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(proxmox_instances) => Ok(proxmox_instances),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    None => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, user_id, vm_id AS `vm_id!: u32`, created_at AS `created_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`
+                            FROM proxmox_instances
+                            "
+                        )
+                            .fetch_all(executor)
+                            .await {
+                                Ok(proxmox_instances) => Ok(proxmox_instances),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
+            }
+
+            pub async fn add_time(
+                vm_id: &String, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE proxmox_instances
+                    SET end_at = DATE_ADD(end_at, INTERVAL 30 MINUTE)
+                    WHERE vm_id = ?
+                    ",
+                    vm_id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn delete(
+                id: &String, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    DELETE FROM proxmox_instances
+                    WHERE id = ?
+                    ",
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+        }
+
+        impl ProxmoxArgs {
+            pub async fn insert(
+                base_url: &String, 
+                api_path: &String, 
+                username: &Option<String>, 
+                password: &Option<String>, 
+                api_token: &Option<String>, 
+                auth_type: &ProxmoxAuthType, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    INSERT INTO proxmox 
+                    (base_url, api_path, username, password, api_token, auth_type)
+                    VALUES 
+                    (?, ?, ?, ?, ?, ?)
+                    ",
+                    base_url,
+                    api_path,
+                    username,
+                    password,
+                    api_token,
+                    auth_type.to_string()
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn update(
+                base_url: &String, 
+                api_path: &String, 
+                node: &String, 
+                username: &Option<String>, 
+                password: &Option<String>, 
+                api_token: &Option<String>, 
+                auth_type: &ProxmoxAuthType, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE proxmox
+                    SET base_url = ?, api_path = ?, node = ?, username = ?, password = ?, api_token = ?, auth_type = ?
+                    ",
+                    base_url,
+                    api_path,
+                    node,
+                    username,
+                    password,
+                    api_token,
+                    auth_type.to_string()
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn update_auth_type(
+                auth_type: &ProxmoxAuthType, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE proxmox
+                    SET auth_type = ?
+                    ",
+                    auth_type.to_string()
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn delete(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    DELETE FROM proxmox
+                    "
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT base_url, api_path, node, username, password, api_token, auth_type
+                    FROM proxmox
+                    "
+                )
+                    .fetch_optional(executor)
+                    .await {
+                        Ok(ldap_args) => Ok(ldap_args),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_auth_type(executor: impl MySqlExecutor<'_>) -> Result<ProxmoxAuthType, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT auth_type
+                    FROM proxmox
+                    "
+                )
+                    .fetch_one(executor)
+                    .await {
+                        Ok(row) => Ok(row.auth_type.into()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
             }
         }
     }

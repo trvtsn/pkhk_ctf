@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`challenges` (
   `points` INT UNSIGNED NOT NULL,
   `flag_hash` VARCHAR(100) NOT NULL,
   `visible_to_groups` VARCHAR(50) NOT NULL,
+  `vm_id` VARCHAR(45) NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_challenges_events1`
     FOREIGN KEY (`event_id`)
@@ -133,6 +134,23 @@ DEFAULT CHARACTER SET = utf8mb3;
 
 
 -- -----------------------------------------------------
+-- Table `ctfpkhk`.`proxmox`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctfpkhk`.`proxmox` (
+  `restriction` ENUM('') NOT NULL,
+  `base_url` VARCHAR(100) NOT NULL,
+  `api_path` VARCHAR(100) NOT NULL,
+  `node` VARCHAR(45) NOT NULL,
+  `username` VARCHAR(64) NULL DEFAULT NULL,
+  `password` VARCHAR(64) NULL DEFAULT NULL,
+  `api_token` VARCHAR(128) NULL DEFAULT NULL,
+  `auth_type` VARCHAR(10) NOT NULL,
+  PRIMARY KEY (`restriction`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb3;
+
+
+-- -----------------------------------------------------
 -- Table `ctfpkhk`.`proxmox_instances`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`proxmox_instances` (
@@ -151,6 +169,8 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`proxmox_instances` (
     REFERENCES `ctfpkhk`.`users` (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE UNIQUE INDEX `vm_id_UNIQUE` ON `ctfpkhk`.`proxmox_instances` (`vm_id` ASC) VISIBLE;
 
 CREATE INDEX `fk_proxmox_instances_challenges1_idx` ON `ctfpkhk`.`proxmox_instances` (`challenge_id` ASC) VISIBLE;
 
