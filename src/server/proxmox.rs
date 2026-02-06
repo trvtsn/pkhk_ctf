@@ -1,12 +1,17 @@
-use crate::{error_template::AppError, server::{db::{self, get_db_ref, structs::{Challenge, DbUser, LdapArgs}}, pool}};
+#[cfg(feature = "ssr")]
+use crate::server::db::get_db_ref;
+use crate::{error_template::AppError, server::{db::{self, structs::{Challenge, DbUser, LdapArgs}}}};
+#[cfg(feature = "ssr")]
+use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
+#[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_proxmox_realm() -> Result<(), AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let client = reqwest::Client::builder()
+            let client = Client::builder()
                 .danger_accept_invalid_certs(true)
                 .build()?;
 
@@ -55,7 +60,7 @@ pub async fn create_proxmox_realm() -> Result<(), AppError> {
 
             client
                 .post(&url)
-                .header(reqwest::header::AUTHORIZATION, auth_value)
+                .header(header::AUTHORIZATION, auth_value)
                 .body(body)
                 .send()
                 .await?;
@@ -67,11 +72,12 @@ pub async fn create_proxmox_realm() -> Result<(), AppError> {
     }
 }
 
+#[cfg(feature = "ssr")]
 #[instrument]
 pub async fn get_next_free_vm_id() -> Result<String, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let client = reqwest::Client::builder()
+            let client = Client::builder()
                 .danger_accept_invalid_certs(true)
                 .build()?;
 
@@ -83,7 +89,7 @@ pub async fn get_next_free_vm_id() -> Result<String, AppError> {
             let api_path = proxmox_args.api_path.trim_end_matches("/");
             let url = format!("{base_url}/{api_path}/cluster/nextid");
 
-            match client.get(url.clone()).header(reqwest::header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
+            match client.get(url.clone()).header(header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
                 Ok(res) => {
                     // get value from res
                     Ok("".to_string()) // tmp placeholder
@@ -96,9 +102,10 @@ pub async fn get_next_free_vm_id() -> Result<String, AppError> {
     }
 }
 
+#[cfg(feature = "ssr")]
 #[instrument]
 pub async fn start_vm(challenge: Challenge, user: DbUser) -> Result<String, AppError> {
-    let client = reqwest::Client::builder()
+    let client = Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
 
@@ -120,20 +127,22 @@ pub async fn start_vm(challenge: Challenge, user: DbUser) -> Result<String, AppE
     ]).unwrap_or_default();
 
     // clone
-    match client.post(clone_url).header(reqwest::header::AUTHORIZATION, proxmox_args.api_token.clone().unwrap_or_default()).body(clone_body).send().await {
+    match client.post(clone_url).header(header::AUTHORIZATION, proxmox_args.api_token.clone().unwrap_or_default()).body(clone_body).send().await {
         Ok(_) => {},
         Err(e) => return Err(e.into())
     }
 
     // start
-    match client.post(start_url).header(reqwest::header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
+    match client.post(start_url).header(header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
         Ok(_) => Ok(new_vm_id),
         Err(e) => return Err(e.into())
     }
 }
 
+#[cfg(feature = "ssr")]
+#[instrument]
 pub async fn restart_vm(vm_id: String) -> Result<(), AppError> {
-    let client = reqwest::Client::builder()
+    let client = Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
 
@@ -145,15 +154,16 @@ pub async fn restart_vm(vm_id: String) -> Result<(), AppError> {
     let api_path = proxmox_args.api_path.trim_end_matches("/");
     let url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/reboot", proxmox_args.node);
 
-    match client.post(url).header(reqwest::header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
+    match client.post(url).header(header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
         Ok(_) => Ok(()),
         Err(e) => Err(e.into())
     }
 }
 
+#[cfg(feature = "ssr")]
 #[instrument]
 pub async fn destroy_vm(vm_id: String) -> Result<(), AppError> {
-    let client = reqwest::Client::builder()
+    let client = Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
 
@@ -165,17 +175,18 @@ pub async fn destroy_vm(vm_id: String) -> Result<(), AppError> {
     let api_path = proxmox_args.api_path.trim_end_matches("/");
     let url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}", proxmox_args.node);
     
-    match client.delete(url).header(reqwest::header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
+    match client.delete(url).header(header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
         Ok(_) => Ok(()),
         Err(e) => Err(e.into())
     }
 }
 
+#[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let client = reqwest::Client::builder()
+            let client = Client::builder()
                 .danger_accept_invalid_certs(true)
                 .build()?;
 
@@ -195,7 +206,7 @@ pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
                 poolid: String,
                 _type: String
             }
-            match client.get(pools_url.clone()).header(reqwest::header::AUTHORIZATION, auth_value.clone()).send().await {
+            match client.get(pools_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
                 Ok(res) => {
                     let pools = res.json::<Vec<Pools>>().await?;
                     for pool in pools {
@@ -209,7 +220,7 @@ pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
 
             let body = serde_urlencoded::to_string(&[("poolid", poolid.clone())]).unwrap_or_default();
             client.post(&pools_url)
-                .header(reqwest::header::AUTHORIZATION, auth_value.clone())
+                .header(header::AUTHORIZATION, auth_value.clone())
                 .body(body)
                 .send()
                 .await?;
@@ -221,7 +232,7 @@ pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
                 ("propagate", "1".to_string())
             ]).unwrap_or_default();
             client.put(&acl_url)
-                .header(reqwest::header::AUTHORIZATION, auth_value)
+                .header(header::AUTHORIZATION, auth_value)
                 .body(body)
                 .send()
                 .await?;
