@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, structs::{ApiResponse, ApiResult, TicketData}}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, structs::ApiResult}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -1362,15 +1362,19 @@ pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String
                 return Err(AppError::Forbidden);
             }
             
-            // test creds, then update in db
-            // API Token: curl -H 'Authorization: PVEAPIToken=...'
-            // Ticket: curl -k -d 'username=root@pam' --data-urlencode 'password=xxxxxxxxx' /api2/json/access/ticket
+            match crate::server::proxmox::test_auth().await {
+                Ok(_) => {},
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("token auth failed: {e}")) })
+            }
 
             match ProxmoxArgs::update(&args.base_url, &args.api_path, &args.node, &args.username, &args.password, &args.api_token, &args.auth_type, &auth.backend.pool).await {
+                Ok(_) => {},
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("connection succeeded but failed to update DB row: {e}")) })
+            }
+
+            match crate::server::proxmox::create_proxmox_realm().await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated Proxmox configuration".to_string()) }),
-                Err(e) => {
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("connection succeeded but failed to update DB row: {e}")) })
-                }
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("failed to create realm for Proxmox: {e}")) })
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -1402,51 +1406,9 @@ pub async fn test_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String>>
                 return Err(AppError::Forbidden);
             }
             
-            let client = reqwest::Client::builder()
-                .danger_accept_invalid_certs(true)
-                .build()?;
-
-            let base_url = args.base_url.trim_end_matches("/");
-            let api_path = args.api_path.trim_end_matches("/");
-            if let Some(token) = args.api_token {
-                let url = format!("{base_url}/{api_path}/version");
-                let auth_value = format!("PVEAPIToken={}", token);
-                let resp = client
-                    .get(&url)
-                    .header(reqwest::header::AUTHORIZATION, auth_value)
-                    .send()
-                    .await?;
-
-                if resp.status().is_success() {
-                    Ok(ApiResult { result: ResultStatus::Success, details: Some("success".to_string()) })
-                } else {
-                    let body = resp.text().await.unwrap_or_default();
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("token auth failed: {}", body)) })
-                }
-            } else {
-                let username = args.username.unwrap_or_default();
-                let password = args.password.unwrap_or_default();
-                let url = format!("{base_url}/{api_path}/access/ticket");
-                let body = serde_urlencoded::to_string(&[("username", username), ("password", password)]).unwrap_or_default();
-
-                let resp = client
-                    .post(url)
-                    .header("Content-Type", "application/x-www-form-urlencoded")
-                    .body(body)
-                    .send()
-                    .await?;
-
-                if resp.status().is_success() {
-                    let parsed = resp.json::<ApiResponse<TicketData>>().await?;
-                    if parsed.data.ticket.is_empty() {
-                        Ok(ApiResult { result: ResultStatus::Fail, details: Some("no ticket returned".to_string()) })
-                    } else {
-                        Ok(ApiResult { result: ResultStatus::Success, details: Some("success".to_string()) })
-                    }
-                } else {
-                    let body = resp.text().await.unwrap_or_default();
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("ticket auth failed: {}", body)) })
-                }
+            match crate::server::proxmox::test_auth().await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("success".to_string()) }),
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("token auth failed: {e}")) })
             }
         } else {
             Err(AppError::NoServerConnection)

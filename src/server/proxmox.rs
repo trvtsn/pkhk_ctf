@@ -6,6 +6,59 @@ use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
+#[derive(Deserialize)]
+struct ProxmoxApiResponse<T> {
+    data: T
+}
+
+// #[derive(Deserialize)]
+// struct TicketData {
+//     pub ticket: String,
+//     pub CSRFPreventionToken: Option<String>,
+//     pub username: Option<String>,
+// }
+
+// #[cfg(feature = "ssr")]
+// #[instrument]
+// async fn authenticate() -> Result<TicketData, AppError> {
+//     cfg_if::cfg_if! {
+//         if #[cfg(feature = "ssr")] {
+//             let client = Client::builder()
+//                 .danger_accept_invalid_certs(true)
+//                 .build()?;
+
+//             let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
+//                 Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
+//                 Err(e) => return Err(e.into())
+//             };
+//             let base_url = proxmox_args.base_url.trim_end_matches("/");
+//             let api_path = proxmox_args.api_path.trim_start_matches("/");
+//             let url = format!("{base_url}/{api_path}/access/ticket");
+
+//             // if let Some(api_token) = proxmox_args.api_token
+//             // if let Some()... username and password in proxmox_args
+//             let body = serde_urlencoded::to_string(&[
+//                 ("username", proxmox_args.username.unwrap_or_default()), 
+//                 ("password", proxmox_args.password.unwrap_or_default()),
+//             ]).unwrap_or_default();
+
+//             match client
+//                 .post(&url)
+//                 .body(body)
+//                 .send()
+//                 .await {
+//                     Ok(res) => {
+//                         let json = res.json::<ProxmoxApiResponse<TicketData>>().await?;
+//                         Ok(json.data)
+//                     },
+//                     Err(e) => Err(e.into())
+//                 }
+//         } else {
+//             Err(AppError::NoServerConnection)
+//         }
+//     }
+// }
+
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_proxmox_realm() -> Result<(), AppError> {
@@ -13,25 +66,28 @@ pub async fn create_proxmox_realm() -> Result<(), AppError> {
         if #[cfg(feature = "ssr")] {
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
+                .cookie_store(true)
                 .build()?;
 
             let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
-                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Ok(()) },
+                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
                 Err(e) => return Err(e.into())
             };
             let base_url = proxmox_args.base_url.trim_end_matches("/");
-            let api_path = proxmox_args.api_path.trim_end_matches("/");
+            let api_path = proxmox_args.api_path.trim_start_matches("/");
+            let sync_url = format!("{base_url}/{api_path}/access/domains/ctfpkhk/sync");
             let url = format!("{base_url}/{api_path}/access/domains");
 
             #[derive(Serialize, Deserialize)]
             struct Domains {
                 realm: String,
-                _type: String
+                r#type: String
             }
-            match client.get(url.clone()).send().await {
+            let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+            match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
                 Ok(res) => {
-                    let domains = res.json::<Vec<Domains>>().await?;
-                    for domain in domains {
+                    let domains = res.json::<ProxmoxApiResponse<Vec<Domains>>>().await?;
+                    for domain in domains.data {
                         if domain.realm.contains("ctfpkhk") {
                             return Ok(())
                         }
@@ -45,12 +101,12 @@ pub async fn create_proxmox_realm() -> Result<(), AppError> {
                 Err(e) => return Err(e.into())
             };
 
-            let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+            let ldap_url = url::Url::parse(&ldap_args.url)?;
             let body = serde_urlencoded::to_string(&[
                 ("type", "ldap"), 
                 ("realm", "ctfpkhk"),
                 ("mode", "ldap"), // in the future use ldaps
-                ("server1", ldap_args.url.as_str()),
+                ("server1", ldap_url.host_str().unwrap_or_default()),
                 ("base_dn", ldap_args.base_dn.as_str()),
                 ("bind_dn", ldap_args.bind_dn.as_str()),
                 ("user_attr", "sAMAccountName"),
@@ -58,14 +114,33 @@ pub async fn create_proxmox_realm() -> Result<(), AppError> {
                 ("verify", "0"),
             ]).unwrap_or_default();
 
-            client
+            let resp = client
                 .post(&url)
-                .header(header::AUTHORIZATION, auth_value)
+                .header(header::AUTHORIZATION, auth_value.clone())
                 .body(body)
                 .send()
                 .await?;
 
-            Ok(())
+            let body = serde_urlencoded::to_string(&[
+                ("scope", "users"),
+                ("enable-new", "1"),
+                ("remove-vanished", "acl;entry;properties")
+            ]).unwrap_or_default();
+
+            if resp.status().is_success() {
+                match client.post(sync_url.clone()).header(header::AUTHORIZATION, auth_value).body(body).send().await {
+                    Ok(res) => {
+                        if res.status().is_success() {
+                            Ok(())
+                        } else {
+                            Err(AppError::InternalError("".to_string()))
+                        }
+                    },
+                    Err(e) => return Err(e.into())
+                }
+            } else {
+                Err(AppError::InternalError("".to_string()))
+            }
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -82,17 +157,22 @@ pub async fn get_next_free_vm_id() -> Result<String, AppError> {
                 .build()?;
 
             let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
-                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Ok("".to_string()) },
+                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
                 Err(e) => return Err(e.into())
             };
             let base_url = proxmox_args.base_url.trim_end_matches("/");
-            let api_path = proxmox_args.api_path.trim_end_matches("/");
+            let api_path = proxmox_args.api_path.trim_start_matches("/");
             let url = format!("{base_url}/{api_path}/cluster/nextid");
+            let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
-            match client.get(url.clone()).header(header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
+            #[derive(Deserialize)]
+            struct Vmid {
+                vmid: String
+            }
+            match client.get(url.clone()).header(header::AUTHORIZATION, auth_value).send().await {
                 Ok(res) => {
-                    // get value from res
-                    Ok("".to_string()) // tmp placeholder
+                    let next_free_vm_id = res.json::<ProxmoxApiResponse<Vmid>>().await?;
+                    Ok(next_free_vm_id.data.vmid)
                 },
                 Err(e) => return Err(e.into())
             }
@@ -110,11 +190,11 @@ pub async fn start_vm(challenge: Challenge, user: DbUser) -> Result<String, AppE
         .build()?;
 
     let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
-        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("".to_string())) },
+        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
         Err(e) => return Err(e.into())
     };
     let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_end_matches("/");
+    let api_path = proxmox_args.api_path.trim_start_matches("/");
     let start_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, challenge.vm_id.clone().unwrap_or_default());
     let clone_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/clone", proxmox_args.node, challenge.vm_id.unwrap_or_default());
     let new_vm_id = get_next_free_vm_id().await?;
@@ -147,11 +227,11 @@ pub async fn restart_vm(vm_id: String) -> Result<(), AppError> {
         .build()?;
 
     let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
-        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Ok(()) },
+        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
         Err(e) => return Err(e.into())
     };
     let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_end_matches("/");
+    let api_path = proxmox_args.api_path.trim_start_matches("/");
     let url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/reboot", proxmox_args.node);
 
     match client.post(url).header(header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
@@ -168,11 +248,11 @@ pub async fn destroy_vm(vm_id: String) -> Result<(), AppError> {
         .build()?;
 
     let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
-        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Ok(()) },
+        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
         Err(e) => return Err(e.into())
     };
     let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_end_matches("/");
+    let api_path = proxmox_args.api_path.trim_start_matches("/");
     let url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}", proxmox_args.node);
     
     match client.delete(url).header(header::AUTHORIZATION, proxmox_args.api_token.unwrap_or_default()).send().await {
@@ -191,11 +271,11 @@ pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
                 .build()?;
 
             let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
-                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Ok(()) },
+                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
                 Err(e) => return Err(e.into())
             };
             let base_url = proxmox_args.base_url.trim_end_matches("/");
-            let api_path = proxmox_args.api_path.trim_end_matches("/");
+            let api_path = proxmox_args.api_path.trim_start_matches("/");
             let pools_url = format!("{base_url}/{api_path}/pools");
             let acl_url = format!("{base_url}/{api_path}/access/acl");
             let poolid = format!("CTFPKHK-{}", user.username);
@@ -204,12 +284,12 @@ pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
             #[derive(Serialize, Deserialize)]
             struct Pools {
                 poolid: String,
-                _type: String
+                r#type: String
             }
             match client.get(pools_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
                 Ok(res) => {
-                    let pools = res.json::<Vec<Pools>>().await?;
-                    for pool in pools {
+                    let pools = res.json::<ProxmoxApiResponse<Vec<Pools>>>().await?;
+                    for pool in pools.data {
                         if pool.poolid.contains(&poolid) {
                             return Ok(())
                         }
@@ -225,9 +305,10 @@ pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
                 .send()
                 .await?;
 
+            let user = user.email.split_once("@").map(|(username, _)| format!("{username}@ctfpkhk")).unwrap_or_default();
             let body = serde_urlencoded::to_string(&[
                 ("path", format!("/pool/{poolid}")),
-                ("users", user.email),
+                ("users", user),
                 ("roles", "PVEVMAdmin".to_string()),
                 ("propagate", "1".to_string())
             ]).unwrap_or_default();
@@ -238,6 +319,35 @@ pub async fn create_proxmox_user_pool(user: DbUser) -> Result<(), AppError> {
                 .await?;
 
             Ok(())
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+pub async fn test_auth() -> Result<(), AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let client = Client::builder()
+                .danger_accept_invalid_certs(true)
+                .cookie_store(true)
+                .build()?;
+
+            let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
+                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
+                Err(e) => return Err(e.into())
+            };
+            let base_url = proxmox_args.base_url.trim_end_matches("/");
+            let api_path = proxmox_args.api_path.trim_start_matches("/");
+            let url = format!("{base_url}/{api_path}/nodes/status");
+            let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+
+            match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+                Ok(res) => if res.status().is_success() { Ok(()) } else { Err(AppError::Unauthorized) },
+                Err(e) => return Err(e.into())
+            }
         } else {
             Err(AppError::NoServerConnection)
         }

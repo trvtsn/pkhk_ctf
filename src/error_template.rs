@@ -57,6 +57,12 @@ impl From<anyhow::Error> for AppError {
     }
 }
 
+impl From<url::ParseError> for AppError {
+    fn from(value: url::ParseError) -> Self {
+        Self::InternalError(value.to_string())
+    }
+}
+
 impl FromServerFnError for AppError {
     type Encoder = JsonEncoding;
 

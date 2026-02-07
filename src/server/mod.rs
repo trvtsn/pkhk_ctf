@@ -1,5 +1,5 @@
 #[cfg(feature = "ssr")]
-use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState, db::get_db_ref, proxmox::get_next_free_vm_id};
+use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState, db::get_db_ref, proxmox::{get_next_free_vm_id, create_proxmox_user_pool}};
 use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{ProxmoxInstanceIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs, ProxmoxInstance}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
@@ -78,20 +78,6 @@ pub mod structs {
         pub users: Vec<String>,
         pub rows: Vec<PivotRow>,
     }
-
-    
-    #[derive(Deserialize)]
-    pub struct ApiResponse<T> {
-        pub data: T,
-    }
-
-    #[derive(Deserialize)]
-    pub struct TicketData {
-        pub ticket: String,
-        pub CSRFPreventionToken: Option<String>,
-        pub username: Option<String>,
-    }
-
 }
 
 pub mod enums {
@@ -352,7 +338,18 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
             if let Some(user) = user.as_ref() {
                 match auth.login(user).await {
                     Ok(_) => {
+                        let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                            Ok(Some(user)) => user,
+                            Ok(None) => {
+                                return Err(AppError::InternalError("internal error".to_string()));
+                            }
+                            Err(e) => {
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError("internal error".to_string()));
+                            }
+                        };
                         // update last_active_date in db
+                        _ = create_proxmox_user_pool(db_user).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
                     },
                     Err(e) => {
@@ -472,6 +469,17 @@ pub async fn register_user(email: String, password: String, confirm_password: St
                 // Tell the AuthSession that we're logged-in now and it should behave accordingly. This will set the
                 // session id and send it to the browser as a side-effect (before now you likely had no session id in the browser).
                 auth_session.login(&user).await?;
+                let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth_session.backend.pool).await {
+                    Ok(Some(user)) => user,
+                    Ok(None) => {
+                        return Err(AppError::InternalError("internal error".to_string()));
+                    }
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        return Err(AppError::InternalError("internal error".to_string()));
+                    }
+                };
+                _ = create_proxmox_user_pool(db_user).await;
                 Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
             } else {
                 Err(AppError::InternalError("".to_string()))

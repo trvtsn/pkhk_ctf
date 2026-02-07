@@ -113,6 +113,7 @@ pub fn Proxmox() -> impl IntoView {
                         //         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         //         name="username"
                         //         value=move || username.get().unwrap_or_default()
+                        //         placeholder="root@pam"
                         //         on:change=move |ev| {
                         //             let value = event_target_value(&ev);
                         //             username.set(Some(value));
