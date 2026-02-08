@@ -63,6 +63,12 @@ impl From<url::ParseError> for AppError {
     }
 }
 
+impl From<std::io::Error> for AppError {
+    fn from(value: std::io::Error) -> Self {
+        Self::InternalError(value.to_string())
+    }
+}
+
 impl FromServerFnError for AppError {
     type Encoder = JsonEncoding;
 

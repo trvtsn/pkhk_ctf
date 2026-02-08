@@ -4,6 +4,9 @@ use crate::{error_template::AppError, server::{db::{self, structs::{Challenge, D
 #[cfg(feature = "ssr")]
 use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
+use std::net::{TcpStream, ToSocketAddrs};
+use std::time::{Duration, Instant};
+use std::io;
 use tracing::instrument;
 
 #[derive(Deserialize)]
@@ -23,6 +26,11 @@ struct ProxmoxApiResponse<T> {
 pub async fn create_realm() -> Result<(), AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
+            match is_host_reachable().await {
+                Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("proxmox host not reachable".to_string())) },
+                Err(_) => return Err(AppError::InternalError("proxmox host not reachable".to_string()))
+            }
+
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
                 .cookie_store(true)
@@ -314,4 +322,39 @@ pub async fn test_auth() -> Result<(), AppError> {
             Err(AppError::NoServerConnection)
         }
     }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+async fn is_host_reachable() -> Result<bool, AppError> {
+    let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
+        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
+        Err(e) => return Err(e.into())
+    };
+    let url = url::Url::parse(&proxmox_args.base_url)?;
+    let host = url.host_str().unwrap_or_default();
+    let timeout = Duration::from_millis(1000);
+    let addrs = (host, 8006).to_socket_addrs()?;
+    let start = Instant::now();
+
+    for addr in addrs {
+        let elapsed = start.elapsed();
+        if elapsed >= timeout {
+            return Ok(false);
+        }
+        let remaining = timeout - elapsed;
+
+        match TcpStream::connect_timeout(&addr, remaining) {
+            Ok(mut stream) => {
+                let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+                let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+                return Ok(true);
+            }
+            Err(_e) => {
+                continue;
+            }
+        }
+    }
+
+    Ok(false)
 }

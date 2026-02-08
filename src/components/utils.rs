@@ -91,6 +91,7 @@ pub fn DimmingOverlay(overlay_triggered: RwSignal<bool>) -> impl IntoView {
         <div
             class=move || classes.get()
             aria-hidden=move || !overlay_triggered.get()
+            on:click=move |_| overlay_triggered.set(false)
         ></div>
     }
 }

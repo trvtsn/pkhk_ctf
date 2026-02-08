@@ -53,7 +53,10 @@ pub fn Challenges() -> impl IntoView {
 
     let challenges_view = move || { view! {
         <DimmingOverlay overlay_triggered />
-        <div class=r#"challenges"#>
+        <ChallengePopup cwa_popup=cwa_popup solved_challenges=solved_challenge_ids overlay_triggered />
+        <div 
+            class=r#"challenges"# 
+        >
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>
@@ -122,8 +125,9 @@ pub fn Challenges() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-4 bg-background text-text h-full"#>
-            <ChallengePopup cwa_popup=cwa_popup solved_challenges=solved_challenge_ids overlay_triggered />
+        <div 
+            class=r#"grid justify-center p-4 bg-background text-text h-full"#
+        >
             <h1 class=r#"text-4xl text-center"#>"Challenges"</h1>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }

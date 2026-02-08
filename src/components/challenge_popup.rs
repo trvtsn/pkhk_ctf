@@ -33,7 +33,7 @@ pub fn ChallengePopup(
     });
 
     let card_classes = Memo::new(move |_| {
-        let base = "content-center p-4 rounded-lg absolute inset-0 flex items-center justify-center z-20";
+        let base = "absolute inset-0 z-20 flex content-center items-center justify-center rounded-lg p-4";
         if overlay_triggered.get() {
             base.to_string()
         } else {
@@ -77,76 +77,181 @@ pub fn ChallengePopup(
         <div
             class=move || card_classes.get()
         >
-            <button 
-                class="cursor-pointer"
-                on:click=move |_| overlay_triggered.set(false)
-            >
-                "x"
-            </button>
+            <div class="bg-card p-4 rounded-lg">
+                <button 
+                    class="cursor-pointer"
+                    on:click=move |_| overlay_triggered.set(false)
+                >
+                    "x"
+                </button>
 
-            <Transition fallback=move || {
-                view! { <div>"Loading..."</div> }
-            }>
-                {move || {
-                    if let Some(id) = illustration.get().unwrap_or_default() { 
-                        view! {
-                            <div class="h-48 w-48 flex justify-center m-auto">
-                                <img 
-                                    src=move || format!("/image/{}", id) 
-                                    class=r#"text-blue-600 underline object-cover shadow-sm"#
-                                />
-                            </div>
-                        }.into_any()
-                    } else {
-                        "".into_any()
+                <Transition fallback=move || {
+                    view! { <div>"Loading..."</div> }
+                }>
+                    {move || {
+                        if let Some(id) = illustration.get().unwrap_or_default() { 
+                            view! {
+                                <div class="h-48 w-48 flex justify-center m-auto">
+                                    <img 
+                                        src=move || format!("/image/{}", id) 
+                                        class=r#"text-blue-600 underline object-cover shadow-sm"#
+                                    />
+                                </div>
+                            }.into_any()
+                        } else {
+                            "".into_any()
+                        }
+                    }}
+                </Transition>
+                <h3 class=r#"font-bold text-3xl/8"#>{move || cwa_popup.get().challenge.name.clone()}</h3>
+                <p class=r#"text-lg/8"#>
+                <Transition fallback=move || {
+                    view! { <div>"..."</div> }
+                }>
+                    {move || {
+                        description_signal.set(cwa_popup.get().challenge.description);
+                        view! { <TruncatedDesc description=description_signal /> }
+                    }}
+                </Transition>
+                    
+                </p>
+                <Difficulty difficulty=cwa_popup />
+                <p class=r#"text-lg/8"#>
+                    <b>"Points: "</b>
+                    {move || cwa_popup.get().challenge.points}
+                </p>
+                <br />
+
+                <label for="flag">
+                    <b>"Flag: "</b>
+                </label>
+                <input
+                    hidden=move || solved.get()
+                    class=r#"m-1 bg-white rounded-sm border-black border-1"#
+                    bind:value=flag_signal
+                />
+                <button
+                    class=move || button_classes.get()
+                    disabled=move || solved.get() || incorrect.get()
+                    on:click=move |_| {
+                        let start = start.clone();
+                        let stop = stop.clone();
+                        let refresh_user = refresh_user;
+                        let flag = flag_signal.get();
+                        let challenge = cwa_popup.get().challenge;
+                        spawn_local(async move {
+                            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
+                            {
+                                if result == ResultStatus::Fail && details == "incorrect solution" {
+                                    incorrect.set(true);
+                                    stop();
+                                    start(());
+                                } else if result == ResultStatus::Success {
+                                    solved.set(true);
+                                    let active_vms = active_vms.await;
+                                    let mut active_vm_id = 0_u32;
+                                    for active_vm in active_vms {
+                                        if active_vm.challenge_id == challenge.id {
+                                            active_vm_id = active_vm.vm_id;
+                                        }
+                                    }
+                                    _ = destroy_vm(active_vm_id).await;
+                                    let iteration = refresh_user.get().iteration + 1;
+                                    refresh_user.set(RefreshUser { iteration });
+                                }
+                            }
+                        });
                     }
-                }}
-            </Transition>
-            <h3 class=r#"font-bold text-3xl/8"#>{move || cwa_popup.get().challenge.name.clone()}</h3>
-            <p class=r#"text-lg/8"#>
-            <Transition fallback=move || {
-                view! { <div>"..."</div> }
-            }>
-                {move || {
-                    description_signal.set(cwa_popup.get().challenge.description);
-                    view! { <TruncatedDesc description=description_signal /> }
-                }}
-            </Transition>
-                
-            </p>
-            <Difficulty difficulty=cwa_popup />
-            <p class=r#"text-lg/8"#>
-                <b>"Points: "</b>
-                {move || cwa_popup.get().challenge.points}
-            </p>
-            <br />
+                >
+                    {move || submit_btn_text.get()}
+                </button>
 
-            <label for="flag">
-                <b>"Flag: "</b>
-            </label>
-            <input
-                hidden=move || solved.get()
-                class=r#"m-1 bg-white rounded-sm border-black border-1"#
-                bind:value=flag_signal
-            />
-            <button
-                class=move || button_classes.get()
-                disabled=move || solved.get() || incorrect.get()
-                on:click=move |_| {
-                    let start = start.clone();
-                    let stop = stop.clone();
-                    let refresh_user = refresh_user;
-                    let flag = flag_signal.get();
-                    let challenge = cwa_popup.get().challenge;
-                    spawn_local(async move {
-                        if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
-                        {
-                            if result == ResultStatus::Fail && details == "incorrect solution" {
-                                incorrect.set(true);
-                                stop();
-                                start(());
-                            } else if result == ResultStatus::Success {
-                                solved.set(true);
+                <For
+                    each=move || cwa_popup.get().attachments.clone()
+                    key=|a: &AttachmentWithoutBlob| a.id.clone()
+                    let(a)
+                >
+                    <a
+                        download
+                        href=move || format!("/file/{}", a.id)
+                        class=r#"text-blue-600 underline"#
+                    >
+                        {a.file_name}
+                    </a>
+                </For>
+
+                <Show when=move || !vm_started.get() && cwa_popup.get().challenge.vm_id.is_some()>
+                    <button
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                        on:click=move |_| {
+                            let challenge = cwa_popup.get().challenge;
+                            spawn_local(async move {
+                                if let Ok(ApiResult { result, details }) = start_vm(challenge).await
+                                {
+                                    if result == ResultStatus::Fail && details == "failed to start vm" {
+                                        vm_started.set(false);
+                                    } else {
+                                        vm_started.set(true);
+                                    }
+                                }
+                            });
+                        }
+                    >
+                        "Start VM"
+                    </button>
+                </Show>
+                <Show when=move || vm_started.get()>
+                    <button
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                        on:click=move |_| {
+                            let challenge = cwa_popup.get().challenge;
+                            spawn_local(async move {
+                                let active_vms = active_vms.await;
+                                let mut active_vm_id = 0_u32;
+                                for active_vm in active_vms {
+                                    if active_vm.challenge_id == challenge.id {
+                                        active_vm_id = active_vm.vm_id;
+                                    }
+                                }
+                                _ = restart_vm(active_vm_id).await;
+                            });
+                        }
+                    >
+                        "Restart VM"
+                    </button>
+
+                    <button
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                        on:click=move |_| {
+                            let challenge = cwa_popup.get().challenge;
+                            spawn_local(async move {
+                                let active_vms = active_vms.await;
+                                let mut active_vm_id = 0_u32;
+                                for active_vm in active_vms {
+                                    if active_vm.challenge_id == challenge.id {
+                                        active_vm_id = active_vm.vm_id;
+                                    }
+                                }
+                                _ = add_vm_time(active_vm_id).await;
+                            });
+                        }
+                    >
+                        "Add Time (+30 min)"
+                    </button>
+
+                    <button
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                        on:click=move |_| {
+                            let challenge = cwa_popup.get().challenge;
+                            spawn_local(async move {
                                 let active_vms = active_vms.await;
                                 let mut active_vm_id = 0_u32;
                                 for active_vm in active_vms {
@@ -155,116 +260,13 @@ pub fn ChallengePopup(
                                     }
                                 }
                                 _ = destroy_vm(active_vm_id).await;
-                                let iteration = refresh_user.get().iteration + 1;
-                                refresh_user.set(RefreshUser { iteration });
-                            }
+                            });
                         }
-                    });
-                }
-            >
-                {move || submit_btn_text.get()}
-            </button>
-
-            <For
-                each=move || cwa_popup.get().attachments.clone()
-                key=|a: &AttachmentWithoutBlob| a.id.clone()
-                let(a)
-            >
-                <a
-                    download
-                    href=move || format!("/file/{}", a.id)
-                    class=r#"text-blue-600 underline"#
-                >
-                    {a.file_name}
-                </a>
-            </For>
-
-            <Show when=move || !vm_started.get() && cwa_popup.get().challenge.vm_id.is_some()>
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        let challenge = cwa_popup.get().challenge;
-                        spawn_local(async move {
-                            if let Ok(ApiResult { result, details }) = start_vm(challenge).await
-                            {
-                                if result == ResultStatus::Fail && details == "failed to start vm" {
-                                    vm_started.set(false);
-                                } else {
-                                    vm_started.set(true);
-                                }
-                            }
-                        });
-                    }
-                >
-                    "Start VM"
-                </button>
-            </Show>
-            <Show when=move || vm_started.get()>
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        let challenge = cwa_popup.get().challenge;
-                        spawn_local(async move {
-                            let active_vms = active_vms.await;
-                            let mut active_vm_id = 0_u32;
-                            for active_vm in active_vms {
-                                if active_vm.challenge_id == challenge.id {
-                                    active_vm_id = active_vm.vm_id;
-                                }
-                            }
-                            _ = restart_vm(active_vm_id).await;
-                        });
-                    }
-                >
-                    "Restart VM"
-                </button>
-
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        let challenge = cwa_popup.get().challenge;
-                        spawn_local(async move {
-                            let active_vms = active_vms.await;
-                            let mut active_vm_id = 0_u32;
-                            for active_vm in active_vms {
-                                if active_vm.challenge_id == challenge.id {
-                                    active_vm_id = active_vm.vm_id;
-                                }
-                            }
-                            _ = add_vm_time(active_vm_id).await;
-                        });
-                    }
-                >
-                    "Add Time (+30 min)"
-                </button>
-
-                <button
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        let challenge = cwa_popup.get().challenge;
-                        spawn_local(async move {
-                            let active_vms = active_vms.await;
-                            let mut active_vm_id = 0_u32;
-                            for active_vm in active_vms {
-                                if active_vm.challenge_id == challenge.id {
-                                    active_vm_id = active_vm.vm_id;
-                                }
-                            }
-                            _ = destroy_vm(active_vm_id).await;
-                        });
-                    }
-                >
-                    "Destroy VM"
-                </button>
-            </Show>
+                    >
+                        "Destroy VM"
+                    </button>
+                </Show>
+            </div>
         </div>
     }
 }
