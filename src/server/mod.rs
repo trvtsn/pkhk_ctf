@@ -1,5 +1,5 @@
 #[cfg(feature = "ssr")]
-use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState, db::get_db_ref, proxmox::{get_next_free_vm_id, create_proxmox_user_pool}};
+use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
 use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{ProxmoxInstanceIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs, ProxmoxInstance}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
@@ -349,7 +349,7 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
                             }
                         };
                         // update last_active_date in db
-                        _ = create_proxmox_user_pool(db_user).await;
+                        _ = crate::server::proxmox::create_user_pool(db_user).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
                     },
                     Err(e) => {
@@ -479,7 +479,7 @@ pub async fn register_user(email: String, password: String, confirm_password: St
                         return Err(AppError::InternalError("internal error".to_string()));
                     }
                 };
-                _ = create_proxmox_user_pool(db_user).await;
+                _ = crate::server::proxmox::create_user_pool(db_user).await;
                 Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
             } else {
                 Err(AppError::InternalError("".to_string()))
@@ -992,12 +992,12 @@ pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppErro
 
 #[server(name=RestartVM, prefix="/api", endpoint="restart_vm")]
 #[instrument]
-pub async fn restart_vm(vm_id: String) -> Result<ApiResult<String>, AppError> {
+pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
+            match auth.user {
                 Some(user) => user,
                 None => {
                     response.set_status(StatusCode::FORBIDDEN);
@@ -1017,12 +1017,12 @@ pub async fn restart_vm(vm_id: String) -> Result<ApiResult<String>, AppError> {
 
 #[server(name=DestroyVM, prefix="/api", endpoint="destroy_vm")]
 #[instrument]
-pub async fn destroy_vm(vm_id: String) -> Result<ApiResult<String>, AppError> {
+pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
+            match auth.user {
                 Some(user) => user,
                 None => {
                     response.set_status(StatusCode::FORBIDDEN);
@@ -1030,7 +1030,7 @@ pub async fn destroy_vm(vm_id: String) -> Result<ApiResult<String>, AppError> {
                 }
             };
 
-            let proxmox_instance = match ProxmoxInstance::get(&ProxmoxInstanceIdentifier::VmId(vm_id.clone()), &auth.backend.pool).await {
+            let proxmox_instance = match ProxmoxInstance::get(&ProxmoxInstanceIdentifier::VmId(vm_id), &auth.backend.pool).await {
                 Ok(proxmox_instance) => proxmox_instance.unwrap_or_default(),
                 Err(e) => return Err(e.into())
             };
@@ -1052,12 +1052,12 @@ pub async fn destroy_vm(vm_id: String) -> Result<ApiResult<String>, AppError> {
 
 #[server(name=AddVMTime, prefix="/api", endpoint="add_vm_time")]
 #[instrument]
-pub async fn add_vm_time(vm_id: String) -> Result<ApiResult<String>, AppError> {
+pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let auth = use_context::<AuthSession>().unwrap();
             let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
+            match auth.user {
                 Some(user) => user,
                 None => {
                     response.set_status(StatusCode::FORBIDDEN);

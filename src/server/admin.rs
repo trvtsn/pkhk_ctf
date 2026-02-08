@@ -1372,7 +1372,7 @@ pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("connection succeeded but failed to update DB row: {e}")) })
             }
 
-            match crate::server::proxmox::create_proxmox_realm().await {
+            match crate::server::proxmox::create_realm().await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated Proxmox configuration".to_string()) }),
                 Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("failed to create realm for Proxmox: {e}")) })
             }

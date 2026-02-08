@@ -293,7 +293,7 @@ pub mod enums {
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub enum ProxmoxInstanceIdentifier {
         Id(String),
-        VmId(String),
+        VmId(u32),
         UserId(String),
         ChallengeId(String),
         ChallengeAndUserId((String, String))
@@ -3498,7 +3498,7 @@ cfg_if! {
             }
 
             pub async fn add_time(
-                vm_id: &String, 
+                vm_id: &u32, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(

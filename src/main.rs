@@ -67,7 +67,7 @@ async fn main() {
     init_tracing();
     init_env();
     _ = db::init_db().await;
-    _ = server::proxmox::create_proxmox_realm().await;
+    _ = server::proxmox::create_realm().await;
     let pool = get_db();
 
     tracing::info!(app = "tracing-sse-logs", version = "0.1.0", "server starting");

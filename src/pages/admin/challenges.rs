@@ -307,7 +307,7 @@ pub fn Challenges() -> impl IntoView {
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM ID"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM ID (Optional)"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
