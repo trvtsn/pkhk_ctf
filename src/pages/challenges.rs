@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_solved_challenges}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::{ChallengeWithAttachments, ProxmoxInstance}}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_active_vms, get_user_solved_challenges}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -19,6 +19,11 @@ pub fn Challenges() -> impl IntoView {
 
     let active_events_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_active_events().await.unwrap_or_default()
+    });
+
+    let active_vms_signal = RwSignal::new(Vec::<ProxmoxInstance>::default());
+    let active_vms_resource = Resource::new(move || refresh.get(), move |_| {
+        async move { get_user_active_vms().await.unwrap_or_default() }
     });
 
     let solved_challenge_ids = RwSignal::new(Vec::<String>::default());
@@ -53,7 +58,6 @@ pub fn Challenges() -> impl IntoView {
 
     let challenges_view = move || { view! {
         <DimmingOverlay overlay_triggered />
-        <ChallengePopup cwa_popup=cwa_popup solved_challenges=solved_challenge_ids overlay_triggered />
         <div 
             class=r#"challenges"# 
         >
@@ -61,6 +65,9 @@ pub fn Challenges() -> impl IntoView {
                 view! { <div>"Loading..."</div> }
             }>
                 {move || {
+                    let active_vms = active_vms_resource.get().unwrap_or_default();
+                    active_vms_signal.set(active_vms);
+
                     let mut map = HashMap::<
                         Option<String>,
                         Vec<db::structs::ChallengeWithAttachments>,
@@ -73,15 +80,21 @@ pub fn Challenges() -> impl IntoView {
                         .collect::<
                             Vec<(Option<String>, Vec<db::structs::ChallengeWithAttachments>)>,
                         >();
+                    // alphabetical sort, there's probably a better way to do this
                     groups
                         .sort_by(|(a, _), (b, _)| {
                             a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or(""))
                         });
                     solved_challenge_ids.set(solved_challenges_resource.get().unwrap_or_default());
 
-                    // alphabetical sort, there's probably a better way to do this
-
                     view! {
+                        <ChallengePopup 
+                            cwa_popup=cwa_popup 
+                            solved_challenges=solved_challenge_ids 
+                            overlay_triggered 
+                            active_vms=active_vms_signal 
+                            refresh 
+                        />
                         <For
                             each=move || groups.clone()
                             key=|

@@ -1,8 +1,8 @@
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::enums::AttachmentIdentifier;
-use crate::server::db::structs::ChallengeWithAttachments;
-use crate::server::{add_vm_time, destroy_vm, get_illustration_id, get_user_active_vms, restart_vm, start_vm};
+use crate::server::db::structs::{ChallengeWithAttachments, ProxmoxInstance};
+use crate::server::{add_vm_time, destroy_vm, get_illustration_id, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
@@ -12,24 +12,21 @@ use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 pub fn ChallengePopup(
     cwa_popup: RwSignal<ChallengeWithAttachments>,
     solved_challenges: RwSignal<Vec<String>>,
-    overlay_triggered: RwSignal<bool>
+    overlay_triggered: RwSignal<bool>,
+    active_vms: RwSignal<Vec<ProxmoxInstance>>,
+    refresh: RwSignal<i32>
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
     let flag_signal = RwSignal::new("".to_string());
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
-    let vm_started = RwSignal::new(false); // use db resource to check for active proxmox instances
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let illustration = Resource::new(move || (), move |_| {
         let challenge_id = cwa_popup.get().challenge.id;
         async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
-    });
-
-    let active_vms = Resource::new(move || (), move |_| {
-        async move { get_user_active_vms().await.unwrap_or_default() }
     });
 
     let card_classes = Memo::new(move |_| {
@@ -148,14 +145,8 @@ pub fn ChallengePopup(
                                     start(());
                                 } else if result == ResultStatus::Success {
                                     solved.set(true);
-                                    let active_vms = active_vms.await;
-                                    let mut active_vm_id = 0_u32;
-                                    for active_vm in active_vms {
-                                        if active_vm.challenge_id == challenge.id {
-                                            active_vm_id = active_vm.vm_id;
-                                        }
-                                    }
-                                    _ = destroy_vm(active_vm_id).await;
+                                    // let active_vm_id = active_vm_id.clone();
+                                    // _ = destroy_vm(active_vm_id).await;
                                     let iteration = refresh_user.get().iteration + 1;
                                     refresh_user.set(RefreshUser { iteration });
                                 }
@@ -180,92 +171,88 @@ pub fn ChallengePopup(
                     </a>
                 </For>
 
-                <Show when=move || !vm_started.get() && cwa_popup.get().challenge.vm_id.is_some()>
-                    <button
-                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {
-                            let challenge = cwa_popup.get().challenge;
-                            spawn_local(async move {
-                                if let Ok(ApiResult { result, details }) = start_vm(challenge).await
-                                {
-                                    if result == ResultStatus::Fail && details == "failed to start vm" {
-                                        vm_started.set(false);
-                                    } else {
-                                        vm_started.set(true);
-                                    }
-                                }
-                            });
+                <Transition>
+                    {move || {
+                        let active_vms = active_vms.get();
+                        let challenge = cwa_popup.get().challenge;
+                        let mut active_vm_id = 0_u32;
+                        for active_vm in active_vms {
+                            if active_vm.challenge_id == challenge.id {
+                                active_vm_id = active_vm.vm_id;
+                            }
                         }
-                    >
-                        "Start VM"
-                    </button>
-                </Show>
-                <Show when=move || vm_started.get()>
-                    <button
-                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {
-                            let challenge = cwa_popup.get().challenge;
-                            spawn_local(async move {
-                                let active_vms = active_vms.await;
-                                let mut active_vm_id = 0_u32;
-                                for active_vm in active_vms {
-                                    if active_vm.challenge_id == challenge.id {
-                                        active_vm_id = active_vm.vm_id;
+                        view! {
+                            <Show when=move || active_vm_id == 0 && cwa_popup.get().challenge.vm_id.is_some()>
+                                <button
+                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                    on:click=move |_| {
+                                        let challenge = cwa_popup.get().challenge;
+                                        spawn_local(async move {
+                                            if let Ok(ApiResult { result, details }) = start_vm(challenge).await
+                                            {
+                                                if result == ResultStatus::Fail && details == "failed to start vm" {
+                                                    refresh.update(|n| *n += 1);
+                                                } else {
+                                                    refresh.update(|n| *n += 1);
+                                                }
+                                            }
+                                        });
                                     }
-                                }
-                                _ = restart_vm(active_vm_id).await;
-                            });
-                        }
-                    >
-                        "Restart VM"
-                    </button>
+                                >
+                                    "Start VM"
+                                </button>
+                            </Show>
+                            <Show when=move || active_vm_id != 0>
+                                <button
+                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                    on:click=move |_| {
+                                        let active_vm_id = active_vm_id.clone();
+                                        spawn_local(async move {
+                                            _ = restart_vm(active_vm_id).await;
+                                            refresh.update(|n| *n += 1);
+                                        });
+                                    }
+                                >
+                                    "Restart VM"
+                                </button>
 
-                    <button
-                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {
-                            let challenge = cwa_popup.get().challenge;
-                            spawn_local(async move {
-                                let active_vms = active_vms.await;
-                                let mut active_vm_id = 0_u32;
-                                for active_vm in active_vms {
-                                    if active_vm.challenge_id == challenge.id {
-                                        active_vm_id = active_vm.vm_id;
+                                <button
+                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                    on:click=move |_| {
+                                        let active_vm_id = active_vm_id.clone();
+                                        spawn_local(async move {
+                                            _ = add_vm_time(active_vm_id).await;
+                                            refresh.update(|n| *n += 1);
+                                        });
                                     }
-                                }
-                                _ = add_vm_time(active_vm_id).await;
-                            });
-                        }
-                    >
-                        "Add Time (+30 min)"
-                    </button>
+                                >
+                                    "Add Time (+30 min)"
+                                </button>
 
-                    <button
-                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {
-                            let challenge = cwa_popup.get().challenge;
-                            spawn_local(async move {
-                                let active_vms = active_vms.await;
-                                let mut active_vm_id = 0_u32;
-                                for active_vm in active_vms {
-                                    if active_vm.challenge_id == challenge.id {
-                                        active_vm_id = active_vm.vm_id;
+                                <button
+                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                    on:click=move |_| {
+                                        let active_vm_id = active_vm_id.clone();
+                                        spawn_local(async move {
+                                            _ = destroy_vm(active_vm_id).await;
+                                            refresh.update(|n| *n += 1);
+                                        });
                                     }
-                                }
-                                _ = destroy_vm(active_vm_id).await;
-                            });
+                                >
+                                    "Destroy VM"
+                                </button>
+                            </Show>
                         }
-                    >
-                        "Destroy VM"
-                    </button>
-                </Show>
+                    }}
+                </Transition>
             </div>
         </div>
     }

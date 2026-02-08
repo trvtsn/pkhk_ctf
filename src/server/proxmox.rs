@@ -6,7 +6,6 @@ use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::{Duration, Instant};
-use std::io;
 use tracing::instrument;
 
 #[derive(Deserialize)]
@@ -223,12 +222,20 @@ pub async fn destroy_vm(vm_id: u32) -> Result<(), AppError> {
     };
     let base_url = proxmox_args.base_url.trim_end_matches("/");
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}", proxmox_args.node);
+    let destroy_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}", proxmox_args.node);
+    let stop_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/stop", proxmox_args.node);
     let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
     
-    match client.delete(url).header(header::AUTHORIZATION, auth_value).send().await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e.into())
+    // stop
+    match client.post(stop_url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+        Ok(_) => {
+            // destroy
+            match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.into())
+            }
+        },
+        Err(e) => return Err(e.into())
     }
 }
 
