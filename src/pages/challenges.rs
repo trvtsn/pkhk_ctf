@@ -107,7 +107,7 @@ pub fn Challenges() -> impl IntoView {
                         >
                             <div class=r#"p-2 challenge-category"#>
                                 <h2 class=r#"text-2xl"#>
-                                    {group.0.clone().unwrap_or_else(|| "Uncategorized".to_string())}
+                                    {group.0.clone().unwrap_or("Uncategorized".to_string())}
                                 </h2>
 
                                 <div class=r#"grid grid-cols-4 m-4 content-stretch"#>

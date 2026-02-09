@@ -31,11 +31,15 @@ pub fn Proxmox() -> impl IntoView {
             view! { <div>"Loading..."</div> }
         }>
             {move || {
-                let proxmox_args = proxmox_resource.get().unwrap_or_default().unwrap_or_default();
-                base_url.set(proxmox_args.base_url.clone());
-                api_path.set(proxmox_args.api_path.clone());
-                api_token.set(proxmox_args.api_token);
-                auth_type.set(proxmox_args.auth_type);
+                match proxmox_resource.get().unwrap_or_default() {
+                    Some(proxmox_args) => {
+                        base_url.set(proxmox_args.base_url.clone());
+                        api_path.set(proxmox_args.api_path.clone());
+                        api_token.set(proxmox_args.api_token);
+                        auth_type.set(proxmox_args.auth_type);
+                    }
+                    None => {}
+                };
 
                 view! {
                     <div>
@@ -110,13 +114,13 @@ pub fn Proxmox() -> impl IntoView {
                                         })
                                         .await
                                     {
+                                        auth_status_ui.set(details.unwrap_or_default());
                                         if result == ResultStatus::Success {
                                             auth_success.set(true);
                                         } else {
                                             auth_success.set(false);
                                         }
                                         
-                                        auth_status_ui.set(details.unwrap_or_default());
                                     }
                                 });
                             }
@@ -132,8 +136,6 @@ pub fn Proxmox() -> impl IntoView {
                                 let base_url = base_url.get();
                                 let api_path = api_path.get();
                                 let node = node.get();
-                                // let username = username.get();
-                                // let password = password.get();
                                 let api_token = api_token.get();
                                 let auth_type = auth_type.get();
                                 spawn_local(async move {

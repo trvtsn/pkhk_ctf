@@ -152,16 +152,9 @@ pub fn router() -> Router<AppState> {
 pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAttachments>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+            let (user, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
                 Ok(Some(user)) => user,
                 Ok(None) => {
                     return Err(AppError::InternalError("internal error".to_string()));
@@ -172,13 +165,13 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
                 }
             };
 
-            let challenges = match db::structs::Challenge::get_all(&auth.backend.pool).await {
+            let challenges = match db::structs::Challenge::get_all(&pool).await {
                 Ok(challenges) => challenges,
                 Err(e) => Err(e)?
             };
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
-                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &auth.backend.pool).await?;
+                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &pool).await?;
                 let visible_to_groups_vec = challenge.visible_to_groups.split(",").map(|v| v.to_string()).collect::<Vec<String>>();
                 if visible_to_groups_vec.contains(&db_user.group) || db_user.role == UserRole::Admin || visible_to_groups_vec.contains(&"all".to_string()) {
                     cwa.push(ChallengeWithAttachments { challenge, attachments });
@@ -199,16 +192,9 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
 pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+            let (user, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
                 Ok(Some(user)) => user,
                 Ok(None) => {
                     return Err(AppError::InternalError("internal error".to_string()));
@@ -238,7 +224,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 }
             };
 
-            let meta = match db::structs::Event::get_metadata(&active_event_id, &auth.backend.pool).await {
+            let meta = match db::structs::Event::get_metadata(&active_event_id, &pool).await {
                 Ok(meta) => meta,
                 Err(e) => {
                     tracing::error!(error = ?e);
@@ -250,7 +236,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
             let x_min = offset_to_datetime(meta.first_submission.unwrap());
             let x_max = offset_to_datetime(meta.last_submission.unwrap());
 
-            let y_max = db::structs::Event::get_total_possible_points(&active_event_id, &auth.backend.pool).await.unwrap();
+            let y_max = db::structs::Event::get_total_possible_points(&active_event_id, &pool).await.unwrap();
 
             let solves = sqlx::query!(
                 r#"
@@ -268,7 +254,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 "#,
                 active_event_id
             )
-            .fetch_all(&auth.backend.pool)
+            .fetch_all(&pool)
             .await?;
 
             let users: Vec<String> = solves.iter().map(|r| r.username.clone()).collect();
@@ -390,16 +376,8 @@ pub async fn get_user() -> Result<Option<User>, AppError> {
 pub async fn get_user_points() -> Result<u32, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth: AuthSession = use_context().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
-            match db::structs::Submission::get_user_points(&user.id, &auth.backend.pool).await {
+            let (user, pool) = authenticated_check().await?;
+            match db::structs::Submission::get_user_points(&user.id, &pool).await {
                 Ok(points) => Ok(points),
                 Err(e) => {
                     tracing::error!(error = ?e);
@@ -417,17 +395,9 @@ pub async fn get_user_points() -> Result<u32, AppError> {
 pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<DbUserWithoutPII>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (user, pool) = authenticated_check().await?;
             if username.is_some() {
-                match DbUserWithoutPII::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &auth.backend.pool).await {
+                match DbUserWithoutPII::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
@@ -435,7 +405,7 @@ pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<
                     }
                 }    
             } else {
-                match DbUserWithoutPII::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+                match DbUserWithoutPII::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
@@ -495,17 +465,9 @@ pub async fn register_user(email: String, password: String, confirm_password: St
 pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Challenge) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (user, pool) = authenticated_check().await?;
 
-            let mut tx = auth.backend.pool.begin().await?;
+            let mut tx = pool.begin().await?;
 
             // check if the challenge is already solved, and if so, return Error
             match db::structs::Submission::get_user_solved_challenges(&user.id, &mut *tx).await {
@@ -557,16 +519,8 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
 pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+            let (user, pool) = authenticated_check().await?;
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
                 Ok(Some(user)) => user,
                 Ok(None) => {
                     return Err(AppError::InternalError("internal error".to_string()));
@@ -582,7 +536,7 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
             } else if username.is_empty() || !username.is_ascii() {
                 return Err(AppError::InternalError("internal error".to_string()));
             } else {
-                match DbUser::edit_username(&user.id, &username, &auth.backend.pool).await {
+                match DbUser::edit_username(&user.id, &username, &pool).await {
                     Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed username".to_string() }),
                     Err(e) => Err(e.into())
                 }
@@ -598,15 +552,7 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
 pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (user, pool) = authenticated_check().await?;
             
             let mut data = avatar.into_inner().unwrap();
             let mut file_name = String::new();
@@ -621,7 +567,7 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
                 }
             }
 
-            let mut tx = auth.backend.pool.begin().await?;
+            let mut tx = pool.begin().await?;
 
             match DbUser::delete_avatar(&user.id, &mut *tx).await {
                 Ok(_) => {},
@@ -652,17 +598,9 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
 pub async fn get_avatar_blob(username: String) -> Result<Vec<u8>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (user, pool) = authenticated_check().await?;
 
-            match DbUser::get_avatar(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+            match DbUser::get_avatar(&UserIdentifier::Id(user.id.clone()), &pool).await {
                 Ok(avatar) => Ok(avatar),
                 Err(e) => Err(e.into())
             }
@@ -677,17 +615,9 @@ pub async fn get_avatar_blob(username: String) -> Result<Vec<u8>, AppError> {
 pub async fn get_avatar_id(identifier: UserIdentifier) -> Result<Option<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (_, pool) = authenticated_check().await?;
 
-            match DbUser::get_avatar_id(&identifier, &auth.backend.pool).await {
+            match DbUser::get_avatar_id(&identifier, &pool).await {
                 Ok(id) => Ok(id),
                 Err(e) => Err(e.into())
             }
@@ -702,17 +632,9 @@ pub async fn get_avatar_id(identifier: UserIdentifier) -> Result<Option<String>,
 pub async fn get_attachment_id(identifier: AttachmentIdentifier) -> Result<Option<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            match auth.user {
-                Some(_) => {},
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            }
+            let (_, pool) = authenticated_check().await?;
 
-            match AttachmentWithoutBlob::get_id(&identifier, &auth.backend.pool).await {
+            match AttachmentWithoutBlob::get_id(&identifier, &pool).await {
                 Ok(id) => Ok(id),
                 Err(e) => Err(e.into())
             }
@@ -727,17 +649,9 @@ pub async fn get_attachment_id(identifier: AttachmentIdentifier) -> Result<Optio
 pub async fn get_illustration_id(identifier: AttachmentIdentifier) -> Result<Option<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            match auth.user {
-                Some(_) => {},
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            }
+            let (_, pool) = authenticated_check().await?;
 
-            match AttachmentWithoutBlob::get_illustration_id(&identifier, &auth.backend.pool).await {
+            match AttachmentWithoutBlob::get_illustration_id(&identifier, &pool).await {
                 Ok(id) => Ok(id),
                 Err(e) => Err(e.into())
             }
@@ -752,16 +666,9 @@ pub async fn get_illustration_id(identifier: AttachmentIdentifier) -> Result<Opt
 pub async fn get_user_solved_challenges() -> Result<Vec<String>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
-            match db::structs::Submission::get_user_solved_challenges(&user.id, &auth.backend.pool).await {
+            let (user, pool) = authenticated_check().await?;
+
+            match db::structs::Submission::get_user_solved_challenges(&user.id, &pool).await {
                 Ok(solved) => Ok(solved),
                 Err(e) => Err(e.into())
             }
@@ -881,15 +788,7 @@ pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
 pub async fn edit_password(old_password: String, new_password: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (user, pool) = authenticated_check().await?;
 
             if old_password == new_password {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
@@ -897,7 +796,7 @@ pub async fn edit_password(old_password: String, new_password: String) -> Result
 
             let pw_hash = hash_string(new_password.clone())?;
 
-            match DbUser::edit_password(&user.id, &pw_hash, &auth.backend.pool).await {
+            match DbUser::edit_password(&user.id, &pw_hash, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
                 Err(e) => Err(e.into())
             }
@@ -952,17 +851,9 @@ pub async fn is_ldap_enabled() -> Result<bool, AppError> {
 pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (user, pool) = authenticated_check().await?;
 
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
                 Ok(Some(user)) => user,
                 Ok(None) => {
                     return Err(AppError::InternalError("internal error".to_string()));
@@ -980,7 +871,7 @@ pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppErro
 
             let start_at = Local::now();
             let end_at = start_at + Duration::minutes(60);
-            match ProxmoxInstance::add(&challenge.id, &user.id, &new_vm_id, &start_at, &end_at, &auth.backend.pool).await {
+            match ProxmoxInstance::add(&challenge.id, &user.id, &new_vm_id, &start_at, &end_at, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has started".to_string() }),
                 Err(e) => Err(e.into())
             }
@@ -995,15 +886,7 @@ pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppErro
 pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (_, _) = authenticated_check().await?;
 
             match crate::server::proxmox::restart_vm(vm_id).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been restarted".to_string() }),
@@ -1020,17 +903,9 @@ pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (_, pool) = authenticated_check().await?;
 
-            let proxmox_instance = match ProxmoxInstance::get(&ProxmoxInstanceIdentifier::VmId(vm_id), &auth.backend.pool).await {
+            let proxmox_instance = match ProxmoxInstance::get(&ProxmoxInstanceIdentifier::VmId(vm_id), &pool).await {
                 Ok(proxmox_instance) => proxmox_instance.unwrap_or_default(),
                 Err(e) => return Err(e.into())
             };
@@ -1040,7 +915,7 @@ pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
                 Err(e) => return Err(e)
             }
 
-            match ProxmoxInstance::delete(&proxmox_instance.id, &auth.backend.pool).await {
+            match ProxmoxInstance::delete(&proxmox_instance.id, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been deleted".to_string() }),
                 Err(e) => Err(e.into())
             }
@@ -1055,17 +930,9 @@ pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (_, pool) = authenticated_check().await?;
             
-            match ProxmoxInstance::add_time(&vm_id, &auth.backend.pool).await {
+            match ProxmoxInstance::add_time(&vm_id, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "added time to vm".to_string() }),
                 Err(e) => Err(e.into())
             }
@@ -1080,17 +947,9 @@ pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 pub async fn get_user_active_vms() -> Result<Vec<ProxmoxInstance>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
-            let response = expect_context::<ResponseOptions>();
-            let user = match auth.user {
-                Some(user) => user,
-                None => {
-                    response.set_status(StatusCode::FORBIDDEN);
-                    return Err(AppError::Forbidden);
-                }
-            };
+            let (user, pool) = authenticated_check().await?;
 
-            match ProxmoxInstance::get_all(&Some(ProxmoxInstanceIdentifier::UserId(user.id)), &auth.backend.pool).await {
+            match ProxmoxInstance::get_all(&Some(ProxmoxInstanceIdentifier::UserId(user.id)), &pool).await {
                 Ok(vms) => Ok(vms),
                 Err(e) => Err(e.into())
             }
@@ -1152,6 +1011,20 @@ cfg_if! {
                     Err(AppError::InternalError(e.to_string()))
                 }
             }
+        }
+    }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
+    let auth = use_context::<AuthSession>().unwrap();
+    let response = expect_context::<ResponseOptions>();
+    match auth.user {
+        Some(user) => Ok((user, auth.backend.pool)),
+        None => {
+            response.set_status(StatusCode::FORBIDDEN);
+            return Err(AppError::Forbidden);
         }
     }
 }

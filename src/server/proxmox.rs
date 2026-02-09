@@ -352,7 +352,7 @@ async fn is_host_reachable() -> Result<bool, AppError> {
         let remaining = timeout - elapsed;
 
         match TcpStream::connect_timeout(&addr, remaining) {
-            Ok(mut stream) => {
+            Ok(stream) => {
                 let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
                 let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
                 return Ok(true);
