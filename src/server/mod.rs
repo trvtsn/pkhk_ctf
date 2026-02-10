@@ -1,12 +1,12 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{ProxmoxInstanceIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs, ProxmoxInstance}}, enums::ResultStatus, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs}}, enums::ResultStatus, proxmox::ProxmoxVMInstance, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
-use chrono::{DateTime, Duration, Local};
+use chrono::{DateTime, Local};
 use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
@@ -314,7 +314,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
 
 #[server(name=LoginUser, prefix="/api", endpoint="login")]
 #[instrument(skip(password))]
-pub async fn login_user(email: String, password: String, auth_type: AuthType) -> Result<ApiResult<Option<User>>, AppError> { // impl IntoResponse (can serve 403 that way)
+pub async fn login_user(email: String, password: String, auth_type: AuthType) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let mut auth = use_context::<AuthSession>().unwrap();
@@ -864,16 +864,9 @@ pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppErro
                 }
             };
 
-            let new_vm_id = match crate::server::proxmox::start_vm(challenge.clone(), db_user.clone()).await {
-                Ok(new_vm_id) => new_vm_id,
+            match crate::server::proxmox::start_vm(challenge.clone(), db_user.clone()).await {
+                Ok(new_vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("vm (id: {new_vm_id}) has started") }),
                 Err(e) => return Err(e.into())
-            };
-
-            let start_at = Local::now();
-            let end_at = start_at + Duration::minutes(60);
-            match ProxmoxInstance::add(&challenge.id, &user.id, &new_vm_id, &start_at, &end_at, &pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has started".to_string() }),
-                Err(e) => Err(e.into())
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -903,21 +896,11 @@ pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let (_, pool) = authenticated_check().await?;
-
-            let proxmox_instance = match ProxmoxInstance::get(&ProxmoxInstanceIdentifier::VmId(vm_id), &pool).await {
-                Ok(proxmox_instance) => proxmox_instance.unwrap_or_default(),
-                Err(e) => return Err(e.into())
-            };
+            let (_, _) = authenticated_check().await?;
 
             match crate::server::proxmox::destroy_vm(vm_id).await {
-                Ok(_) => {},
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: format!("vm (id: {vm_id}) has been deleted") }),
                 Err(e) => return Err(e)
-            }
-
-            match ProxmoxInstance::delete(&proxmox_instance.id, &pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been deleted".to_string() }),
-                Err(e) => Err(e.into())
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -930,9 +913,9 @@ pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let (_, pool) = authenticated_check().await?;
+            let (_, _) = authenticated_check().await?;
             
-            match ProxmoxInstance::add_time(&vm_id, &pool).await {
+            match crate::server::proxmox::add_vm_time(vm_id).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "added time to vm".to_string() }),
                 Err(e) => Err(e.into())
             }
@@ -944,14 +927,24 @@ pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 
 #[server(name=GetUserActiveVMs, prefix="/api", endpoint="get_active_vms")]
 #[instrument]
-pub async fn get_user_active_vms() -> Result<Vec<ProxmoxInstance>, AppError> {
+pub async fn get_user_active_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
 
-            match ProxmoxInstance::get_all(&Some(ProxmoxInstanceIdentifier::UserId(user.id)), &pool).await {
+            match crate::server::proxmox::get_user_active_vms(db_user).await {
                 Ok(vms) => Ok(vms),
-                Err(e) => Err(e.into())
+                Err(e) => Err(e)
             }
         } else {
             Err(AppError::NoServerConnection)

@@ -2,7 +2,8 @@ use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::db::structs::ChallengeWithAttachments;
-use crate::server::{destroy_vm, get_illustration_id, get_user_active_vms};
+use crate::server::proxmox::ProxmoxVMInstance;
+use crate::server::{destroy_vm, get_illustration_id};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
@@ -13,7 +14,8 @@ pub fn Challenge(
     cwa: ChallengeWithAttachments,
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
-    cwa_popup: RwSignal<ChallengeWithAttachments>
+    cwa_popup: RwSignal<ChallengeWithAttachments>,
+    active_vms: RwSignal<Vec<ProxmoxVMInstance>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments } = cwa.clone();
     let challenge_signal = RwSignal::new(challenge.clone());
@@ -25,10 +27,6 @@ pub fn Challenge(
     let incorrect = RwSignal::new(false);
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
-
-    let active_vms = Resource::new(move || (), move |_| {
-        async move { get_user_active_vms().await.unwrap_or_default() }
-    });
 
     let illustration = Resource::new(move || (), move |_| {
         let challenge_id = challenge_signal.get().id;
@@ -117,6 +115,7 @@ pub fn Challenge(
                     let refresh_user = refresh_user;
                     let flag = flag_signal.get();
                     let challenge = challenge_signal.get();
+                    let active_vms = active_vms.get();
                     spawn_local(async move {
                         if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
                         {
@@ -126,11 +125,10 @@ pub fn Challenge(
                                 start(());
                             } else if result == ResultStatus::Success {
                                 solved.set(true);
-                                let active_vms = active_vms.await;
                                 let mut active_vm_id = 0_u32;
                                 for active_vm in active_vms {
                                     if active_vm.challenge_id == challenge.id {
-                                        active_vm_id = active_vm.vm_id;
+                                        active_vm_id = active_vm.id;
                                     }
                                 }
                                 _ = destroy_vm(active_vm_id).await;

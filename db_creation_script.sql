@@ -151,33 +151,6 @@ DEFAULT CHARACTER SET = utf8mb3;
 
 
 -- -----------------------------------------------------
--- Table `ctfpkhk`.`proxmox_instances`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ctfpkhk`.`proxmox_instances` (
-  `id` CHAR(36) NOT NULL,
-  `challenge_id` CHAR(36) NOT NULL,
-  `user_id` CHAR(36) NOT NULL,
-  `vm_id` INT NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
-  `end_at` TIMESTAMP NOT NULL,
-  PRIMARY KEY (`id`),
-  CONSTRAINT `fk_proxmox_instances_challenges1`
-    FOREIGN KEY (`challenge_id`)
-    REFERENCES `ctfpkhk`.`challenges` (`id`),
-  CONSTRAINT `fk_proxmox_instances_users1`
-    FOREIGN KEY (`user_id`)
-    REFERENCES `ctfpkhk`.`users` (`id`))
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb3;
-
-CREATE UNIQUE INDEX `vm_id_UNIQUE` ON `ctfpkhk`.`proxmox_instances` (`vm_id` ASC) VISIBLE;
-
-CREATE INDEX `fk_proxmox_instances_challenges1_idx` ON `ctfpkhk`.`proxmox_instances` (`challenge_id` ASC) VISIBLE;
-
-CREATE INDEX `fk_proxmox_instances_users1_idx` ON `ctfpkhk`.`proxmox_instances` (`user_id` ASC) VISIBLE;
-
-
--- -----------------------------------------------------
 -- Table `ctfpkhk`.`submissions`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (

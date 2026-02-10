@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::{ChallengeWithAttachments, ProxmoxInstance}}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_active_vms, get_user_solved_challenges}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_active_vms, get_user_solved_challenges, proxmox::ProxmoxVMInstance}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -21,7 +21,7 @@ pub fn Challenges() -> impl IntoView {
         get_active_events().await.unwrap_or_default()
     });
 
-    let active_vms_signal = RwSignal::new(Vec::<ProxmoxInstance>::default());
+    let active_vms_signal = RwSignal::new(Vec::<ProxmoxVMInstance>::default());
     let active_vms_resource = Resource::new(move || refresh.get(), move |_| {
         async move { get_user_active_vms().await.unwrap_or_default() }
     });
@@ -124,6 +124,7 @@ pub fn Challenges() -> impl IntoView {
                                                 solved_challenges=solved_challenge_ids
                                                 overlay_triggered
                                                 cwa_popup=cwa_popup
+                                                active_vms=active_vms_signal 
                                             />
                                         </div>
                                     </For>

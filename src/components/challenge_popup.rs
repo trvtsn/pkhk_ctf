@@ -1,7 +1,8 @@
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::enums::AttachmentIdentifier;
-use crate::server::db::structs::{ChallengeWithAttachments, ProxmoxInstance};
+use crate::server::db::structs::{ChallengeWithAttachments};
+use crate::server::proxmox::ProxmoxVMInstance;
 use crate::server::{add_vm_time, destroy_vm, get_illustration_id, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
@@ -13,7 +14,7 @@ pub fn ChallengePopup(
     cwa_popup: RwSignal<ChallengeWithAttachments>,
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
-    active_vms: RwSignal<Vec<ProxmoxInstance>>,
+    active_vms: RwSignal<Vec<ProxmoxVMInstance>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
@@ -178,7 +179,7 @@ pub fn ChallengePopup(
                         let mut active_vm_id = 0_u32;
                         for active_vm in active_vms {
                             if active_vm.challenge_id == challenge.id {
-                                active_vm_id = active_vm.vm_id;
+                                active_vm_id = active_vm.id;
                             }
                         }
                         view! {

@@ -69,6 +69,18 @@ impl From<std::io::Error> for AppError {
     }
 }
 
+impl From<std::num::ParseIntError> for AppError {
+    fn from(value: std::num::ParseIntError) -> Self {
+        Self::InternalError(value.to_string())
+    }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::InternalError(value.to_string())
+    }
+}
+
 impl FromServerFnError for AppError {
     type Encoder = JsonEncoding;
 
@@ -108,6 +120,12 @@ cfg_if! {
 
         impl From<reqwest::Error> for AppError {
             fn from(value: reqwest::Error) -> Self {
+                Self::InternalError(value.to_string())
+            }
+        }
+
+        impl From<tokio::task::JoinError> for AppError {
+            fn from(value: tokio::task::JoinError) -> Self {
                 Self::InternalError(value.to_string())
             }
         }
