@@ -19,7 +19,6 @@ pub fn ChallengePopup(
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
     let flag_signal = RwSignal::new("".to_string());
-    let active_vm_origin_ids = RwSignal::<Vec<u32>>::new(vec![]);
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
@@ -175,9 +174,6 @@ pub fn ChallengePopup(
 
                 <Transition>
                     {move || {
-                        let user_vms = user_vms.get();
-                        active_vm_origin_ids.set(user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>());
-                        
                         let challenge = cwa_popup.get().challenge;
                         let challenge_vm_ids = challenge.clone().vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
                         view! {
@@ -185,10 +181,15 @@ pub fn ChallengePopup(
                                 // for each vm that the challenge has, show a button set
                                 <For
                                     each=move || challenge_vm_ids.clone()
-                                    key=|template_id: &u32| template_id.clone()
+                                    key=|template_id: &u32| *template_id
                                     let(template_id)
                                 >
-                                    <Show when=move || !active_vm_origin_ids.get().contains(&template_id)>
+                                    // <label></label>
+                                    <Show when=move || {
+                                        let user_vms = user_vms.get();
+                                        let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
+                                        !active_vm_origin_ids.contains(&template_id)
+                                    }>
                                         <button
                                             class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                             rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
@@ -211,7 +212,11 @@ pub fn ChallengePopup(
                                         </button>
                                     </Show>
 
-                                    <Show when=move || active_vm_origin_ids.get().contains(&template_id)>
+                                    <Show when=move || {
+                                        let user_vms = user_vms.get();
+                                        let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
+                                        active_vm_origin_ids.contains(&template_id)
+                                    }>
                                         <button
                                             class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                             rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 

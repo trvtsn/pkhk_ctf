@@ -325,11 +325,19 @@ pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<(), AppError> 
     
     // stop
     match client.post(stop_url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
-        Ok(_) => {
-            // destroy
-            match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.into())
+        Ok(res) => {
+            if res.status().is_success() {
+                async_std::task::sleep(Duration::from_secs(3)).await;
+                // destroy
+                match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
+                    Ok(res) => {
+                        leptos::logging::log!("delete res: {}", res.text().await?);
+                        Ok(())
+                    },
+                    Err(e) => Err(e.into())
+                }
+            } else {
+                Err(AppError::InternalError("failed to stop vm".to_string()))
             }
         },
         Err(e) => return Err(e.into())
@@ -388,7 +396,7 @@ pub async fn create_user_pool(user: DbUser) -> Result<(), AppError> {
             let body = serde_urlencoded::to_string(&[
                 ("path", format!("/pool/{poolid}")),
                 ("users", format!("{}@ctfpkhk", user.username)),
-                ("roles", "PVEVMAdmin".to_string()),
+                ("roles", "CTFCompetitor".to_string()),
                 ("propagate", "1".to_string())
             ]).unwrap_or_default();
             client.put(&acl_url)
@@ -744,5 +752,44 @@ async fn get_user_vmid_from_template_id(user: DbUser, template_id: u32) -> Resul
         } else {
             Err(AppError::NoServerConnection)
         }
+    }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+pub async fn create_user_role() -> Result<(), AppError> {
+    match is_host_reachable().await {
+        Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("proxmox host not reachable".to_string())) },
+        Err(_) => return Err(AppError::InternalError("proxmox host not reachable".to_string()))
+    }
+
+    let client = Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
+        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
+        Err(e) => return Err(e.into())
+    };
+    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+
+    let base_url = proxmox_args.base_url.trim_end_matches("/");
+    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+    let url = format!("{base_url}/{api_path}/access/roles");
+    let body = serde_urlencoded::to_string(&[
+        ("roleid", "CTFCompetitor"), 
+        ("privs", "VM.Audit"), 
+        ("privs", "VM.Console"), 
+        ("privs", "VM.GuestAgent.Audit"), 
+        ("privs", "VM.GuestAgent.FileRead"), 
+        ("privs", "VM.GuestAgent.FileSystemMgmt"), 
+        ("privs", "VM.GuestAgent.FileWrite"), 
+        ("privs", "VM.PowerMgmt"), 
+        ("privs", "Pool.Audit"), 
+    ]).unwrap_or_default();
+
+    match client.post(url).header(header::AUTHORIZATION, auth_value.clone()).body(body).send().await {
+        Ok(_) => Ok(()),
+        Err(e) => return Err(e.into())
     }
 }

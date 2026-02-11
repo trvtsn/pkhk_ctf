@@ -38,8 +38,8 @@ cargo leptos watch
 - [ ] Create Kali Linux Proxmox !!template!! (that means vm is already preconfigured)
 - [x] Create script to automate clone & start process in Proxmox
 - [x] Create option to attach mulitple VM-s to a challenge
-- [ ] When user inputs STOP VM (in proxmox use HARD STOP + additional vm remove api call)
-- [ ] Add start/stop/console permissions to users in their proxmox pools, disallow editing of VM description and other metadata
+- [x] When user inputs STOP VM (in proxmox use HARD STOP + additional vm remove api call)
+- [x] Add start/stop/console permissions to users in their proxmox pools, disallow editing of VM description and other metadata
 
 ### Security
 - [ ] Sanitize text inputs
@@ -51,6 +51,7 @@ cargo leptos watch
 - [x] Remove flag input box on challenge solve
 - [ ] Fix tooltip color on leaderboard hover
 - [ ] Fix select option color
+- [ ] Add spinner for indicating pending tasks
 
 ### Project Longevity
 - [ ] Add doc comments to pages and components
