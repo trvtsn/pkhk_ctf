@@ -15,7 +15,7 @@ pub fn Challenge(
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
     cwa_popup: RwSignal<ChallengeWithAttachments>,
-    active_vms: RwSignal<Vec<ProxmoxVMInstance>>
+    user_vms: RwSignal<Vec<ProxmoxVMInstance>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments } = cwa.clone();
     let challenge_signal = RwSignal::new(challenge.clone());
@@ -115,7 +115,7 @@ pub fn Challenge(
                     let refresh_user = refresh_user;
                     let flag = flag_signal.get();
                     let challenge = challenge_signal.get();
-                    let active_vms = active_vms.get();
+                    let user_vms = user_vms.get();
                     spawn_local(async move {
                         if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
                         {
@@ -125,13 +125,13 @@ pub fn Challenge(
                                 start(());
                             } else if result == ResultStatus::Success {
                                 solved.set(true);
-                                let mut active_vm_id = 0_u32;
-                                for active_vm in active_vms {
-                                    if active_vm.challenge_id == challenge.id {
-                                        active_vm_id = active_vm.id;
+                                let mut user_vm_id = 0_u32;
+                                for user_vm in user_vms {
+                                    if user_vm.challenge_id == challenge.id {
+                                        user_vm_id = user_vm.id;
                                     }
                                 }
-                                _ = destroy_vm(active_vm_id).await;
+                                _ = destroy_vm(user_vm_id).await;
                                 let iteration = refresh_user.get().iteration + 1;
                                 refresh_user.set(RefreshUser { iteration });
                             }

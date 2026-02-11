@@ -14,11 +14,12 @@ pub fn ChallengePopup(
     cwa_popup: RwSignal<ChallengeWithAttachments>,
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
-    active_vms: RwSignal<Vec<ProxmoxVMInstance>>,
+    user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
     let flag_signal = RwSignal::new("".to_string());
+    let active_vm_origin_ids = RwSignal::<Vec<u32>>::new(vec![]);
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
@@ -174,83 +175,87 @@ pub fn ChallengePopup(
 
                 <Transition>
                     {move || {
-                        let active_vms = active_vms.get();
+                        let user_vms = user_vms.get();
+                        active_vm_origin_ids.set(user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>());
+                        
                         let challenge = cwa_popup.get().challenge;
-                        let mut active_vm_id = 0_u32;
-                        for active_vm in active_vms {
-                            if active_vm.challenge_id == challenge.id {
-                                active_vm_id = active_vm.id;
-                            }
-                        }
+                        let challenge_vm_ids = challenge.clone().vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
                         view! {
-                            <Show when=move || active_vm_id == 0 && cwa_popup.get().challenge.vm_id.is_some()>
-                                <button
-                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                    on:click=move |_| {
-                                        let challenge = cwa_popup.get().challenge;
-                                        spawn_local(async move {
-                                            if let Ok(ApiResult { result, details }) = start_vm(challenge).await
-                                            {
-                                                if result == ResultStatus::Fail && details == "failed to start vm" {
-                                                    refresh.update(|n| *n += 1);
-                                                } else {
-                                                    refresh.update(|n| *n += 1);
-                                                }
+                            <div class="grid">
+                                // for each vm that the challenge has, show a button set
+                                <For
+                                    each=move || challenge_vm_ids.clone()
+                                    key=|template_id: &u32| template_id.clone()
+                                    let(template_id)
+                                >
+                                    <Show when=move || !active_vm_origin_ids.get().contains(&template_id)>
+                                        <button
+                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                            on:click=move |_| {
+                                                let challenge = cwa_popup.get().challenge;
+                                                spawn_local(async move {
+                                                    if let Ok(ApiResult { result, details }) = start_vm(template_id, challenge).await
+                                                    {
+                                                        if result == ResultStatus::Fail && details == "failed to start vm" {
+                                                            refresh.update(|n| *n += 1);
+                                                        } else {
+                                                            refresh.update(|n| *n += 1);
+                                                        }
+                                                    }
+                                                });
                                             }
-                                        });
-                                    }
-                                >
-                                    "Start VM"
-                                </button>
-                            </Show>
-                            <Show when=move || active_vm_id != 0>
-                                <button
-                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                    on:click=move |_| {
-                                        let active_vm_id = active_vm_id.clone();
-                                        spawn_local(async move {
-                                            _ = restart_vm(active_vm_id).await;
-                                            refresh.update(|n| *n += 1);
-                                        });
-                                    }
-                                >
-                                    "Restart VM"
-                                </button>
+                                        >
+                                            "Start VM"
+                                        </button>
+                                    </Show>
 
-                                <button
-                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                    on:click=move |_| {
-                                        let active_vm_id = active_vm_id.clone();
-                                        spawn_local(async move {
-                                            _ = add_vm_time(active_vm_id).await;
-                                            refresh.update(|n| *n += 1);
-                                        });
-                                    }
-                                >
-                                    "Add Time (+30 min)"
-                                </button>
+                                    <Show when=move || active_vm_origin_ids.get().contains(&template_id)>
+                                        <button
+                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                            on:click=move |_| {
+                                                spawn_local(async move {
+                                                    _ = restart_vm(template_id).await;
+                                                    refresh.update(|n| *n += 1);
+                                                });
+                                            }
+                                        >
+                                            "Restart VM"
+                                        </button>
 
-                                <button
-                                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                    on:click=move |_| {
-                                        let active_vm_id = active_vm_id.clone();
-                                        spawn_local(async move {
-                                            _ = destroy_vm(active_vm_id).await;
-                                            refresh.update(|n| *n += 1);
-                                        });
-                                    }
-                                >
-                                    "Destroy VM"
-                                </button>
-                            </Show>
+                                        <button
+                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                            on:click=move |_| {
+                                                spawn_local(async move {
+                                                    _ = add_vm_time(template_id).await;
+                                                    refresh.update(|n| *n += 1);
+                                                });
+                                            }
+                                        >
+                                            "Add Time (+30 min)"
+                                        </button>
+
+                                        <button
+                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                            on:click=move |_| {
+                                                spawn_local(async move {
+                                                    _ = destroy_vm(template_id).await;
+                                                    refresh.update(|n| *n += 1);
+                                                });
+                                            }
+                                        >
+                                            "Destroy VM"
+                                        </button>
+                                    </Show>
+                                </For>
+                            </div>
                         }
                     }}
                 </Transition>

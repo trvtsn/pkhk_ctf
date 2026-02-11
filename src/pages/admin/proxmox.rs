@@ -9,6 +9,7 @@ pub fn Proxmox() -> impl IntoView {
 
     let base_url = RwSignal::new("".to_string());
     let api_path = RwSignal::new("/api2/json".to_string());
+    let templates_pool_id = RwSignal::new("templates".to_string());
     let node = RwSignal::new("".to_string());
     let api_token = RwSignal::new(None);
     let auth_type = RwSignal::new(ProxmoxAuthType::default());
@@ -69,6 +70,16 @@ pub fn Proxmox() -> impl IntoView {
                             bind:value=api_path
                         />
 
+                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"VM Templates Pool ID"</label>
+                        <input
+                            class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="api_path"
+                            placeholder="Optional (Default: templates)"
+                            value=move || templates_pool_id.get()
+                            bind:value=templates_pool_id
+                        />
+
                         <label class=r#"block mb-1 text-sm font-medium text-text"#>"Node"</label>
                         <input
                             class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
@@ -99,6 +110,7 @@ pub fn Proxmox() -> impl IntoView {
                             on:click=move |_| {
                                 let base_url = base_url.get();
                                 let api_path = api_path.get();
+                                let templates_pool_id = templates_pool_id.get();
                                 let node = node.get();
                                 let api_token = api_token.get();
                                 let auth_type = auth_type.get();
@@ -106,6 +118,7 @@ pub fn Proxmox() -> impl IntoView {
                                     if let Ok(ApiResult { result, details }) = test_proxmox(ProxmoxArgs {
                                             base_url,
                                             api_path,
+                                            templates_pool_id,
                                             node,
                                             username: None,
                                             password: None,
@@ -135,6 +148,7 @@ pub fn Proxmox() -> impl IntoView {
                             on:click=move |_| {
                                 let base_url = base_url.get();
                                 let api_path = api_path.get();
+                                let templates_pool_id = templates_pool_id.get();
                                 let node = node.get();
                                 let api_token = api_token.get();
                                 let auth_type = auth_type.get();
@@ -142,6 +156,7 @@ pub fn Proxmox() -> impl IntoView {
                                     if let Ok(ApiResult { result, details }) = update_proxmox(ProxmoxArgs {
                                             base_url,
                                             api_path,
+                                            templates_pool_id,
                                             node,
                                             username: None,
                                             password: None,

@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -27,7 +27,7 @@ pub enum ChallengeAction {
         points: u32, 
         flag: String,
         visible_to_groups: String,
-        vm_id: Option<String>,
+        vm_ids: Option<String>,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     },
@@ -44,7 +44,7 @@ pub enum ChallengeAction {
         points: u32, 
         flag: String,
         visible_to_groups: String,
-        vm_id: Option<String>,
+        vm_ids: Option<String>,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     }
@@ -58,10 +58,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
             let (_, pool) = authenticated_check().await?;
 
             match action {
-                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_id } => {
+                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = pool.begin().await?;
-                    let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_id, &mut *tx).await {
+                    let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
                         Ok(result) => result,
                         Err(e) => {
                             tx.rollback().await?;
@@ -133,10 +133,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
                 }
-                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_id } => {
+                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = pool.begin().await?;
-                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_id, &mut *tx).await {
+                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
                         Ok(_) => {},
                         Err(e) => {
                             tx.rollback().await?;
@@ -1028,7 +1028,7 @@ pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("token auth failed: {e}")) })
             }
 
-            match ProxmoxArgs::update(&args.base_url, &args.api_path, &args.node, &args.username, &args.password, &args.api_token, &args.auth_type, &pool).await {
+            match ProxmoxArgs::update(&args.base_url, &args.api_path, &args.templates_pool_id, &args.node, &args.username, &args.password, &args.api_token, &args.auth_type, &pool).await {
                 Ok(_) => {},
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("connection succeeded but failed to update DB row: {e}")) })
             }
@@ -1088,5 +1088,25 @@ pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
         return Err(AppError::Forbidden);
     } else {
         Ok((user, auth.backend.pool))
+    }
+}
+
+#[server(name=AdminGetAllChallengeTemplates, prefix="/api/admin/challenges", endpoint="get_templates")]
+#[instrument]
+pub async fn get_all_challenge_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, _) = authenticated_check().await?;
+
+            match crate::server::proxmox::get_all_templates().await {
+                Ok(templates) => Ok(templates),
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
     }
 }

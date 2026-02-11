@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`challenges` (
   `points` INT UNSIGNED NOT NULL,
   `flag_hash` VARCHAR(100) NOT NULL,
   `visible_to_groups` VARCHAR(50) NOT NULL,
-  `vm_id` VARCHAR(45) NULL DEFAULT NULL,
+  `vm_ids` VARCHAR(45) NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_challenges_events1`
     FOREIGN KEY (`event_id`)
@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`proxmox` (
   `restriction` ENUM('') NOT NULL,
   `base_url` VARCHAR(100) NOT NULL,
   `api_path` VARCHAR(100) NOT NULL,
+  `templates_pool_id` VARCHAR(45) NOT NULL,
   `node` VARCHAR(45) NOT NULL,
   `username` VARCHAR(64) NULL DEFAULT NULL,
   `password` VARCHAR(64) NULL DEFAULT NULL,

@@ -848,7 +848,7 @@ pub async fn is_ldap_enabled() -> Result<bool, AppError> {
 
 #[server(name=StartVM, prefix="/api", endpoint="start_vm")]
 #[instrument]
-pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppError> {
+pub async fn start_vm(template_id: u32, challenge: Challenge) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
@@ -864,8 +864,8 @@ pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppErro
                 }
             };
 
-            match crate::server::proxmox::start_vm(challenge.clone(), db_user.clone()).await {
-                Ok(new_vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("vm (id: {new_vm_id}) has started") }),
+            match crate::server::proxmox::start_vm(template_id, challenge, db_user.clone()).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm(s) have started".to_string() }),
                 Err(e) => return Err(e.into())
             }
         } else {
@@ -876,12 +876,23 @@ pub async fn start_vm(challenge: Challenge) -> Result<ApiResult<String>, AppErro
 
 #[server(name=RestartVM, prefix="/api", endpoint="restart_vm")]
 #[instrument]
-pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+pub async fn restart_vm(template_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let (_, _) = authenticated_check().await?;
+            let (user, pool) = authenticated_check().await?;
 
-            match crate::server::proxmox::restart_vm(vm_id).await {
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            match crate::server::proxmox::restart_vm(db_user, template_id).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been restarted".to_string() }),
                 Err(e) => Err(e)
             }
@@ -893,13 +904,24 @@ pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 
 #[server(name=DestroyVM, prefix="/api", endpoint="destroy_vm")]
 #[instrument]
-pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+pub async fn destroy_vm(template_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let (_, _) = authenticated_check().await?;
+            let (user, pool) = authenticated_check().await?;
 
-            match crate::server::proxmox::destroy_vm(vm_id).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: format!("vm (id: {vm_id}) has been deleted") }),
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            match crate::server::proxmox::destroy_vm(db_user, template_id).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: format!("vm has been destroyed") }),
                 Err(e) => return Err(e)
             }
         } else {
@@ -910,12 +932,23 @@ pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 
 #[server(name=AddVMTime, prefix="/api", endpoint="add_vm_time")]
 #[instrument]
-pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+pub async fn add_vm_time(template_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let (_, _) = authenticated_check().await?;
+            let (user, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
             
-            match crate::server::proxmox::add_vm_time(vm_id).await {
+            match crate::server::proxmox::add_vm_time(db_user, template_id).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "added time to vm".to_string() }),
                 Err(e) => Err(e.into())
             }
@@ -942,9 +975,42 @@ pub async fn get_user_active_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
                 }
             };
 
-            match crate::server::proxmox::get_user_active_vms(db_user).await {
+            let vms = match crate::server::proxmox::get_user_vms(db_user).await {
+                Ok(vms) => vms,
+                Err(e) => return Err(e)
+            };
+
+            let mut active_vms = Vec::<ProxmoxVMInstance>::new();
+            for vm in vms {
+                if vm.running { active_vms.push(vm) }
+            }
+            Ok(active_vms)
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetUserVMs, prefix="/api", endpoint="get_vms")]
+#[instrument]
+pub async fn get_user_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (user, pool) = authenticated_check().await?;
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            match crate::server::proxmox::get_user_vms(db_user).await {
                 Ok(vms) => Ok(vms),
-                Err(e) => Err(e)
+                Err(e) => return Err(e)
             }
         } else {
             Err(AppError::NoServerConnection)

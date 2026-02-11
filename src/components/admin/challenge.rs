@@ -1,6 +1,7 @@
 use crate::components::utils::TruncatedDesc;
 use crate::server::admin::{get_all_user_groups, upload_illustration};
 use crate::server::db::enums::AttachmentIdentifier;
+use crate::server::proxmox::ProxmoxVMTemplate;
 use crate::server::{get_illustration_id};
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
@@ -10,10 +11,11 @@ pub fn Challenge(
     cwa: ChallengeWithAttachments,
     refresh: RwSignal<i32>,
     categories: RwSignal<Vec<String>>,
-    events: RwSignal<Vec<db::structs::Event>>
+    events: RwSignal<Vec<db::structs::Event>>,
+    templates: RwSignal<Vec<ProxmoxVMTemplate>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments } = cwa;
-    let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_id } = challenge;
+    let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids } = challenge;
 
     let id_signal = RwSignal::new(id);
     let event_id_signal = RwSignal::new(event_id.clone());
@@ -24,7 +26,6 @@ pub fn Challenge(
     let points_signal = RwSignal::new(points);
     let attachments_signal = RwSignal::new(attachments.clone());
     let visible_to_groups_signal = RwSignal::new(visible_to_groups.clone());
-    let proxmox_vm_id_signal = RwSignal::new(vm_id);
 
     let event_id_edit = RwSignal::new(event_id);
     let name_edit = RwSignal::new(name.clone());
@@ -36,7 +37,7 @@ pub fn Challenge(
     let flag_edit = RwSignal::new("".to_string());
     let illustration_edit = RwSignal::new(None);
     let visible_to_groups_edit = RwSignal::new(visible_to_groups);
-    let proxmox_vm_id_edit = RwSignal::new(None);
+    let proxmox_vm_id_edit = RwSignal::new(vm_ids);
 
     let illustration = Resource::new(move || refresh.get(), move |_| {
         let challenge_id = id_signal.get();
@@ -321,17 +322,45 @@ pub fn Challenge(
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM ID (Optional)"</label>
-                <input
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM IDs (Optional)"</label>
+                <select
                     class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="vm_id"
-                    value=move || proxmox_vm_id_signal.get().unwrap_or_default()
+                    name="vm_ids"
+                    multiple=true
                     on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        proxmox_vm_id_edit.set(Some(value));
+                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                        let selected = sel.selected_options();
+                        let mut picked: Vec<String> = Vec::new();
+
+                        for i in 0..selected.length() {
+                            if let Some(item) = selected.item(i) {
+                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                    picked.push(opt.value());
+                                }
+                            }
+                        }
+
+                        proxmox_vm_id_edit.set(Some(picked.join(",")));
                     }
-                />
+                >
+                    <Suspense fallback=move || {
+                        view! { <div>"Loading..."</div> }
+                    }>
+                        {move || {
+                            let templates = templates.get();
+                            view! {
+                                <For
+                                    each=move || templates.clone()
+                                    key=|template: &ProxmoxVMTemplate| template.id
+                                    let(template)
+                                >
+                                    <option value={template.id}>{format!("{} (VM ID: {})", template.name, template.id)}</option>
+                                </For>
+                            }
+                        }}
+                    </Suspense>
+                </select>
 
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
                 <input
@@ -399,7 +428,7 @@ pub fn Challenge(
                         let visible_to_groups = visible_to_groups_edit.get();
                         let attachments = attachments_edit.get();
                         let illustration = illustration_edit.get();
-                        let vm_id = proxmox_vm_id_edit.get();
+                        let vm_ids = proxmox_vm_id_edit.get();
                         if editing.get() {
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
@@ -414,7 +443,7 @@ pub fn Challenge(
                                         visible_to_groups,
                                         attachments: attachments.clone(),
                                         illustration: illustration.clone(),
-                                        vm_id
+                                        vm_ids
                                     })
                                     .await && result == ResultStatus::Success
                                 {

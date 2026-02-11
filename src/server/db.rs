@@ -72,7 +72,7 @@ cfg_if! {
                 Err(e) => return Err(e.into())
             }
 
-            match ProxmoxArgs::insert(&"".to_string(), &"/api2/json".to_string(), &None, &None, &None, &ProxmoxAuthType::ApiToken, get_db_ref()).await {
+            match ProxmoxArgs::insert(&"".to_string(), &"/api2/json".to_string(), &"templates".to_string(), &None, &None, &None, &ProxmoxAuthType::ApiToken, get_db_ref()).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e.into())
             }
@@ -161,7 +161,7 @@ pub mod structs {
         pub difficulty: i8,
         pub points: u32,
         pub visible_to_groups: String, // comma separated string
-        pub vm_id: Option<String>
+        pub vm_ids: Option<String> // comma separated string
     }
 
     #[derive(Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
@@ -212,6 +212,7 @@ pub mod structs {
     pub struct ProxmoxArgs {
         pub base_url: String,
         pub api_path: String,
+        pub templates_pool_id: String,
         pub node: String,
         pub username: Option<String>,
         pub password: Option<String>,
@@ -1083,14 +1084,14 @@ cfg_if! {
                 points: &u32, 
                 flag_hash: &String, 
                 visible_to_groups: &String, 
-                vm_id: &Option<String>, 
+                vm_ids: &Option<String>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
                     INSERT INTO challenges
-                    (id, event_id, name, description, category, difficulty, points, flag_hash, visible_to_groups, vm_id)
+                    (id, event_id, name, description, category, difficulty, points, flag_hash, visible_to_groups, vm_ids)
                     VALUES 
                     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
@@ -1103,7 +1104,7 @@ cfg_if! {
                     points,
                     flag_hash,
                     visible_to_groups,
-                    vm_id
+                    vm_ids
                 )
                     .execute(executor)
                     .await {
@@ -1144,14 +1145,14 @@ cfg_if! {
                 points: &u32, 
                 flag_hash: &String, 
                 visible_to_groups: &String, 
-                vm_id: &Option<String>, 
+                vm_ids: &Option<String>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE challenges
                     SET
-                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?, visible_to_groups = ?, vm_id = ?
+                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?, visible_to_groups = ?, vm_ids = ?
                     WHERE id = ?
                     ", 
                     event_id,
@@ -1162,7 +1163,7 @@ cfg_if! {
                     points,
                     flag_hash,
                     visible_to_groups,
-                    vm_id,
+                    vm_ids,
                     id
                 )
                     .execute(executor)
@@ -1179,7 +1180,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_id
+                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids
                     FROM challenges 
                     WHERE id = ?
                     ", 
@@ -1199,7 +1200,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_id
+                    SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids
                     FROM challenges
                     "
                 )
@@ -3229,6 +3230,7 @@ cfg_if! {
             pub async fn insert(
                 base_url: &String, 
                 api_path: &String, 
+                templates_pool_id: &String, 
                 username: &Option<String>, 
                 password: &Option<String>, 
                 api_token: &Option<String>, 
@@ -3238,12 +3240,13 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     INSERT INTO proxmox 
-                    (base_url, api_path, username, password, api_token, auth_type)
+                    (base_url, api_path, templates_pool_id, username, password, api_token, auth_type)
                     VALUES 
-                    (?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?)
                     ",
                     base_url,
                     api_path,
+                    templates_pool_id,
                     username,
                     password,
                     api_token,
@@ -3262,6 +3265,7 @@ cfg_if! {
             pub async fn update(
                 base_url: &String, 
                 api_path: &String, 
+                templates_pool_id: &String, 
                 node: &String, 
                 username: &Option<String>, 
                 password: &Option<String>, 
@@ -3272,10 +3276,11 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     UPDATE proxmox
-                    SET base_url = ?, api_path = ?, node = ?, username = ?, password = ?, api_token = ?, auth_type = ?
+                    SET base_url = ?, api_path = ?, templates_pool_id = ?, node = ?, username = ?, password = ?, api_token = ?, auth_type = ?
                     ",
                     base_url,
                     api_path,
+                    templates_pool_id,
                     node,
                     username,
                     password,
@@ -3333,7 +3338,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT base_url, api_path, node, username, password, api_token, auth_type
+                    SELECT base_url, api_path, templates_pool_id, node, username, password, api_token, auth_type
                     FROM proxmox
                     "
                 )
