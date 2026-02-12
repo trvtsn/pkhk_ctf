@@ -47,8 +47,7 @@ pub fn Challenges() -> impl IntoView {
                 Ok(AdminEventPayloadKind::EventDeleted) |
                 Ok(AdminEventPayloadKind::NewEventCreated) => {
                     refresh.update(|n| *n += 1);
-                    let iteration = refresh_user.get_untracked().iteration + 1;
-                    refresh_user.set(RefreshUser { iteration });
+                    refresh_user.update(|r| r.iteration += 1);
                 }
                 Ok(_) => {},
                 Err(_) => tracing::warn!("failed to parse AdminEventPayloadKind")

@@ -1,6 +1,6 @@
 pub mod ldap;
 
-use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{LoginUser, get_user, is_ldap_enabled}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, utils::HidePasswordButton}, server::{LoginUser, get_user, is_ldap_enabled}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
@@ -10,6 +10,7 @@ pub fn Login() -> impl IntoView {
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
     let password_hidden = RwSignal::new(true);
+    let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let login: ServerAction<LoginUser> = ServerAction::new();
 
@@ -48,6 +49,7 @@ pub fn Login() -> impl IntoView {
         if let Some(Some(_)) = logged_in_user.get() {
             let nav = use_navigate();
             nav("/", Default::default());
+            refresh_user.update(|r| r.iteration += 1);
         }
     });
 

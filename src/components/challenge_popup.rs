@@ -120,7 +120,10 @@ pub fn ChallengePopup(
                 </p>
                 <br />
 
-                <label for="flag">
+                <label
+                    hidden=move || solved.get()
+                    for="flag"
+                >
                     <b>"Flag: "</b>
                 </label>
                 <input
@@ -137,6 +140,7 @@ pub fn ChallengePopup(
                         let refresh_user = refresh_user;
                         let flag = flag_signal.get();
                         let challenge = cwa_popup.get().challenge;
+                        let challenge_vm_ids = challenge.clone().vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
                         spawn_local(async move {
                             if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
                             {
@@ -146,10 +150,10 @@ pub fn ChallengePopup(
                                     start(());
                                 } else if result == ResultStatus::Success {
                                     solved.set(true);
-                                    // let active_vm_id = active_vm_id.clone();
-                                    // _ = destroy_vm(active_vm_id).await;
-                                    let iteration = refresh_user.get().iteration + 1;
-                                    refresh_user.set(RefreshUser { iteration });
+                                    for template_id in challenge_vm_ids {
+                                        _ = destroy_vm(template_id).await;
+                                    }
+                                    refresh_user.update(|r| r.iteration += 1);
                                 }
                             }
                         });
@@ -175,12 +179,16 @@ pub fn ChallengePopup(
                 <Transition>
                     {move || {
                         let challenge = cwa_popup.get().challenge;
-                        let challenge_vm_ids = challenge.clone().vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
+                        let challenge_vm_ids = challenge.clone().vm_ids;
+                        let template_ids = match challenge_vm_ids.is_some() {
+                            true => challenge_vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>(),
+                            false => Vec::<u32>::new()
+                        };
                         view! {
                             <div class="grid">
                                 // for each vm that the challenge has, show a button set
                                 <For
-                                    each=move || challenge_vm_ids.clone()
+                                    each=move || template_ids.clone()
                                     key=|template_id: &u32| *template_id
                                     let(template_id)
                                 >

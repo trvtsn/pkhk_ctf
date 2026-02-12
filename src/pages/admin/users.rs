@@ -277,7 +277,7 @@ pub fn Users() -> impl IntoView {
         </div>
 
         <Transition fallback=move || view! { <div>"Loading..."</div> }>
-            <div class=r#"flex grid-cols-4 gap-4 p-4 m-4"#>
+            <div class=r#"grid grid-cols-4 gap-4 p-4 m-4"#>
                 <For
                     each=move || users_resource.get().unwrap_or_default()
                     key=|user: &DbUser| user.id.clone()

@@ -98,7 +98,10 @@ pub fn Challenge(
             </p>
             <br />
 
-            <label for="flag">
+            <label
+                hidden=move || solved.get()
+                for="flag"
+            >
                 <b>"Flag: "</b>
             </label>
             <input
@@ -132,8 +135,7 @@ pub fn Challenge(
                                     }
                                 }
                                 _ = destroy_vm(user_vm_id).await;
-                                let iteration = refresh_user.get().iteration + 1;
-                                refresh_user.set(RefreshUser { iteration });
+                                refresh_user.update(|r| r.iteration += 1);
                             }
                         }
                     });

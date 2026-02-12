@@ -22,6 +22,13 @@ pub fn NavBar() -> impl IntoView {
         if let Some(user) = user.get() { user.points } else { 0 }
     });
 
+    Effect::new(move || {
+        if let Some(Ok(_)) = logout.value().get() {
+            refresh_user.update(|r| r.iteration += 1);
+            open.set(false);
+        }
+    });
+
     view! {
         <div class=r#"flex top-0 items-center p-4 w-full shadow-sm bg-background text-text z-15"#>
             <div class=r#"flex-1"#></div>
@@ -114,10 +121,6 @@ pub fn NavBar() -> impl IntoView {
                                         <button
                                             class=r#"cursor-pointer"#
                                             type="Submit"
-                                            on:click=move |_| {
-                                                let iteration = refresh_user.get().iteration + 1;
-                                                refresh_user.set(RefreshUser { iteration });
-                                            }
                                         >
                                             <Icon icon=i::LuLogOut />
                                             "Logout"

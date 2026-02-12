@@ -56,8 +56,7 @@ pub fn Settings() -> impl IntoView {
                     let new_username = new_username.get();
                     spawn_local(async move {
                         if edit_username(new_username).await.is_ok() {
-                            let iteration = refresh_user.get().iteration + 1;
-                            refresh_user.set(RefreshUser { iteration });
+                            refresh_user.update(|r| r.iteration += 1);
                         }
                     });
                 }
