@@ -26,53 +26,57 @@ pub fn User() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"bg-background text-text h-full"#>
-            <Suspense fallback=move || {
-                view! { <div>"Loading..."</div> }
-            }>
-                {move || {
-                    let user = user_res.get().unwrap_or_default();
-                    let avatar_view = {
-                        if let Some(id) = user_avatar.get().unwrap_or_default() {
-                            view! {
-                                <div class="h-64 w-64">
-                                    <img 
-                                        src=move || format!("/avatar/{}", id) 
-                                        class=r#"text-blue-600 underline rounded-[50%] 
-                                        object-cover shadow-sm"#
-                                    />
-                                </div>
-                            }.into_any()
-                        } else {
-                            "".into_any()
-                        }
-                    };
+        <div class=r#"bg-background text-text h-full p-4"#>
+            <div class=r#"grid grid-cols-4"#>
+                <div class="col-start-1 col-end-1 bg-background-secondary m-4 p-4 rounded-lg">
+                    <Suspense fallback=move || {
+                        view! { <div>"Loading..."</div> }
+                    }>
+                        {move || {
+                            let user = user_res.get().unwrap_or_default();
+                            let avatar_view = {
+                                if let Some(id) = user_avatar.get().unwrap_or_default() {
+                                    view! {
+                                        <div class="h-64 w-64">
+                                            <img 
+                                                src=move || format!("/avatar/{}", id) 
+                                                class=r#"text-blue-600 underline rounded-[50%] 
+                                                object-cover shadow-sm"#
+                                            />
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    "".into_any()
+                                }
+                            };
 
-                    let view = match user {
-                        Some(user) => {
-                            view! {
-                                {avatar_view}
-                                <p>{user.username}</p>
-                                <p>
-                                    <b>"Points: "</b>
-                                    {user.points}
-                                </p>
-                                <p>
-                                    <b>"Group: "</b>
-                                    {user.group}
-                                </p>
-                                <p>
-                                    <b>"Date Joined: "</b>
-                                    {user.created_at.to_string()}
-                                </p>
-                            }.into_any()
-                        }
-                        None => view! { <NotFound /> }.into_any(),
-                    };
+                            let view = match user {
+                                Some(user) => {
+                                    view! {
+                                        {avatar_view}
+                                        <p>{user.username}</p>
+                                        <p>
+                                            <b>"Points: "</b>
+                                            {user.points}
+                                        </p>
+                                        <p>
+                                            <b>"Group: "</b>
+                                            {user.group}
+                                        </p>
+                                        <p>
+                                            <b>"Date Joined: "</b>
+                                            {user.created_at.to_string()}
+                                        </p>
+                                    }.into_any()
+                                }
+                                None => view! { <NotFound /> }.into_any(),
+                            };
 
-                    view! { {view} }
-                }}
-            </Suspense>
+                            view! { {view} }
+                        }}
+                    </Suspense>
+                </div>
+            </div>
         </div>
     }
 }

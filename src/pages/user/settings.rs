@@ -27,42 +27,47 @@ pub fn Settings() -> impl IntoView {
     view! {
         <NavBar />
         <div class=r#"grid justify-center p-4 h-full bg-background text-text"#>
-            <label>"Dark Mode"</label>
-            <input
-                type="checkbox"
-                checked=move || color_mode.get().to_string() == "dark"
-                on:input=move |ev| {
-                    let is_checked = event_target_checked(&ev);
-                    if is_checked {
-                        set_color_mode.set(ColorMode::Dark)
-                    } else {
-                        set_color_mode.set(ColorMode::Light)
-                    };
-                }
-            />
+            <div class="flex gap-2">
+                <label>"Dark Mode"</label>
+                <input
+                    type="checkbox"
+                    checked=move || color_mode.get().to_string() == "dark"
+                    on:input=move |ev| {
+                        let is_checked = event_target_checked(&ev);
+                        if is_checked {
+                            set_color_mode.set(ColorMode::Dark)
+                        } else {
+                            set_color_mode.set(ColorMode::Light)
+                        };
+                    }
+                />
+            </div>
 
-            <label>"Change Username"</label>
-            <input
-                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                type="text"
-                bind:value=new_username
-            />
-            <button
-                class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
-                rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
-                hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
-                on:click=move |_| {
-                    let new_username = new_username.get();
-                    spawn_local(async move {
-                        if edit_username(new_username).await.is_ok() {
-                            refresh_user.update(|r| r.iteration += 1);
-                        }
-                    });
-                }
-            >
-                "Change Username"
-            </button>
+            <div class="flex gap-2">
+                <label>"Change Username"</label>
+                <input
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                    type="text"
+                    bind:value=new_username
+                />
+                <button
+                    class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                    rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
+                    hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
+
+                    on:click=move |_| {
+                        let new_username = new_username.get();
+                        spawn_local(async move {
+                            if edit_username(new_username).await.is_ok() {
+                                refresh_user.update(|r| r.iteration += 1);
+                            }
+                        });
+                    }
+                >
+                    "Change Username"
+                </button>
+            </div>
 
             <button
                 class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white
@@ -125,8 +130,10 @@ pub fn Settings() -> impl IntoView {
                     />
                 </ActionForm>
             </Show>
-            <label>
-                <b>"Change Avatar (Max 16 MiB)"</b>
+            <div class="flex gap-2">
+                <label>
+                    <b>"Change Avatar (Max 16 MiB)"</b>
+                </label>
                 <input
                     class=r#"p-2 rounded-lg shadow-sm"#
                     type="file"
@@ -142,7 +149,7 @@ pub fn Settings() -> impl IntoView {
                     }
                 />
                 <p>{move || edit_avatar_action_text.get()}</p>
-            </label>
+            </div>
         </div>
     }
 }

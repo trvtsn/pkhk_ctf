@@ -98,77 +98,85 @@ pub fn Challenge(
             </p>
             <br />
 
-            <label
-                hidden=move || solved.get()
-                for="flag"
-            >
-                <b>"Flag: "</b>
-            </label>
-            <input
-                hidden=move || solved.get()
-                class=r#"m-1 bg-white rounded-sm border-black border-1"#
-                bind:value=flag_signal
-            />
-            <button
-                class=move || button_classes.get()
-                disabled=move || solved.get() || incorrect.get()
-                on:click=move |_| {
-                    let start = start.clone();
-                    let stop = stop.clone();
-                    let refresh_user = refresh_user;
-                    let flag = flag_signal.get();
-                    let challenge = challenge_signal.get();
-                    let user_vms = user_vms.get();
-                    spawn_local(async move {
-                        if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
-                        {
-                            if result == ResultStatus::Fail && details == "incorrect solution" {
-                                incorrect.set(true);
-                                stop();
-                                start(());
-                            } else if result == ResultStatus::Success {
-                                solved.set(true);
-                                let mut user_vm_id = 0_u32;
-                                for user_vm in user_vms {
-                                    if user_vm.challenge_id == challenge.id {
-                                        user_vm_id = user_vm.id;
-                                    }
-                                }
-                                _ = destroy_vm(user_vm_id).await;
-                                refresh_user.update(|r| r.iteration += 1);
-                            }
-                        }
-                    });
-                }
-            >
-                {move || submit_btn_text.get()}
-            </button>
-
-            <For
-                each=move || attachments.clone()
-                key=|a: &AttachmentWithoutBlob| a.id.clone()
-                let(a)
-            >
-                <a
-                    download
-                    href=move || format!("/file/{}", a.id)
-                    class=r#"text-blue-600 underline"#
+            <div class="flex gap-2">
+                <label
+                    hidden=move || solved.get()
+                    for="flag"
                 >
-                    {a.file_name}
-                </a>
-            </For>
+                    <b>"Flag: "</b>
+                </label>
+                <input
+                    hidden=move || solved.get()
+                    class=r#"m-1 bg-white rounded-sm border-black border-1"#
+                    bind:value=flag_signal
+                />
+                <button
+                    class=move || button_classes.get()
+                    disabled=move || solved.get() || incorrect.get()
+                    on:click=move |_| {
+                        let start = start.clone();
+                        let stop = stop.clone();
+                        let refresh_user = refresh_user;
+                        let flag = flag_signal.get();
+                        let challenge = challenge_signal.get();
+                        let user_vms = user_vms.get();
+                        spawn_local(async move {
+                            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
+                            {
+                                if result == ResultStatus::Fail && details == "incorrect solution" {
+                                    incorrect.set(true);
+                                    stop();
+                                    start(());
+                                } else if result == ResultStatus::Success {
+                                    solved.set(true);
+                                    let mut user_vm_id = 0_u32;
+                                    for user_vm in user_vms {
+                                        if user_vm.challenge_id == challenge.id {
+                                            user_vm_id = user_vm.id;
+                                        }
+                                    }
+                                    _ = destroy_vm(user_vm_id).await;
+                                    refresh_user.update(|r| r.iteration += 1);
+                                }
+                            }
+                        });
+                    }
+                >
+                    {move || submit_btn_text.get()}
+                </button>
+            </div>
 
-            <button
-                class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                on:click=move |_| {
-                    overlay_triggered.set(true);
-                    cwa_popup.set(cwa.clone());
-                }
-            >
-                "View"
-            </button>
+            <div class="grid auto-rows-auto grid-cols-3 gap-2">
+                <div class="col-start-1 col-end-1">
+                    <For
+                        each=move || attachments.clone()
+                        key=|a: &AttachmentWithoutBlob| a.id.clone()
+                        let(a)
+                    >
+                        <a
+                            download
+                            href=move || format!("/file/{}", a.id)
+                            class=r#"text-blue-600 underline"#
+                        >
+                            {a.file_name}
+                        </a>
+                    </For>
+                </div>
+
+                <div class="col-start-1 col-end-1">
+                    <button
+                        class=r#"gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                        on:click=move |_| {
+                            overlay_triggered.set(true);
+                            cwa_popup.set(cwa.clone());
+                        }
+                    >
+                        "View"
+                    </button>
+                </div>
+            </div>
         </div>
     }
 }

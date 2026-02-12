@@ -30,7 +30,7 @@ pub fn Files() -> impl IntoView {
             let form_data = FormData::new_with_form(&target).unwrap();
             upload_action.dispatch_local(form_data);
         }>
-            <input class=r#"p-2 bg-background rounded-lg shadow-sm"# type="file" name="files" multiple />
+            <input class=r#"p-4 bg-background rounded-lg shadow-sm"# type="file" name="files" multiple />
             <input
                 class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
                 rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 

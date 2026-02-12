@@ -43,142 +43,144 @@ pub fn Proxmox() -> impl IntoView {
                 };
 
                 view! {
-                    <div>
-                        <div class="flex">
+                    <div class="grid gap-2">
+                        <div class="flex gap-2 items-center">
                             "Authentication Status"
                             <svg class=auth_status_classes>
                                 <circle /> // on hover tooltip -> "Connected"/"No Connection"?
                             </svg>
                         </div>
 
-                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base URL"</label>
-                        <input
-                            class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                            name="base_url"
-                            value=move || base_url.get()
-                            bind:value=base_url
-                        />
-
-                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Path"</label>
-                        <input
-                            class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                            name="api_path"
-                            placeholder="Optional (Default: /api2/json)"
-                            value=move || api_path.get()
-                            bind:value=api_path
-                        />
-
-                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"VM Templates Pool ID"</label>
-                        <input
-                            class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                            name="api_path"
-                            placeholder="Optional (Default: templates)"
-                            value=move || templates_pool_id.get()
-                            bind:value=templates_pool_id
-                        />
-
-                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"Node"</label>
-                        <input
-                            class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                            name="node"
-                            value=move || node.get()
-                            bind:value=node
-                        />
-
-                        <Show when=move || auth_type.get() == ProxmoxAuthType::ApiToken>
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Token"</label>
+                        <div class="grid gap-2 pt-2">
+                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base URL"</label>
                             <input
                                 class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                                 focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="api_token"
-                                value=move || api_token.get().unwrap_or_default()
-                                on:change=move |ev| {
-                                    let value = event_target_value(&ev);
-                                    api_token.set(Some(value));
-                                }
+                                name="base_url"
+                                value=move || base_url.get()
+                                bind:value=base_url
                             />
-                        </Show>
 
-                        <button
-                            class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold 
-                            text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
-                            bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
-                            on:click=move |_| {
-                                let base_url = base_url.get();
-                                let api_path = api_path.get();
-                                let templates_pool_id = templates_pool_id.get();
-                                let node = node.get();
-                                let api_token = api_token.get();
-                                let auth_type = auth_type.get();
-                                spawn_local(async move {
-                                    if let Ok(ApiResult { result, details }) = test_proxmox(ProxmoxArgs {
-                                            base_url,
-                                            api_path,
-                                            templates_pool_id,
-                                            node,
-                                            username: None,
-                                            password: None,
-                                            api_token,
-                                            auth_type
-                                        })
-                                        .await
-                                    {
-                                        auth_status_ui.set(details.unwrap_or_default());
-                                        if result == ResultStatus::Success {
-                                            auth_success.set(true);
-                                        } else {
-                                            auth_success.set(false);
-                                        }
-                                        
+                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Path"</label>
+                            <input
+                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                name="api_path"
+                                placeholder="Optional (Default: /api2/json)"
+                                value=move || api_path.get()
+                                bind:value=api_path
+                            />
+
+                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"VM Templates Pool ID"</label>
+                            <input
+                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                name="api_path"
+                                placeholder="Optional (Default: templates)"
+                                value=move || templates_pool_id.get()
+                                bind:value=templates_pool_id
+                            />
+
+                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Node"</label>
+                            <input
+                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                name="node"
+                                value=move || node.get()
+                                bind:value=node
+                            />
+
+                            <Show when=move || auth_type.get() == ProxmoxAuthType::ApiToken>
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Token"</label>
+                                <input
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="api_token"
+                                    value=move || api_token.get().unwrap_or_default()
+                                    on:change=move |ev| {
+                                        let value = event_target_value(&ev);
+                                        api_token.set(Some(value));
                                     }
-                                });
-                            }
-                        >
-                            "Test Authentication"
-                        </button>
-                            
-                        <button
-                            class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold 
-                            text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
-                            bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
-                            on:click=move |_| {
-                                let base_url = base_url.get();
-                                let api_path = api_path.get();
-                                let templates_pool_id = templates_pool_id.get();
-                                let node = node.get();
-                                let api_token = api_token.get();
-                                let auth_type = auth_type.get();
-                                spawn_local(async move {
-                                    if let Ok(ApiResult { result, details }) = update_proxmox(ProxmoxArgs {
-                                            base_url,
-                                            api_path,
-                                            templates_pool_id,
-                                            node,
-                                            username: None,
-                                            password: None,
-                                            api_token,
-                                            auth_type
-                                        })
-                                        .await
-                                    {
-                                        if result == ResultStatus::Success {
-                                            auth_success.set(true);
-                                        } else {
-                                            auth_success.set(false);
-                                        }
-                                        
-                                        auth_status_ui.set(details.unwrap_or_default());
+                                />
+                            </Show>
+
+                            <div class="flex gap-3 mt-2 pt-2">
+                                <button
+                                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                                    on:click=move |_| {
+                                        let base_url = base_url.get();
+                                        let api_path = api_path.get();
+                                        let templates_pool_id = templates_pool_id.get();
+                                        let node = node.get();
+                                        let api_token = api_token.get();
+                                        let auth_type = auth_type.get();
+                                        spawn_local(async move {
+                                            if let Ok(ApiResult { result, details }) = test_proxmox(ProxmoxArgs {
+                                                    base_url,
+                                                    api_path,
+                                                    templates_pool_id,
+                                                    node,
+                                                    username: None,
+                                                    password: None,
+                                                    api_token,
+                                                    auth_type
+                                                })
+                                                .await
+                                            {
+                                                auth_status_ui.set(details.unwrap_or_default());
+                                                if result == ResultStatus::Success {
+                                                    auth_success.set(true);
+                                                } else {
+                                                    auth_success.set(false);
+                                                }
+                                                
+                                            }
+                                        });
                                     }
-                                });
-                            }
-                        >
-                            "Apply"
-                        </button>
-                        <Transition fallback=|| view! { "..." }>{move || auth_status_ui.get()}</Transition>
+                                >
+                                    "Test Authentication"
+                                </button>
+                                    
+                                <button
+                                    class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold 
+                                    text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
+                                    bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
+                                    on:click=move |_| {
+                                        let base_url = base_url.get();
+                                        let api_path = api_path.get();
+                                        let templates_pool_id = templates_pool_id.get();
+                                        let node = node.get();
+                                        let api_token = api_token.get();
+                                        let auth_type = auth_type.get();
+                                        spawn_local(async move {
+                                            if let Ok(ApiResult { result, details }) = update_proxmox(ProxmoxArgs {
+                                                    base_url,
+                                                    api_path,
+                                                    templates_pool_id,
+                                                    node,
+                                                    username: None,
+                                                    password: None,
+                                                    api_token,
+                                                    auth_type
+                                                })
+                                                .await
+                                            {
+                                                if result == ResultStatus::Success {
+                                                    auth_success.set(true);
+                                                } else {
+                                                    auth_success.set(false);
+                                                }
+                                                
+                                                auth_status_ui.set(details.unwrap_or_default());
+                                            }
+                                        });
+                                    }
+                                >
+                                    "Apply"
+                                </button>
+                            </div>
+                            <Transition fallback=|| view! { "..." }>{move || auth_status_ui.get()}</Transition>
+                        </div>
                     </div>
                 }
             }}

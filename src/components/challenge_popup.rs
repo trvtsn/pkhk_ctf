@@ -87,6 +87,12 @@ pub fn ChallengePopup(
                     view! { <div>"Loading..."</div> }
                 }>
                     {move || {
+                        if solved_challenges.get().contains(&cwa_popup.get().challenge.id) { 
+                            solved.set(true);
+                        } else {
+                            solved.set(false);
+                        }
+
                         if let Some(id) = illustration.get().unwrap_or_default() { 
                             view! {
                                 <div class="h-48 w-48 flex justify-center m-auto">
@@ -120,47 +126,49 @@ pub fn ChallengePopup(
                 </p>
                 <br />
 
-                <label
-                    hidden=move || solved.get()
-                    for="flag"
-                >
-                    <b>"Flag: "</b>
-                </label>
-                <input
-                    hidden=move || solved.get()
-                    class=r#"m-1 bg-white rounded-sm border-black border-1"#
-                    bind:value=flag_signal
-                />
-                <button
-                    class=move || button_classes.get()
-                    disabled=move || solved.get() || incorrect.get()
-                    on:click=move |_| {
-                        let start = start.clone();
-                        let stop = stop.clone();
-                        let refresh_user = refresh_user;
-                        let flag = flag_signal.get();
-                        let challenge = cwa_popup.get().challenge;
-                        let challenge_vm_ids = challenge.clone().vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
-                        spawn_local(async move {
-                            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
-                            {
-                                if result == ResultStatus::Fail && details == "incorrect solution" {
-                                    incorrect.set(true);
-                                    stop();
-                                    start(());
-                                } else if result == ResultStatus::Success {
-                                    solved.set(true);
-                                    for template_id in challenge_vm_ids {
-                                        _ = destroy_vm(template_id).await;
+                <div class="flex gap-2">
+                    <label
+                        hidden=move || solved.get()
+                        for="flag"
+                    >
+                        <b>"Flag: "</b>
+                    </label>
+                    <input
+                        hidden=move || solved.get()
+                        class=r#"m-1 bg-white rounded-sm border-black border-1"#
+                        bind:value=flag_signal
+                    />
+                    <button
+                        class=move || button_classes.get()
+                        disabled=move || solved.get() || incorrect.get()
+                        on:click=move |_| {
+                            let start = start.clone();
+                            let stop = stop.clone();
+                            let refresh_user = refresh_user;
+                            let flag = flag_signal.get();
+                            let challenge = cwa_popup.get().challenge;
+                            let challenge_vm_ids = challenge.clone().vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
+                            spawn_local(async move {
+                                if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
+                                {
+                                    if result == ResultStatus::Fail && details == "incorrect solution" {
+                                        incorrect.set(true);
+                                        stop();
+                                        start(());
+                                    } else if result == ResultStatus::Success {
+                                        solved.set(true);
+                                        for template_id in challenge_vm_ids {
+                                            _ = destroy_vm(template_id).await;
+                                        }
+                                        refresh_user.update(|r| r.iteration += 1);
                                     }
-                                    refresh_user.update(|r| r.iteration += 1);
                                 }
-                            }
-                        });
-                    }
-                >
-                    {move || submit_btn_text.get()}
-                </button>
+                            });
+                        }
+                    >
+                        {move || submit_btn_text.get()}
+                    </button>
+                </div>
 
                 <For
                     each=move || cwa_popup.get().attachments.clone()
@@ -185,88 +193,90 @@ pub fn ChallengePopup(
                             false => Vec::<u32>::new()
                         };
                         view! {
-                            <div class="grid">
+                            <div class="grid auto-rows-auto gap-2 pt-2">
                                 // for each vm that the challenge has, show a button set
                                 <For
                                     each=move || template_ids.clone()
                                     key=|template_id: &u32| *template_id
                                     let(template_id)
                                 >
-                                    // <label></label>
-                                    <Show when=move || {
-                                        let user_vms = user_vms.get();
-                                        let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                        !active_vm_origin_ids.contains(&template_id)
-                                    }>
-                                        <button
-                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                            on:click=move |_| {
-                                                let challenge = cwa_popup.get().challenge;
-                                                spawn_local(async move {
-                                                    if let Ok(ApiResult { result, details }) = start_vm(template_id, challenge).await
-                                                    {
-                                                        if result == ResultStatus::Fail && details == "failed to start vm" {
-                                                            refresh.update(|n| *n += 1);
-                                                        } else {
-                                                            refresh.update(|n| *n += 1);
+                                    <div class="flex gap-2">
+                                        // <label></label>
+                                        <Show when=move || {
+                                            let user_vms = user_vms.get();
+                                            let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
+                                            !active_vm_origin_ids.contains(&template_id)
+                                        }>
+                                            <button
+                                                class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                on:click=move |_| {
+                                                    let challenge = cwa_popup.get().challenge;
+                                                    spawn_local(async move {
+                                                        if let Ok(ApiResult { result, details }) = start_vm(template_id, challenge).await
+                                                        {
+                                                            if result == ResultStatus::Fail && details == "failed to start vm" {
+                                                                refresh.update(|n| *n += 1);
+                                                            } else {
+                                                                refresh.update(|n| *n += 1);
+                                                            }
                                                         }
-                                                    }
-                                                });
-                                            }
-                                        >
-                                            "Start VM"
-                                        </button>
-                                    </Show>
+                                                    });
+                                                }
+                                            >
+                                                "Start VM"
+                                            </button>
+                                        </Show>
 
-                                    <Show when=move || {
-                                        let user_vms = user_vms.get();
-                                        let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                        active_vm_origin_ids.contains(&template_id)
-                                    }>
-                                        <button
-                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                            on:click=move |_| {
-                                                spawn_local(async move {
-                                                    _ = restart_vm(template_id).await;
-                                                    refresh.update(|n| *n += 1);
-                                                });
-                                            }
-                                        >
-                                            "Restart VM"
-                                        </button>
+                                        <Show when=move || {
+                                            let user_vms = user_vms.get();
+                                            let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
+                                            active_vm_origin_ids.contains(&template_id)
+                                        }>
+                                            <button
+                                                class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                on:click=move |_| {
+                                                    spawn_local(async move {
+                                                        _ = restart_vm(template_id).await;
+                                                        refresh.update(|n| *n += 1);
+                                                    });
+                                                }
+                                            >
+                                                "Restart VM"
+                                            </button>
 
-                                        <button
-                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                            on:click=move |_| {
-                                                spawn_local(async move {
-                                                    _ = add_vm_time(template_id).await;
-                                                    refresh.update(|n| *n += 1);
-                                                });
-                                            }
-                                        >
-                                            "Add Time (+30 min)"
-                                        </button>
+                                            <button
+                                                class=r#"col-start-3 col-end-3 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                on:click=move |_| {
+                                                    spawn_local(async move {
+                                                        _ = add_vm_time(template_id).await;
+                                                        refresh.update(|n| *n += 1);
+                                                    });
+                                                }
+                                            >
+                                                "Add Time (+30 min)"
+                                            </button>
 
-                                        <button
-                                            class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                            on:click=move |_| {
-                                                spawn_local(async move {
-                                                    _ = destroy_vm(template_id).await;
-                                                    refresh.update(|n| *n += 1);
-                                                });
-                                            }
-                                        >
-                                            "Destroy VM"
-                                        </button>
-                                    </Show>
+                                            <button
+                                                class=r#"col-start-4 col-end-4 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                on:click=move |_| {
+                                                    spawn_local(async move {
+                                                        _ = destroy_vm(template_id).await;
+                                                        refresh.update(|n| *n += 1);
+                                                    });
+                                                }
+                                            >
+                                                "Destroy VM"
+                                            </button>
+                                        </Show>
+                                    </div>
                                 </For>
                             </div>
                         }
