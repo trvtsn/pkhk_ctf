@@ -41,7 +41,7 @@ pub fn Admin() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"justify-center p-8 align-center bg-background text-text h-full"#>
+        <div class=r#"justify-center p-8 align-center bg-background text-text min-h-screen"#>
             <h3 class=r#"text-4xl text-center"#>"Admin"</h3>
             <div class=r#"grid grid-cols-5 gap-4 m-4"#>
                 <AdminNavBar />

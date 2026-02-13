@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs}}, enums::ResultStatus, proxmox::ProxmoxVMInstance, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
@@ -1010,6 +1010,23 @@ pub async fn get_user_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
 
             match crate::server::proxmox::get_user_vms(db_user).await {
                 Ok(vms) => Ok(vms),
+                Err(e) => return Err(e)
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetTemplateInfo, prefix="/api", endpoint="get_template_info")]
+#[instrument]
+pub async fn get_template_info(template_id: u32) -> Result<ProxmoxVMTemplate, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, _) = authenticated_check().await?;
+
+            match crate::server::proxmox::get_template_info(template_id).await {
+                Ok(template_info) => Ok(template_info),
                 Err(e) => return Err(e)
             }
         } else {

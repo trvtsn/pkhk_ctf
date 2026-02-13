@@ -26,7 +26,7 @@ pub fn User() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"bg-background text-text h-full p-4"#>
+        <div class=r#"bg-background text-text h-full p-4 min-h-screen"#>
             <div class=r#"grid grid-cols-4"#>
                 <div class="col-start-1 col-end-1 bg-background-secondary m-4 p-4 rounded-lg">
                     <Suspense fallback=move || {

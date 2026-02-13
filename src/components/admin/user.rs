@@ -85,35 +85,37 @@ pub fn User(
                     }
                 }}
             </Transition>
-            <h3 class=r#"font-bold text-3xl/8"#>{move || username_signal.get().clone()}</h3>
-            <p class=r#"text-lg/8"#>
-                <b>"ID: "</b>
-                {move || id_signal.get().clone()}
-            </p>
-            <p class=r#"text-lg/8"#>
-                <b>"E-mail: "</b>
-                {move || email_signal.get().clone()}
-            </p>
-            <p class=r#"text-lg/8"#>
-                <b>"Role: "</b>
-                {move || role_signal.get().to_string()}
-            </p>
-            <p class=r#"text-lg/8"#>
-                <b>"Points: "</b>
-                {move || points_signal.get()}
-            </p>
-            <p class=r#"text-lg/8"#>
-                <b>"Created: "</b>
-                {move || created_signal.get().to_string()}
-            </p>
-            <p class=r#"text-lg/8"#>
-                <b>"Last active: "</b>
-                {move || last_active_signal.get().to_string()}
-            </p>
-            <p class=r#"text-lg/8"#>
-                <b>"Group: "</b>
-                {move || group_signal.get().replace(",", ", ")}
-            </p>
+            <Show when=move || !editing.get()>
+                <h3 class=r#"font-bold text-3xl/8"#>{move || username_signal.get().clone()}</h3>
+                <p class=r#"text-lg/8"#>
+                    <b>"ID: "</b>
+                    {move || id_signal.get().clone()}
+                </p>
+                <p class=r#"text-lg/8"#>
+                    <b>"E-mail: "</b>
+                    {move || email_signal.get().clone()}
+                </p>
+                <p class=r#"text-lg/8"#>
+                    <b>"Role: "</b>
+                    {move || role_signal.get().to_string()}
+                </p>
+                <p class=r#"text-lg/8"#>
+                    <b>"Points: "</b>
+                    {move || points_signal.get()}
+                </p>
+                <p class=r#"text-lg/8"#>
+                    <b>"Created: "</b>
+                    {move || created_signal.get().to_string()}
+                </p>
+                <p class=r#"text-lg/8"#>
+                    <b>"Last active: "</b>
+                    {move || last_active_signal.get().to_string()}
+                </p>
+                <p class=r#"text-lg/8"#>
+                    <b>"Group: "</b>
+                    {move || group_signal.get().replace(",", ", ")}
+                </p>
+            </Show>
 
             <Show when=move || editing.get()>
                 <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
@@ -226,7 +228,10 @@ pub fn User(
                     type="text"
                     id="action_create_group_input"
                     value=""
-                    bind:value=group_edit
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        group_edit.set(value);
+                    }
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Avatar"</label>

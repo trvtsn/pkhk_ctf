@@ -793,3 +793,59 @@ pub async fn create_user_role() -> Result<(), AppError> {
         Err(e) => return Err(e.into())
     }
 }
+
+#[cfg(feature = "ssr")]
+#[instrument]
+pub async fn get_template_info(template_id: u32) -> Result<ProxmoxVMTemplate, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            match is_host_reachable().await {
+                Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("proxmox host not reachable".to_string())) },
+                Err(_) => return Err(AppError::InternalError("proxmox host not reachable".to_string()))
+            }
+
+            let client = Client::builder()
+                .danger_accept_invalid_certs(true)
+                .build()?;
+
+            let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
+                Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
+                Err(e) => return Err(e.into())
+            };
+            let base_url = proxmox_args.base_url.trim_end_matches("/");
+            let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+            let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+            let url = format!("{base_url}/{api_path}/pools/{}", proxmox_args.templates_pool_id);
+
+            #[derive(Serialize, Deserialize)]
+            struct Members {
+                members: Vec<Member>,
+                poolid: Option<String>
+            }
+            #[derive(Serialize, Deserialize)]
+            struct Member {
+                name: Option<String>,
+                vmid: Option<u32>,
+                status: Option<String>
+            }
+
+            let vms = match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+                Ok(res) => {
+                    res.json::<ProxmoxApiResponse<Members>>().await?
+                },
+                Err(e) => return Err(e.into())
+            };
+
+            let mut template_info = ProxmoxVMTemplate::default();
+            for vm in vms.data.members {
+                if vm.vmid.unwrap_or_default() == template_id {
+                    template_info = ProxmoxVMTemplate { id: vm.vmid.unwrap_or_default(), name: vm.name.unwrap_or_default() };
+                    break;
+                }
+            }
+            Ok(template_info)
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}

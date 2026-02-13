@@ -207,7 +207,7 @@ pub fn Challenge(
                         let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
                         let doc = leptos::web_sys::window().unwrap().document().unwrap();
                         let new_input = doc
-                            .get_element_by_id("action_edit_category_input")
+                            .get_element_by_id("action_create_category_input")
                             .unwrap()
                             .unchecked_into::<HtmlInputElement>();
                         if sel.value() == "__new__" {
@@ -237,7 +237,7 @@ pub fn Challenge(
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     hidden=move || !category_add_new_selected.get()
                     type="text"
-                    id="action_edit_category_input"
+                    id="action_create_category_input"
                     value=""
                     on:change=move |ev: Event| {
                         let value = event_target_value(&ev);

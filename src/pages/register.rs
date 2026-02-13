@@ -23,14 +23,14 @@ pub fn Register() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-8 grid-col bg-background text-text h-full"#>
+        <div class=r#"grid justify-center p-8 grid-col bg-background text-text min-h-screen"#>
             <h3 class=r#"text-4xl text-center"#>"Register"</h3>
             <ActionForm action=register>
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Email"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Email"</label>
                 <Transition fallback=|| view! { "..." }>{available_ui}</Transition>
 
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="email"
                     name="email"
@@ -40,10 +40,10 @@ pub fn Register() -> impl IntoView {
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Password"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Password"</label>
                 <div class="flex gap-2">
                     <input
-                        class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                         ocus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if password_hidden.get() { "password" } else { "text" }
                         name="password"
@@ -52,12 +52,12 @@ pub fn Register() -> impl IntoView {
                     <HidePasswordButton hidden=password_hidden />
                 </div>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>
                     "Confirm Password"
                 </label>
                 <div class="flex gap-2">
                     <input
-                        class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if confirm_password_hidden.get() { "password" } else { "text" }
                         name="confirm_password"

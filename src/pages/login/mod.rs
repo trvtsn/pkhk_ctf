@@ -55,22 +55,22 @@ pub fn Login() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-8 grid-col bg-background text-text h-full"#>
+        <div class=r#"grid justify-center p-8 grid-col bg-background text-text min-h-screen"#>
             <h3 class=r#"text-4xl text-center"#>"Login"</h3>
             <ActionForm action=login>
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Email"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Email"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="email"
                     name="email"
                     bind:value=email
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Password"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Password"</label>
                 <div class="flex gap-2">
                     <input
-                        class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if password_hidden.get() { "password" } else { "text" }
                         name="password"

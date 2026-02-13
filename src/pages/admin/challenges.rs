@@ -18,8 +18,8 @@ pub fn Challenges() -> impl IntoView {
     
     let event_id = RwSignal::new("".to_string());
     let name = RwSignal::new("".to_string());
-    let description = RwSignal::new("".to_string());
-    let category = RwSignal::new("".to_string());
+    let description = RwSignal::new(None);
+    let category = RwSignal::new(None);
     let difficulty = RwSignal::new(0_i8);
     let points = RwSignal::new(0_u32);
     let flag = RwSignal::new("".to_string());
@@ -174,7 +174,10 @@ pub fn Challenges() -> impl IntoView {
                     class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
-                    bind:value=description
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        description.set(Some(value));
+                    }
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Category"</label>
@@ -198,7 +201,7 @@ pub fn Challenges() -> impl IntoView {
                             let _ = new_input.remove_attribute("name");
                             category_add_new_selected.set(false);
                         }
-                        category.set(sel.value())
+                        category.set(Some(sel.value()))
                     }
                 >
                     <option value="">"-- Select Category --"</option>
@@ -217,7 +220,6 @@ pub fn Challenges() -> impl IntoView {
                                 </For>
                             }
                         }}
-
                     </Suspense>
                     <option value="__new__">"-- Add New --"</option>
                 </select>
@@ -228,7 +230,10 @@ pub fn Challenges() -> impl IntoView {
                     type="text"
                     id="action_create_category_input"
                     value=""
-                    bind:value=category
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        category.set(Some(value));
+                    }
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Difficulty"</label>
@@ -314,7 +319,7 @@ pub fn Challenges() -> impl IntoView {
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700 text-text"#>"Proxmox VM IDs (Optional)"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Proxmox VM IDs (Optional)"</label>
                 <select
                     class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
@@ -410,8 +415,8 @@ pub fn Challenges() -> impl IntoView {
                         on:click=move |_| {
                             let event_id = event_id.get();
                             let name = name.get();
-                            let description = description.get();
-                            let category = category.get();
+                            let description = description.get().unwrap_or_default();
+                            let category = category.get().unwrap_or_default();
                             let difficulty = difficulty.get();
                             let points = points.get();
                             let flag = flag.get();

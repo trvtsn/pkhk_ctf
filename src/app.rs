@@ -28,7 +28,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <MetaTags />
                 <link rel="stylesheet" href="/pkg/pkhk_ctf.css" />
             </head>
-            <body class="h-full">
+            <body>
                 <App />
             </body>
         </html>

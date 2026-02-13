@@ -206,16 +206,10 @@ pub fn Users() -> impl IntoView {
                     type="text"
                     id="action_create_group_input"
                     value=""
-                    bind:value=group_signal
-                />
-
-                <input
-                    class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    hidden=move || !group_add_new_selected.get()
-                    type="text"
-                    id="action_create_group_input"
-                    bind:value=group_signal
+                    on:change=move |ev: Event| {
+                        let value = event_target_value(&ev);
+                        group_signal.set(value);
+                    }
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Avatar"</label>
