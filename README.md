@@ -47,10 +47,10 @@ cargo leptos watch
 - [ ] Replace sensitive data storage like plaintext passwords from LDAP and Proxmox configurations in DB to RAM
 
 ### Styling
-- [ ] Create fitting style for dark mode
+- [x] Create fitting style for dark mode
 - [x] Remove flag input box on challenge solve
 - [ ] Fix tooltip color on leaderboard hover
-- [ ] Fix select option color
+- [x] Fix select option color
 - [ ] Add spinner for indicating pending tasks
 
 ### Project Longevity

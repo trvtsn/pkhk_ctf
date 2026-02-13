@@ -76,7 +76,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
     });
 
     view! {
-        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover"#>
+        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text"#>
             <Show when=move || !editing.get()>
                 <Transition fallback=move || {
                     view! { <div>"Loading..."</div> }
@@ -128,18 +128,18 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
             </Show>
 
             <Show when=move || editing.get()>
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="name"
                     value=move || name_signal.get()
                     bind:value=name_edit
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Description"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
                     value=move || description_signal.get()
@@ -149,9 +149,9 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Start Date"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Start Date"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="start_at"
@@ -164,9 +164,9 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"End Date"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"End Date"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="end_at"
@@ -181,7 +181,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="visible_to_groups"
                     multiple=true
@@ -220,7 +220,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Attachment"</label>
                 <input
                     class=r#"w-full text-sm"#
                     type="file"
@@ -237,7 +237,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                     }
                 /><p>{move || uploading_file_text.get()}</p>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Illustration"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                 <input
                     class=r#"w-full text-sm"#
                     type="file"
@@ -257,7 +257,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
                 <Show when=move || editing.get() || deleting.get()>
                     <button
-                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                         on:click=move |_| {
                             editing.set(false);
                             deleting.set(false);

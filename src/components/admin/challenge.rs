@@ -99,7 +99,7 @@ pub fn Challenge(
     });
 
     view! {
-        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover"#>
+        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text"#>
             <Show when=move || !editing.get() && !deleted.get()>
                 <Transition fallback=move || {
                     view! { <div>"Loading..."</div> }
@@ -158,9 +158,9 @@ pub fn Challenge(
             </Show>
 
             <Show when=move || editing.get()>
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Event"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Event"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=event_id_edit
@@ -177,18 +177,18 @@ pub fn Challenge(
                     </For>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Name"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="name"
                     value=move || name_signal.get()
                     bind:value=name_edit
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Description"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
                     value=move || description_signal.get().unwrap_or_default()
@@ -198,9 +198,9 @@ pub fn Challenge(
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Category"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Category"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="category"
                     on:change=move |ev: Event| {
@@ -233,7 +233,7 @@ pub fn Challenge(
                     <option value="__new__">"-- Add New --"</option>
                 </select>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     hidden=move || !category_add_new_selected.get()
                     type="text"
@@ -245,9 +245,9 @@ pub fn Challenge(
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Difficulty"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Difficulty"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="number"
                     name="difficulty"
@@ -260,9 +260,9 @@ pub fn Challenge(
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Points"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Points"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="number"
                     name="points"
@@ -273,9 +273,9 @@ pub fn Challenge(
                     }
                 />
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Flag"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Flag"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="flag"
                     bind:value=flag_edit
@@ -283,7 +283,7 @@ pub fn Challenge(
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="visible_to_groups"
                     multiple=true
@@ -322,9 +322,9 @@ pub fn Challenge(
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM IDs (Optional)"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Proxmox VM IDs (Optional)"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="vm_ids"
                     multiple=true
@@ -362,7 +362,7 @@ pub fn Challenge(
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Attachment"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Attachment"</label>
                 <input
                     class=r#"w-full text-sm"#
                     type="file"
@@ -379,7 +379,7 @@ pub fn Challenge(
                     }
                 /><p>{move || uploading_file_text.get()}</p>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Illustration"</label>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                 <input
                     class=r#"w-full text-sm"#
                     type="file"
@@ -399,7 +399,7 @@ pub fn Challenge(
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
                 <Show when=move || editing.get() || deleting.get()>
                     <button
-                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                         on:click=move |_| {
                             spawn_local(async move {
                                 editing.set(false);

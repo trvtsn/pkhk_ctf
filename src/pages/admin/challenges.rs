@@ -116,7 +116,7 @@ pub fn Challenges() -> impl IntoView {
     view! {
         <div class=r#"flex gap-2 mb-4"#>
             <button
-                class=r#"py-1 px-3 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                class=r#"py-1 px-3 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                 on:click=move |_| {
                     if creating.get() {
                         creating.set(false);
@@ -133,7 +133,7 @@ pub fn Challenges() -> impl IntoView {
             <Show when=move || creating.get()>
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Event"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=event_id
@@ -163,7 +163,7 @@ pub fn Challenges() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="name"
                     bind:value=name
@@ -171,7 +171,7 @@ pub fn Challenges() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Description"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
                     bind:value=description
@@ -179,7 +179,7 @@ pub fn Challenges() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Category"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="category"
                     on:change=move |ev: Event| {
@@ -222,7 +222,7 @@ pub fn Challenges() -> impl IntoView {
                     <option value="__new__">"-- Add New --"</option>
                 </select>
                 <input
-                    class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     hidden=move || !category_add_new_selected.get()
                     type="text"
@@ -233,7 +233,7 @@ pub fn Challenges() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Difficulty"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="number"
                     min="1"
@@ -247,7 +247,7 @@ pub fn Challenges() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Points"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="number"
                     min="0"
@@ -260,7 +260,7 @@ pub fn Challenges() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Flag"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="flag"
                     bind:value=flag
@@ -268,7 +268,7 @@ pub fn Challenges() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="visible_to_groups"
                     multiple=true
@@ -314,9 +314,9 @@ pub fn Challenges() -> impl IntoView {
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Proxmox VM IDs (Optional)"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-gray-700 text-text"#>"Proxmox VM IDs (Optional)"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="vm_ids"
                     multiple=true
@@ -396,7 +396,7 @@ pub fn Challenges() -> impl IntoView {
                 <div class=r#"flex gap-3 mt-2"#>
                     <button
                         type="button"
-                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                         on:click=move |_| {
                             creating.set(false);
                         }
@@ -449,7 +449,7 @@ pub fn Challenges() -> impl IntoView {
             </Show>
         </div>
 
-        <div class=r#"challenges"#>
+        <div class=r#"challenges pt-4"#>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>

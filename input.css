@@ -18,8 +18,10 @@
     --default-font-family: "Funnel Display", var(--font-sans);
 
     --color-background: var(--color-background);
+    --color-background-hover: var(--color-background-hover);
     --color-background-secondary: var(--color-background-secondary);
     --color-text: var(--color-text);
+    --color-text-hover: var(--color-text-hover);
     --color-card: var(--color-card);
     --color-card-hover: var(--color-card-hover);
     --color-yale-blue-50: #e8f6fd;
@@ -86,16 +88,20 @@
 @layer base {
     html[data-theme="light"] {
         --color-background: var(--color-slate-grey-50);
+        --color-background-hover: var(--color-slate-grey-100);
         --color-background-secondary: var(--color-slate-grey-100);
         --color-text: var(--color-slate-grey-950);
+        --color-text-hover: var(--color-slate-grey-900);
         --color-card: var(--color-yale-blue-50);
         --color-card-hover: var(--color-yale-blue-100);
     }
 
     html[data-theme="dark"] {
         --color-background: var(--color-slate-grey-950);
+        --color-background-hover: var(--color-slate-grey-800);
         --color-background-secondary: var(--color-slate-grey-900);
-        --color-text: var(--color-slate-grey-50);
+        --color-text: var(--color-slate-grey-100);
+        --color-text-hover: var(--color-slate-grey-950);
         --color-card: var(--color-yale-blue-800);
         --color-card-hover: var(--color-yale-blue-900);
     }

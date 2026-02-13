@@ -94,88 +94,88 @@ pub fn AdminNavBar() -> impl IntoView {
     view! {
         <nav class=r#"flex flex-col col-start-1 col-end-1 gap-2 p-4 bg-background-secondary text-text rounded-lg shadow-sm"#>
             <ul class=r#"flex flex-col gap-1"# role="menu" aria-label="Admin navigation">
-                <li class="bg-background">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium  
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::SiteSettings)
                     >
                         <Icon icon=i::LuSettings />
                         "Site Settings"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-secondary">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Events)
                     >
                         <Icon icon=i::LuCalendarRange />
                         "Events"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-secondary">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Challenges)
                     >
                         <Icon icon=i::MdiBullseyeArrow />
                         "Challenges"
                     </p>
                 </li>
-                <li class="bg-background">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Files)
                     >
                         <Icon icon=i::LuFiles />
                         "Files"
                     </p>
                 </li>
-                <li class="bg-background">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Users)
                     >
                         <Icon icon=i::LuUsers />
                         "Users"
                     </p>
                 </li>
-                <li class="bg-background">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Ldap)
                     >
                         <Icon icon=i::LuServerCog />
                         "LDAP"
                     </p>
                 </li>
-                <li class="bg-background">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Proxmox)
                     >
                         <Icon icon=i::LuServerCog />
                         "Proxmox"
                     </p>
                 </li>
-                <li class="bg-background">
+                <li class="bg-background hover:bg-background-hover">
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md hover:bg-gray-50 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
+                        rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Log)
                     >
                         <Icon icon=i::LuLogs />

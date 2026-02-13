@@ -57,7 +57,6 @@ pub fn Login() -> impl IntoView {
         <NavBar />
         <div class=r#"grid justify-center p-8 grid-col bg-background text-text h-full"#>
             <h3 class=r#"text-4xl text-center"#>"Login"</h3>
-            <br />
             <ActionForm action=login>
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Email"</label>
                 <input
@@ -69,14 +68,16 @@ pub fn Login() -> impl IntoView {
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Password"</label>
-                <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type=move || if password_hidden.get() { "password" } else { "text" }
-                    name="password"
-                    bind:value=password
-                />
-                <HidePasswordButton hidden=password_hidden />
+                <div class="flex gap-2">
+                    <input
+                        class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        type=move || if password_hidden.get() { "password" } else { "text" }
+                        name="password"
+                        bind:value=password
+                    />
+                    <HidePasswordButton hidden=password_hidden />
+                </div>
 
                 <input
                     hidden=true
@@ -86,7 +87,7 @@ pub fn Login() -> impl IntoView {
 
                 <input
                     type="submit"
-                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                     value="Login"
                 />
             </ActionForm>

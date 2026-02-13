@@ -25,7 +25,6 @@ pub fn Register() -> impl IntoView {
         <NavBar />
         <div class=r#"grid justify-center p-8 grid-col bg-background text-text h-full"#>
             <h3 class=r#"text-4xl text-center"#>"Register"</h3>
-            <br />
             <ActionForm action=register>
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Email"</label>
                 <Transition fallback=|| view! { "..." }>{available_ui}</Transition>
@@ -42,26 +41,31 @@ pub fn Register() -> impl IntoView {
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>"Password"</label>
-                <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
-                    ocus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type=move || if password_hidden.get() { "password" } else { "text" }
-                    name="password"
-                    bind:value=password
-                />
-                <HidePasswordButton hidden=password_hidden />
+                <div class="flex gap-2">
+                    <input
+                        class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                        ocus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        type=move || if password_hidden.get() { "password" } else { "text" }
+                        name="password"
+                        bind:value=password
+                    />
+                    <HidePasswordButton hidden=password_hidden />
+                </div>
 
                 <label class=r#"block mb-1 text-sm font-medium text-gray-700"#>
                     "Confirm Password"
                 </label>
-                <input
-                    class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type=move || if confirm_password_hidden.get() { "password" } else { "text" }
-                    name="confirm_password"
-                    bind:value=confirm_password
-                />
-                <HidePasswordButton hidden=confirm_password_hidden />
+                <div class="flex gap-2">
+                    <input
+                        class=r#"py-2 px-3 w-full text-sm bg-white rounded-md border border-gray-300 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        type=move || if confirm_password_hidden.get() { "password" } else { "text" }
+                        name="confirm_password"
+                        bind:value=confirm_password
+                    />
+                    <HidePasswordButton hidden=confirm_password_hidden />
+                </div>
+
                 <Transition fallback=|| {
                     view! { "..." }
                 }>
@@ -74,7 +78,7 @@ pub fn Register() -> impl IntoView {
 
                 <input
                     type="submit"
-                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                     value="Register"
                 />
             </ActionForm>

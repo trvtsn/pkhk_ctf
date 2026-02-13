@@ -877,6 +877,10 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppE
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
             
+            if !args.enabled.0 {
+                return Err(AppError::InternalError("LDAP is disabled".to_string()));
+            }
+            
             let (conn, mut ldap) = match LdapConnAsync::new(args.url.as_str()).await {
                 Ok(conn) => conn,
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })

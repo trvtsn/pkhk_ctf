@@ -28,7 +28,7 @@ pub fn Ldap() -> impl IntoView {
     });
 
     view! {
-        <Suspense fallback=move || {
+        <Transition fallback=move || {
             view! { <div>"Loading..."</div> }
         }>
             {move || {
@@ -39,10 +39,33 @@ pub fn Ldap() -> impl IntoView {
                 base_dn.set(ldap_args.base_dn.clone());
                 enabled.set(ldap_args.enabled);
 
+                if enabled.get().0 {
+                    let url_test = ldap_url.get();
+                    let bind_dn_test = bind_dn.get();
+                    let bind_pw_test = bind_pw.get();
+                    let base_dn_test = base_dn.get();
+                    let enabled_test = enabled.get();
+                    spawn_local(async move {
+                        if let Ok(ApiResult { result, .. }) = test_ldap(LdapArgs {
+                                url: url_test,
+                                bind_dn: bind_dn_test,
+                                bind_pw: bind_pw_test,
+                                base_dn: base_dn_test,
+                                enabled: enabled_test
+                            })
+                            .await
+                        {
+                            if result == ResultStatus::Success {
+                                connect_success.set(true);
+                            } else {
+                                connect_success.set(false);
+                            }
+                        }
+                    });
+                }
+
                 view! {
-                    <div 
-                        class=move || if enabled.get().0 { "grid gap-2" } else { "grid gap-2 rounded-md color-white-600/50" }
-                    >
+                    <div class="grid gap-2">
                         <div class="flex gap-2">
                             <label>"Enable"</label>
                             <input
@@ -65,127 +88,131 @@ pub fn Ldap() -> impl IntoView {
                             />
                         </div>
 
-                        <div class="flex gap-2 items-center">
-                            "Connection Status"
-                            <svg class=connect_status_classes>
-                                <circle /> // on hover tooltip -> "Connected"/"No Connection"?
-                            </svg>
-                        </div>
+                        <div 
+                            hidden=move || !enabled.get().0
+                        >
+                            <div class="flex gap-2 items-center">
+                                "Connection Status"
+                                <svg class=connect_status_classes>
+                                    <circle /> // on hover tooltip -> "Connected"/"No Connection"?
+                                </svg>
+                            </div>
 
-                        <div class="grid gap-2 pt-2">
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"LDAP URL"</label>
-                            <input
-                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="name"
-                                value=move || ldap_url.get()
-                                bind:value=ldap_url
-                            />
-
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind DN"</label>
-                            <input
-                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="name"
-                                value=move || bind_dn.get()
-                                bind:value=bind_dn
-                            />
-
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind Password"</label>
-                            <div class="flex gap-2">
+                            <div class="grid gap-2 pt-2">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"LDAP URL"</label>
                                 <input
                                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                    type=move || if password_hidden.get() { "password" } else { "text" }
-                                    name="password"
-                                    value=move || bind_pw.get()
-                                    bind:value=bind_pw
+                                    name="name"
+                                    value=move || ldap_url.get()
+                                    bind:value=ldap_url
                                 />
-                                <HidePasswordButton hidden=password_hidden />
-                            </div>
 
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base DN"</label>
-                            <input
-                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="name"
-                                value=move || base_dn.get()
-                                bind:value=base_dn
-                            />
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind DN"</label>
+                                <input
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="name"
+                                    value=move || bind_dn.get()
+                                    bind:value=bind_dn
+                                />
 
-                            <div class=r#"flex gap-3 mt-2 pt-2"#>
-                                <button
-                                    type="button"
-                                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
-                                    on:click=move |_| {
-                                        let url = ldap_url.get();
-                                        let bind_dn = bind_dn.get();
-                                        let bind_pw = bind_pw.get();
-                                        let base_dn = base_dn.get();
-                                        let enabled = enabled.get();
-                                        spawn_local(async move {
-                                            if let Ok(ApiResult { result, details }) = test_ldap(LdapArgs {
-                                                    url,
-                                                    bind_dn,
-                                                    bind_pw,
-                                                    base_dn,
-                                                    enabled
-                                                })
-                                                .await
-                                            {
-                                                if result == ResultStatus::Success {
-                                                    connect_success.set(true);
-                                                } else {
-                                                    connect_success.set(false);
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind Password"</label>
+                                <div class="flex gap-2">
+                                    <input
+                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                        type=move || if password_hidden.get() { "password" } else { "text" }
+                                        name="password"
+                                        value=move || bind_pw.get()
+                                        bind:value=bind_pw
+                                    />
+                                    <HidePasswordButton hidden=password_hidden />
+                                </div>
+
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base DN"</label>
+                                <input
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="name"
+                                    value=move || base_dn.get()
+                                    bind:value=base_dn
+                                />
+
+                                <div class=r#"flex gap-3 mt-2 pt-2"#>
+                                    <button
+                                        type="button"
+                                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
+                                        on:click=move |_| {
+                                            let url = ldap_url.get();
+                                            let bind_dn = bind_dn.get();
+                                            let bind_pw = bind_pw.get();
+                                            let base_dn = base_dn.get();
+                                            let enabled = enabled.get();
+                                            spawn_local(async move {
+                                                if let Ok(ApiResult { result, details }) = test_ldap(LdapArgs {
+                                                        url,
+                                                        bind_dn,
+                                                        bind_pw,
+                                                        base_dn,
+                                                        enabled
+                                                    })
+                                                    .await
+                                                {
+                                                    if result == ResultStatus::Success {
+                                                        connect_success.set(true);
+                                                    } else {
+                                                        connect_success.set(false);
+                                                    }
+                                                    
+                                                    connect_status_ui.set(details.unwrap_or_default());
                                                 }
-                                                
-                                                connect_status_ui.set(details.unwrap_or_default());
-                                            }
-                                        });
-                                    }
-                                >
-                                    "Test Connection"
-                                </button>
-                                
-                                <button
-                                    class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold 
-                                    text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
-                                    bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
-                                    on:click=move |_| {
-                                        let url = ldap_url.get();
-                                        let bind_dn = bind_dn.get();
-                                        let bind_pw = bind_pw.get();
-                                        let base_dn = base_dn.get();
-                                        let enabled = enabled.get();
-                                        spawn_local(async move {
-                                            if let Ok(ApiResult { result, details }) = update_ldap(LdapArgs {
-                                                    url,
-                                                    bind_dn,
-                                                    bind_pw,
-                                                    base_dn,
-                                                    enabled
-                                                })
-                                                .await
-                                            {
-                                                if result == ResultStatus::Success {
-                                                    connect_success.set(true);
-                                                } else {
-                                                    connect_success.set(false);
+                                            });
+                                        }
+                                    >
+                                        "Test Connection"
+                                    </button>
+                                    
+                                    <button
+                                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold 
+                                        text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
+                                        bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
+                                        on:click=move |_| {
+                                            let url = ldap_url.get();
+                                            let bind_dn = bind_dn.get();
+                                            let bind_pw = bind_pw.get();
+                                            let base_dn = base_dn.get();
+                                            let enabled = enabled.get();
+                                            spawn_local(async move {
+                                                if let Ok(ApiResult { result, details }) = update_ldap(LdapArgs {
+                                                        url,
+                                                        bind_dn,
+                                                        bind_pw,
+                                                        base_dn,
+                                                        enabled
+                                                    })
+                                                    .await
+                                                {
+                                                    if result == ResultStatus::Success {
+                                                        connect_success.set(true);
+                                                    } else {
+                                                        connect_success.set(false);
+                                                    }
+                                                    
+                                                    connect_status_ui.set(details.unwrap_or_default());
                                                 }
-                                                
-                                                connect_status_ui.set(details.unwrap_or_default());
-                                            }
-                                        });
-                                    }
-                                >
-                                    "Apply"
-                                </button>
+                                            });
+                                        }
+                                    >
+                                        "Apply"
+                                    </button>
+                                </div>
+                                <Transition fallback=|| view! { "..." }>{move || connect_status_ui.get()}</Transition>
                             </div>
-                            <Transition fallback=|| view! { "..." }>{move || connect_status_ui.get()}</Transition>
                         </div>
                     </div>
                 }
             }}
-        </Suspense>
+        </Transition>
     }
 }

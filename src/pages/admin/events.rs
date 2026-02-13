@@ -66,7 +66,7 @@ pub fn Events() -> impl IntoView {
     view! {
         <div class=r#"flex gap-2 mb-4"#>
             <button
-                class=r#"py-1 px-3 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                class=r#"py-1 px-3 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                 on:click=move |_| {
                     if creating.get() {
                         creating.set(false);
@@ -85,7 +85,7 @@ pub fn Events() -> impl IntoView {
             <Show when=move || section.get() == Actions::Create>
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="name"
                     bind:value=name_signal
@@ -93,7 +93,7 @@ pub fn Events() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Description"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
                     bind:value=description_signal
@@ -101,7 +101,7 @@ pub fn Events() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Start Date"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="start_at"
@@ -110,7 +110,7 @@ pub fn Events() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"End Date"</label>
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="end_at"
@@ -119,7 +119,7 @@ pub fn Events() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="visible_to_groups"
                     multiple=true
@@ -195,7 +195,7 @@ pub fn Events() -> impl IntoView {
                 <div class=r#"flex gap-3 mt-2"#>
                     <button
                         type="button"
-                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-gray-50"#
+                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
                         on:click=move |_| { section.set(Actions::None) }
                     >
                         "Cancel"
@@ -237,7 +237,7 @@ pub fn Events() -> impl IntoView {
             </Show>
         </div>
 
-        <div class=r#"events"#>
+        <div class=r#"events pt-4"#>
             <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
                 <Transition fallback=move || view! { <div>"Loading..."</div> }>
                     <For
