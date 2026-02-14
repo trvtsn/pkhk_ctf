@@ -168,6 +168,7 @@ pub mod structs {
     pub struct ChallengeWithAttachments {
         pub challenge: Challenge,
         pub attachments: Vec<AttachmentWithoutBlob>,
+        pub illustration: Option<String>
     }
 
      #[derive(Eq, Clone, PartialEq, Serialize, Deserialize)]
@@ -550,6 +551,26 @@ cfg_if! {
                     WHERE id = ?
                     ",
                     group,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn edit_last_active(id: &String, last_active_at: &DateTime<Local>, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET last_active_at = ?
+                    WHERE id = ?
+                    ",
+                    last_active_at,
                     id
                 )
                     .execute(executor)
@@ -3094,17 +3115,19 @@ cfg_if! {
                 bind_dn: &String, 
                 bind_pw: &String, 
                 base_dn: &String, 
+                enabled: &bool, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE ldap
-                    SET url = ?, bind_dn = ?, bind_pw = ?, base_dn = ?
+                    SET url = ?, bind_dn = ?, bind_pw = ?, base_dn = ?, enabled = ?
                     ",
                     url,
                     bind_dn,
                     bind_pw,
                     base_dn,
+                    enabled
                 )
                     .execute(executor)
                     .await {

@@ -1,13 +1,11 @@
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
-use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::db::structs::{ChallengeWithAttachments};
-use crate::server::proxmox::ProxmoxVMInstance;
-use crate::server::{add_vm_time, destroy_vm, get_illustration_id, restart_vm, start_vm};
+use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
+use crate::server::{add_vm_time, destroy_vm, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
-// use thaw::*;
 
 #[component]
 pub fn ChallengePopup(
@@ -15,6 +13,7 @@ pub fn ChallengePopup(
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
     user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
+    all_templates: RwSignal<Vec<ProxmoxVMTemplate>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
@@ -24,11 +23,6 @@ pub fn ChallengePopup(
     let incorrect = RwSignal::new(false);
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
-
-    let illustration = Resource::new(move || (), move |_| {
-        let challenge_id = cwa_popup.get().challenge.id;
-        async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
-    });
 
     let card_classes = Memo::new(move |_| {
         let base = "absolute inset-0 z-20 flex content-center items-center justify-center rounded-lg p-4";
@@ -87,17 +81,13 @@ pub fn ChallengePopup(
                     view! { <div>"Loading..."</div> }
                 }>
                     {move || {
-                        if solved_challenges.get().contains(&cwa_popup.get().challenge.id) { 
-                            solved.set(true);
-                        } else {
-                            solved.set(false);
-                        }
+                        let illustration = cwa_popup.get().illustration;
 
-                        if let Some(id) = illustration.get().unwrap_or_default() { 
+                        if let Some(illustration_id) = illustration { 
                             view! {
                                 <div class="h-48 w-48 flex justify-center m-auto">
                                     <img 
-                                        src=move || format!("/image/{}", id) 
+                                        src=move || format!("/image/{}", illustration_id) 
                                         class=r#"text-blue-600 underline object-cover shadow-sm"#
                                     />
                                 </div>
@@ -186,26 +176,34 @@ pub fn ChallengePopup(
 
                 <Transition>
                     {move || {
+                        if solved_challenges.get().contains(&cwa_popup.get().challenge.id) { 
+                            solved.set(true);
+                        } else {
+                            solved.set(false);
+                        }
+
+                        let all_templates = all_templates.get();
                         let challenge = cwa_popup.get().challenge;
                         let challenge_vm_ids = challenge.clone().vm_ids;
                         let template_ids = match challenge_vm_ids.is_some() {
                             true => challenge_vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>(),
                             false => Vec::<u32>::new()
                         };
+                        let mut templates = all_templates.into_iter().filter(|t| template_ids.contains(&t.id)).collect::<Vec<ProxmoxVMTemplate>>();
                         view! {
                             <div class="grid auto-rows-auto gap-2 pt-2">
                                 // for each vm that the challenge has, show a button set
                                 <For
-                                    each=move || template_ids.clone()
-                                    key=|template_id: &u32| *template_id
-                                    let(template_id)
+                                    each=move || templates.clone()
+                                    key=|template: &ProxmoxVMTemplate| template.id
+                                    let(template)
                                 >
-                                    <div class="flex gap-2">
-                                        // <label></label>
+                                    <div class="flex gap-2 items-center">
+                                        <label>{template.name}</label>
                                         <Show when=move || {
                                             let user_vms = user_vms.get();
                                             let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                            !active_vm_origin_ids.contains(&template_id)
+                                            !active_vm_origin_ids.contains(&template.id)
                                         }>
                                             <button
                                                 class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
@@ -214,7 +212,7 @@ pub fn ChallengePopup(
                                                 on:click=move |_| {
                                                     let challenge = cwa_popup.get().challenge;
                                                     spawn_local(async move {
-                                                        if let Ok(ApiResult { result, details }) = start_vm(template_id, challenge).await
+                                                        if let Ok(ApiResult { result, details }) = start_vm(template.id, challenge).await
                                                         {
                                                             if result == ResultStatus::Fail && details == "failed to start vm" {
                                                                 refresh.update(|n| *n += 1);
@@ -232,7 +230,7 @@ pub fn ChallengePopup(
                                         <Show when=move || {
                                             let user_vms = user_vms.get();
                                             let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                            active_vm_origin_ids.contains(&template_id)
+                                            active_vm_origin_ids.contains(&template.id)
                                         }>
                                             <button
                                                 class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
@@ -240,7 +238,7 @@ pub fn ChallengePopup(
                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                 on:click=move |_| {
                                                     spawn_local(async move {
-                                                        _ = restart_vm(template_id).await;
+                                                        _ = restart_vm(template.id).await;
                                                         refresh.update(|n| *n += 1);
                                                     });
                                                 }
@@ -254,7 +252,7 @@ pub fn ChallengePopup(
                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                 on:click=move |_| {
                                                     spawn_local(async move {
-                                                        _ = add_vm_time(template_id).await;
+                                                        _ = add_vm_time(template.id).await;
                                                         refresh.update(|n| *n += 1);
                                                     });
                                                 }
@@ -268,7 +266,7 @@ pub fn ChallengePopup(
                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                 on:click=move |_| {
                                                     spawn_local(async move {
-                                                        _ = destroy_vm(template_id).await;
+                                                        _ = destroy_vm(template.id).await;
                                                         refresh.update(|n| *n += 1);
                                                     });
                                                 }

@@ -67,6 +67,10 @@ pub fn User() -> impl IntoView {
                                             <b>"Date Joined: "</b>
                                             {user.created_at.to_string()}
                                         </p>
+                                        <p>
+                                            <b>"Last Active: "</b>
+                                            {user.last_active_at.to_string()}
+                                        </p>
                                     }.into_any()
                                 }
                                 None => view! { <NotFound /> }.into_any(),

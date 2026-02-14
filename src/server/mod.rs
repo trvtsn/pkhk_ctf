@@ -169,12 +169,14 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
                 Ok(challenges) => challenges,
                 Err(e) => Err(e)?
             };
+
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
                 let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &pool).await?;
+                let illustration = AttachmentWithoutBlob::get_illustration_id(&AttachmentIdentifier::ChallengeId(challenge.id.clone()), &pool).await?;
                 let visible_to_groups_vec = challenge.visible_to_groups.split(",").map(|v| v.to_string()).collect::<Vec<String>>();
                 if visible_to_groups_vec.contains(&db_user.group) || db_user.role == UserRole::Admin || visible_to_groups_vec.contains(&"all".to_string()) {
-                    cwa.push(ChallengeWithAttachments { challenge, attachments });
+                    cwa.push(ChallengeWithAttachments { challenge, attachments, illustration });
                 } else {
                     continue;
                 }
@@ -334,7 +336,8 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
                                 return Err(AppError::InternalError("internal error".to_string()));
                             }
                         };
-                        // update last_active_date in db
+                        let last_active_at = chrono::Local::now();
+                        _ = DbUser::edit_last_active(&user.id.clone(), &last_active_at, &auth.backend.pool).await;
                         _ = crate::server::proxmox::create_user_pool(db_user).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
                     },
@@ -1020,13 +1023,13 @@ pub async fn get_user_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
 
 #[server(name=GetTemplateInfo, prefix="/api", endpoint="get_template_info")]
 #[instrument]
-pub async fn get_template_info(template_id: u32) -> Result<ProxmoxVMTemplate, AppError> {
+pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
 
-            match crate::server::proxmox::get_template_info(template_id).await {
-                Ok(template_info) => Ok(template_info),
+            match crate::server::proxmox::get_all_templates().await {
+                Ok(templates) => Ok(templates),
                 Err(e) => return Err(e)
             }
         } else {

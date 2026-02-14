@@ -1,10 +1,8 @@
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
-use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::db::structs::ChallengeWithAttachments;
 use crate::server::proxmox::ProxmoxVMInstance;
-use crate::server::{destroy_vm, get_illustration_id};
-use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
+use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, destroy_vm, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 // use thaw::*;
@@ -17,21 +15,17 @@ pub fn Challenge(
     cwa_popup: RwSignal<ChallengeWithAttachments>,
     user_vms: RwSignal<Vec<ProxmoxVMInstance>>
 ) -> impl IntoView {
-    let ChallengeWithAttachments { challenge, attachments } = cwa.clone();
+    let ChallengeWithAttachments { challenge, attachments, illustration } = cwa.clone();
     let challenge_signal = RwSignal::new(challenge.clone());
     let description_signal = RwSignal::new(challenge.description.clone());
     let difficulty_signal = RwSignal::new(challenge.difficulty);
     let flag_signal = RwSignal::new("".to_string());
+    let illustration_signal = RwSignal::new(illustration);
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
-
-    let illustration = Resource::new(move || (), move |_| {
-        let challenge_id = challenge_signal.get().id;
-        async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
-    });
 
     let button_classes = Memo::new(move |_| {
         let base = r#"inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 
@@ -73,11 +67,11 @@ pub fn Challenge(
                 view! { <div>"Loading..."</div> }
             }>
                 {move || {
-                    if let Some(id) = illustration.get().unwrap_or_default() { 
+                    if let Some(illustration_id) = illustration_signal.get() { 
                         view! {
                             <div class="h-48 w-48 flex justify-center m-auto">
                                 <img 
-                                    src=move || format!("/image/{}", id) 
+                                    src=move || format!("/image/{}", illustration_id) 
                                     class=r#"text-blue-600 underline object-cover shadow-sm"#
                                 />
                             </div>

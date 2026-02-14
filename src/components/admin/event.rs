@@ -222,7 +222,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Attachment"</label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="attachment"
                     multiple
@@ -239,7 +239,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="illustration"
                     on:change=move |ev: Event| {

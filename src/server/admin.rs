@@ -953,7 +953,7 @@ pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, Ap
             }
 
             // bind_pw should be hashed, but how to connect with a hashed password?
-            match LdapArgs::update(&args.url, &args.bind_dn, &args.bind_pw, &args.base_dn, &pool).await {
+            match LdapArgs::update(&args.url, &args.bind_dn, &args.bind_pw, &args.base_dn, &args.enabled.0, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated LDAP configuration".to_string()) }),
                 Err(e) => {
                     Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("bind succeeded but failed to update DB row: {e}")) })

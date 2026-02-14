@@ -214,7 +214,7 @@ pub fn Users() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Avatar"</label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="illustration"
                     on:change=move |ev: Event| {

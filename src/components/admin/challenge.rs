@@ -1,8 +1,6 @@
 use crate::components::utils::TruncatedDesc;
 use crate::server::admin::{get_all_user_groups, upload_illustration};
-use crate::server::db::enums::AttachmentIdentifier;
 use crate::server::proxmox::ProxmoxVMTemplate;
-use crate::server::{get_illustration_id};
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
@@ -14,7 +12,7 @@ pub fn Challenge(
     events: RwSignal<Vec<db::structs::Event>>,
     templates: RwSignal<Vec<ProxmoxVMTemplate>>
 ) -> impl IntoView {
-    let ChallengeWithAttachments { challenge, attachments } = cwa;
+    let ChallengeWithAttachments { challenge, attachments, illustration } = cwa;
     let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids } = challenge;
 
     let id_signal = RwSignal::new(id);
@@ -26,6 +24,7 @@ pub fn Challenge(
     let points_signal = RwSignal::new(points);
     let attachments_signal = RwSignal::new(attachments.clone());
     let visible_to_groups_signal = RwSignal::new(visible_to_groups.clone());
+    let illustration_signal = RwSignal::new(illustration.clone());
 
     let event_id_edit = RwSignal::new(event_id);
     let name_edit = RwSignal::new(name.clone());
@@ -38,11 +37,6 @@ pub fn Challenge(
     let illustration_edit = RwSignal::new(None);
     let visible_to_groups_edit = RwSignal::new(visible_to_groups);
     let proxmox_vm_id_edit = RwSignal::new(vm_ids);
-
-    let illustration = Resource::new(move || refresh.get(), move |_| {
-        let challenge_id = id_signal.get();
-        async move { get_illustration_id(AttachmentIdentifier::ChallengeId(challenge_id)).await.unwrap_or_default() }
-    });
 
     let category_add_new_selected = RwSignal::new(false);
     let editing = RwSignal::new(false);
@@ -105,11 +99,11 @@ pub fn Challenge(
                     view! { <div>"Loading..."</div> }
                 }>
                     {move || {
-                        if let Some(id) = illustration.get().unwrap_or_default() { 
+                        if let Some(illustration_id) = illustration_signal.get() { 
                             view! {
                                 <div class="h-48 w-48 flex justify-center m-auto">
                                     <img 
-                                        src=move || format!("/image/{}", id) 
+                                        src=move || format!("/image/{}", illustration_id) 
                                         class=r#"text-blue-600 underline object-cover shadow-sm"#
                                     />
                                 </div>
@@ -364,7 +358,7 @@ pub fn Challenge(
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Attachment"</label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="attachment"
                     multiple
@@ -381,7 +375,7 @@ pub fn Challenge(
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="illustration"
                     on:change=move |ev: Event| {

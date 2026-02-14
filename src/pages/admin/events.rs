@@ -160,7 +160,7 @@ pub fn Events() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Attachment"</label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="attachment"
                     on:change=move |ev: Event| {
@@ -177,7 +177,7 @@ pub fn Events() -> impl IntoView {
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Illustration"</label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="illustration"
                     on:change=move |ev: Event| {

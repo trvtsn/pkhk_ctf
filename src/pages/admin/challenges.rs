@@ -363,7 +363,7 @@ pub fn Challenges() -> impl IntoView {
                     "Attachment (Max 16 MiB)"
                 </label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="attachment"
                     multiple
@@ -383,7 +383,7 @@ pub fn Challenges() -> impl IntoView {
                     "Illustration (Max 16 MiB)"
                 </label>
                 <input
-                    class=r#"w-full text-sm"#
+                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                     type="file"
                     name="illustration"
                     on:change=move |ev: Event| {

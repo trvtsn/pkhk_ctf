@@ -230,10 +230,11 @@ async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Resul
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
 
     let new_vm_id = get_next_free_vm_id().await?;
+    let template_info = get_template_info(template_id).await?;
     
     let clone_body = serde_urlencoded::to_string(&[
         ("newid", new_vm_id.to_string()), 
-        ("name", challenge.name.clone()),
+        ("name", template_info.name),
         ("full", "1".to_string()), // 0 - linked clone, 1 - full clone
         ("target", proxmox_args.node.clone()),
         ("pool", format!("CTFPKHK-{}", user.username)),

@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_user_vms, get_user_solved_challenges, proxmox::ProxmoxVMInstance}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_templates, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -29,6 +29,11 @@ pub fn Challenges() -> impl IntoView {
     let solved_challenge_ids = RwSignal::new(Vec::<String>::default());
     let solved_challenges_resource = Resource::new(move || (), move |_| async move {
         get_user_solved_challenges().await.unwrap_or_default()
+    });
+
+    let all_templates_signal = RwSignal::<Vec<ProxmoxVMTemplate>>::new(vec![]);
+    let all_templates_resource = Resource::new(move || (), move |_| async move {
+        get_all_templates().await.unwrap_or_default()
     });
 
     let UseEventSourceReturn { message, .. } = 
@@ -64,6 +69,9 @@ pub fn Challenges() -> impl IntoView {
                 view! { <div>"Loading..."</div> }
             }>
                 {move || {
+                    let all_templates = all_templates_resource.get().unwrap_or_default();
+                    all_templates_signal.set(all_templates);
+
                     let user_vms = user_vms_resource.get().unwrap_or_default();
                     user_vms_signal.set(user_vms);
 
@@ -92,8 +100,10 @@ pub fn Challenges() -> impl IntoView {
                             solved_challenges=solved_challenge_ids 
                             overlay_triggered 
                             user_vms=user_vms_signal 
+                            all_templates=all_templates_signal
                             refresh 
                         />
+
                         <For
                             each=move || groups.clone()
                             key=|
@@ -123,7 +133,7 @@ pub fn Challenges() -> impl IntoView {
                                                 solved_challenges=solved_challenge_ids
                                                 overlay_triggered
                                                 cwa_popup=cwa_popup
-                                                user_vms=user_vms_signal 
+                                                user_vms=user_vms_signal
                                             />
                                         </div>
                                     </For>

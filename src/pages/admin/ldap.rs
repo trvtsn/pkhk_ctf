@@ -1,4 +1,4 @@
-use crate::{components::utils::HidePasswordButton, server::{admin::{disable_ldap, enable_ldap, get_ldap, update_ldap, test_ldap}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::utils::HidePasswordButton, server::{admin::{disable_ldap, enable_ldap, get_ldap, test_ldap, update_ldap}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local};
 
 /// Default Home Page
@@ -39,7 +39,7 @@ pub fn Ldap() -> impl IntoView {
                 base_dn.set(ldap_args.base_dn.clone());
                 enabled.set(ldap_args.enabled);
 
-                if enabled.get().0 {
+                if ldap_args.enabled.0 {
                     let url_test = ldap_url.get();
                     let bind_dn_test = bind_dn.get();
                     let bind_pw_test = bind_pw.get();
@@ -76,12 +76,12 @@ pub fn Ldap() -> impl IntoView {
                                     if is_checked {
                                         enabled.set(SqlBool(true));
                                         spawn_local(async move {
-                                            _ = enable_ldap().await;
+                                            _ = enable_ldap().await; // call only on "Apply", not on every check/uncheck
                                         });
                                     } else {
                                         enabled.set(SqlBool(false));
                                         spawn_local(async move {
-                                            _ = disable_ldap().await;
+                                            _ = disable_ldap().await; // call only on "Apply", not on every check/uncheck
                                         });
                                     };
                                 }

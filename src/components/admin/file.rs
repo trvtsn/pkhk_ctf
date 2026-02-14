@@ -24,7 +24,7 @@ pub fn File(
     });
 
     view! {
-        <div class=r#"content-center p-4 m-4 rounded-lg bg-card hover:bg-card-hover"#>
+        <div class=r#"grid content-center p-4 m-4 rounded-lg bg-card hover:bg-card-hover"#>
             <h3 class=r#"font-bold text-3xl/8"#>{file_name.clone()}</h3>
             <p class=r#"text-lg/8"#>
                 <b>"ID: "</b>
