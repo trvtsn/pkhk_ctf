@@ -689,8 +689,8 @@ pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             match is_host_reachable().await {
-                Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("proxmox host not reachable".to_string())) },
-                Err(_) => return Err(AppError::InternalError("proxmox host not reachable".to_string()))
+                Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("proxmox host unreachable".to_string())) },
+                Err(_) => return Err(AppError::InternalError("proxmox host unreachable".to_string()))
             }
 
             let client = Client::builder()

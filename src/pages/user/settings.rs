@@ -47,7 +47,7 @@ pub fn Settings() -> impl IntoView {
                 <div class="flex gap-2 items-center">
                     <label>"Change Username"</label>
                     <input
-                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type="text"
                         bind:value=new_username
@@ -93,7 +93,7 @@ pub fn Settings() -> impl IntoView {
                             <label>"Old Password"</label>
                             <div class="flex gap-2">
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     type=move || if old_password_hidden.get() { "password" } else { "text" }
                                     name="old_password"
@@ -104,7 +104,7 @@ pub fn Settings() -> impl IntoView {
                             <label>"New Password"</label>
                             <div class="flex gap-2">
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     type=move || if new_password_hidden.get() { "password" } else { "text" }
                                     name="new_password"
@@ -115,7 +115,7 @@ pub fn Settings() -> impl IntoView {
                             <label>"Confirm New Password"</label>
                             <div class="flex gap-2">
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     type=move || {
                                         if confirm_new_password_hidden.get() { "password" } else { "text" }
@@ -127,7 +127,7 @@ pub fn Settings() -> impl IntoView {
 
                             <div class=r#"flex gap-3 mt-2 pt-2"#>
                                 <button
-                                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
+                                    class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                                     on:click=move |_| { changing_password.set(false) }
                                 >
                                     "Cancel"

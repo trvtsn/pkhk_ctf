@@ -90,7 +90,7 @@ pub fn Proxmox() -> impl IntoView {
                             <div class="grid gap-2 pt-2">
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base URL"</label>
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="base_url"
                                     value=move || base_url.get()
@@ -99,7 +99,7 @@ pub fn Proxmox() -> impl IntoView {
 
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Path"</label>
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="api_path"
                                     placeholder="Optional (Default: /api2/json)"
@@ -109,7 +109,7 @@ pub fn Proxmox() -> impl IntoView {
 
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"VM Templates Pool ID"</label>
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="api_path"
                                     placeholder="Optional (Default: templates)"
@@ -119,7 +119,7 @@ pub fn Proxmox() -> impl IntoView {
 
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Node"</label>
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="node"
                                     value=move || node.get()
@@ -129,7 +129,7 @@ pub fn Proxmox() -> impl IntoView {
                                 <Show when=move || auth_type.get() == ProxmoxAuthType::ApiToken>
                                     <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Token"</label>
                                     <input
-                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                         name="api_token"
                                         value=move || api_token.get().unwrap_or_default()
@@ -142,7 +142,7 @@ pub fn Proxmox() -> impl IntoView {
 
                                 <div class="flex gap-3 mt-2 pt-2">
                                     <button
-                                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
+                                        class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                                         on:click=move |_| {
                                             let base_url = base_url.get();
                                             let api_path = api_path.get();

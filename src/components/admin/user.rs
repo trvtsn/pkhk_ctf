@@ -120,7 +120,7 @@ pub fn User(
             <Show when=move || editing.get()>
                 <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
                 <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="username"
                     value=move || username_signal.get()
@@ -129,7 +129,7 @@ pub fn User(
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"E-mail"</label>
                 <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="email"
                     value=move || email_signal.get()
@@ -138,7 +138,7 @@ pub fn User(
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Points"</label>
                 <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="points"
                     type="number"
@@ -151,7 +151,7 @@ pub fn User(
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Role"</label>
                 <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="event_id"
                     bind:value=role_edit
@@ -168,7 +168,7 @@ pub fn User(
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Group"</label>
                 <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="group"
                     multiple=true
@@ -222,7 +222,7 @@ pub fn User(
                     </Suspense>
                 </select>
                 <input
-                    class=r#"bg-background py-2 px-3 mt-2 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 mt-2 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     hidden=move || !group_add_new_selected.get()
                     type="text"
@@ -257,7 +257,7 @@ pub fn User(
                 </label>
                 <div class="flex gap-2">
                     <input
-                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if new_password_hidden.get() { "password" } else { "text" }
                         name="new_password"
@@ -271,7 +271,7 @@ pub fn User(
                 </label>
                 <div class="flex gap-2">
                     <input
-                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 focus:ring-2 
+                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border focus:ring-2 
                         focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if confirm_new_password_hidden.get() { "password" } else { "text" }
                         name="confirm_new_password"
@@ -298,7 +298,7 @@ pub fn User(
                 <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
                     <Show when=move || editing.get() || editing_password.get() || deleting.get()>
                         <button
-                            class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
+                            class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                             on:click=move |_| {
                                 editing.set(false);
                                 deleting.set(false);

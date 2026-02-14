@@ -100,7 +100,7 @@ pub fn NavBar() -> impl IntoView {
 
                     <Show when=move || open.get() fallback=|| ()>
                         <nav
-                            class=r#"fixed z-50 flex-col p-4 rounded-md shadow-sm bg-white/25 mt-[15rem]"#
+                            class=r#"fixed z-10 flex-col p-4 rounded-md shadow-sm bg-background mt-[15rem]"#
                             on:blur=move |_| { open.set(false) }
                         >
                             <ul class=r#"flex flex-col gap-4 items-center"#>

@@ -30,7 +30,7 @@ pub fn Register() -> impl IntoView {
                 <Transition fallback=|| view! { "..." }>{available_ui}</Transition>
 
                 <input
-                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="email"
                     name="email"
@@ -43,7 +43,7 @@ pub fn Register() -> impl IntoView {
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Password"</label>
                 <div class="flex gap-2">
                     <input
-                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         ocus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if password_hidden.get() { "password" } else { "text" }
                         name="password"
@@ -57,7 +57,7 @@ pub fn Register() -> impl IntoView {
                 </label>
                 <div class="flex gap-2">
                     <input
-                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if confirm_password_hidden.get() { "password" } else { "text" }
                         name="confirm_password"
@@ -78,7 +78,7 @@ pub fn Register() -> impl IntoView {
 
                 <input
                     type="submit"
-                    class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
+                    class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                     value="Register"
                 />
             </ActionForm>

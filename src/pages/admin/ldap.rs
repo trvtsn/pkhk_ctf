@@ -101,7 +101,7 @@ pub fn Ldap() -> impl IntoView {
                             <div class="grid gap-2 pt-2">
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"LDAP URL"</label>
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="name"
                                     value=move || ldap_url.get()
@@ -110,7 +110,7 @@ pub fn Ldap() -> impl IntoView {
 
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind DN"</label>
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="name"
                                     value=move || bind_dn.get()
@@ -120,7 +120,7 @@ pub fn Ldap() -> impl IntoView {
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind Password"</label>
                                 <div class="flex gap-2">
                                     <input
-                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                         type=move || if password_hidden.get() { "password" } else { "text" }
                                         name="password"
@@ -132,7 +132,7 @@ pub fn Ldap() -> impl IntoView {
 
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base DN"</label>
                                 <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="name"
                                     value=move || base_dn.get()
@@ -142,7 +142,7 @@ pub fn Ldap() -> impl IntoView {
                                 <div class=r#"flex gap-3 mt-2 pt-2"#>
                                     <button
                                         type="button"
-                                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
+                                        class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                                         on:click=move |_| {
                                             let url = ldap_url.get();
                                             let bind_dn = bind_dn.get();

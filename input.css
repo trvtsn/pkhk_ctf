@@ -19,6 +19,7 @@
 
     --color-background: var(--color-background);
     --color-background-hover: var(--color-background-hover);
+    --color-input-border: var(--color-input-border);
     --color-background-secondary: var(--color-background-secondary);
     --color-text: var(--color-text);
     --color-text-hover: var(--color-text-hover);
@@ -90,6 +91,7 @@
         --color-background: var(--color-slate-grey-50);
         --color-background-hover: var(--color-slate-grey-100);
         --color-background-secondary: var(--color-slate-grey-100);
+        --color-input-border: var(--color-slate-grey-200);
         --color-text: var(--color-slate-grey-950);
         --color-text-hover: var(--color-slate-grey-900);
         --color-card: var(--color-yale-blue-50);
@@ -100,6 +102,7 @@
         --color-background: var(--color-slate-grey-950);
         --color-background-hover: var(--color-slate-grey-800);
         --color-background-secondary: var(--color-slate-grey-900);
+        --color-input-border: var(--color-slate-grey-700);
         --color-text: var(--color-slate-grey-100);
         --color-text-hover: var(--color-slate-grey-950);
         --color-card: var(--color-yale-blue-800);

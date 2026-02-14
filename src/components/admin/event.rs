@@ -130,7 +130,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
             <Show when=move || editing.get()>
                 <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
                 <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="name"
                     value=move || name_signal.get()
@@ -139,7 +139,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
                 <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="description"
                     value=move || description_signal.get()
@@ -151,7 +151,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Start Date"</label>
                 <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="start_at"
@@ -166,7 +166,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"End Date"</label>
                 <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="datetime-local"
                     name="end_at"
@@ -181,7 +181,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
                 <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-gray-300 
+                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     name="visible_to_groups"
                     multiple=true
@@ -257,7 +257,7 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
                 <Show when=move || editing.get() || deleting.get()>
                     <button
-                        class=r#"py-2 px-4 text-sm rounded-md border border-gray-300 hover:bg-background-hover"#
+                        class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                         on:click=move |_| {
                             editing.set(false);
                             deleting.set(false);
