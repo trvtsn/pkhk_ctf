@@ -156,7 +156,7 @@ pub fn AdminNavBar() -> impl IntoView {
                         focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Ldap)
                     >
-                        <Icon icon=i::LuServerCog />
+                        <Icon icon=i::LuUserLock />
                         "LDAP"
                     </p>
                 </li>
@@ -167,7 +167,7 @@ pub fn AdminNavBar() -> impl IntoView {
                         focus:ring-yale-blue-500 hover:text-hover"#
                         on:click=move |_| selected.set(AdminSections::Proxmox)
                     >
-                        <Icon icon=i::LuServerCog />
+                        <Icon icon=i::LuServer />
                         "Proxmox"
                     </p>
                 </li>

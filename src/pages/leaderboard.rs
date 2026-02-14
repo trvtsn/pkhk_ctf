@@ -14,7 +14,7 @@ pub fn Leaderboard() -> impl IntoView {
 
     let UseEventSourceReturn { message, .. } = 
         use_event_source_with_options::<String, FromToStringCodec>(
-            "/admin_sse".to_string(), 
+            "/events".to_string(), 
             UseEventSourceOptions::default().immediate(true)
         );
 

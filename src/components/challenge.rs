@@ -3,7 +3,9 @@ use crate::components::utils::TruncatedDesc;
 use crate::server::db::structs::ChallengeWithAttachments;
 use crate::server::proxmox::ProxmoxVMInstance;
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, destroy_vm, enums::ResultStatus, structs::ApiResult};
+use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
+use leptos_icons::Icon;
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 // use thaw::*;
 
@@ -81,18 +83,33 @@ pub fn Challenge(
                     }
                 }}
             </Transition>
-            <h3 class=r#"font-bold text-3xl/8"#>{move || challenge_signal.get().name.clone()}</h3>
+
+            <div class="flex items-center justify-between">
+                <h3 class=r#"font-bold text-3xl/8"#>{move || challenge_signal.get().name.clone()}</h3>
+                <button 
+                    class="cursor-pointer"
+                    on:click=move |_| {
+                        overlay_triggered.set(true);
+                        cwa_popup.set(cwa.clone());
+                    }
+                >
+                    <Icon icon=i::LuMaximize2 />
+                </button>
+            </div>
+
             <p class=r#"text-lg/8"#>
                 <TruncatedDesc description=description_signal />
             </p>
+
             <Difficulty difficulty_signal />
+
             <p class=r#"text-lg/8"#>
                 <b>"Points: "</b>
                 {move || challenge_signal.get().points}
             </p>
             <br />
 
-            <div class="flex gap-2">
+            <div class="flex gap-2 items-center">
                 <label
                     hidden=move || solved.get()
                     for="flag"
@@ -101,7 +118,7 @@ pub fn Challenge(
                 </label>
                 <input
                     hidden=move || solved.get()
-                    class=r#"m-1 bg-white rounded-sm border-black border-1"#
+                    class=r#"m-1 bg-white rounded-sm"#
                     bind:value=flag_signal
                 />
                 <button
@@ -157,19 +174,19 @@ pub fn Challenge(
                     </For>
                 </div>
 
-                <div class="col-start-1 col-end-1">
-                    <button
-                        class=r#"gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {
-                            overlay_triggered.set(true);
-                            cwa_popup.set(cwa.clone());
-                        }
-                    >
-                        "View"
-                    </button>
-                </div>
+                // <div class="col-start-1 col-end-1">
+                //     <button
+                //         class=r#"gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                //         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                //         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                //         on:click=move |_| {
+                //             overlay_triggered.set(true);
+                //             cwa_popup.set(cwa.clone());
+                //         }
+                //     >
+                //         "View"
+                //     </button>
+                // </div>
             </div>
         </div>
     }

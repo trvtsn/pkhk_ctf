@@ -141,7 +141,7 @@ pub fn init_env() {
 #[cfg(feature = "ssr")]
 pub fn router() -> Router<AppState> {
     Router::<AppState>::new()
-        .route("/admin_sse", get(admin_sse))
+        .route("/events", get(admin_sse))
         .route("/file/{id}", get(download_blob))
         .route("/avatar/{id}", get(serve_image))
         .route("/image/{id}", get(serve_image))

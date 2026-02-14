@@ -4,7 +4,9 @@ use crate::server::db::structs::{ChallengeWithAttachments};
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
 use crate::server::{add_vm_time, destroy_vm, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
+use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
+use leptos_icons::Icon;
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 
 #[component]
@@ -70,12 +72,14 @@ pub fn ChallengePopup(
             class=move || card_classes.get()
         >
             <div class="bg-card p-4 rounded-lg">
-                <button 
-                    class="cursor-pointer"
-                    on:click=move |_| overlay_triggered.set(false)
-                >
-                    "x"
-                </button>
+                <div class="flex justify-end">
+                    <button 
+                        class="cursor-pointer"
+                        on:click=move |_| overlay_triggered.set(false)
+                    >
+                        <Icon icon=i::LuX />
+                    </button>
+                </div>
 
                 <Transition fallback=move || {
                     view! { <div>"Loading..."</div> }
@@ -116,7 +120,7 @@ pub fn ChallengePopup(
                 </p>
                 <br />
 
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center">
                     <label
                         hidden=move || solved.get()
                         for="flag"
@@ -125,7 +129,7 @@ pub fn ChallengePopup(
                     </label>
                     <input
                         hidden=move || solved.get()
-                        class=r#"m-1 bg-white rounded-sm border-black border-1"#
+                        class=r#"m-1 bg-white rounded-sm"#
                         bind:value=flag_signal
                     />
                     <button
