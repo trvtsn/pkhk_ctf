@@ -320,7 +320,7 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let mut auth = use_context::<AuthSession>().unwrap();
-            let creds = Credentials { user_identifier: UserIdentifier::Email(email), password, auth_type };
+            let creds = Credentials { user_identifier: UserIdentifier::Email(email.clone()), password: password.clone(), auth_type };
             let user: Option<User> = auth.backend.authenticate(creds).await?;
 
             if let Some(user) = user.as_ref() {
@@ -338,6 +338,7 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
                         };
                         let last_active_at = chrono::Local::now();
                         _ = DbUser::edit_last_active(&user.id.clone(), &last_active_at, &auth.backend.pool).await;
+                        _ = crate::server::proxmox::create_user(email, db_user.clone().username, password).await?;
                         _ = crate::server::proxmox::create_user_pool(db_user).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
                     },
@@ -436,7 +437,7 @@ pub async fn register_user(email: String, password: String, confirm_password: St
                 return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
             }
 
-            let user: Option<User> = auth_session.backend.add_user(email.clone(), password).await?;
+            let user: Option<User> = auth_session.backend.add_user(email.clone(), password.clone()).await?;
 
             if let Some(user) = user {
                 // Tell the AuthSession that we're logged-in now and it should behave accordingly. This will set the
@@ -452,7 +453,8 @@ pub async fn register_user(email: String, password: String, confirm_password: St
                         return Err(AppError::InternalError("internal error".to_string()));
                     }
                 };
-                _ = crate::server::proxmox::create_user_pool(db_user).await;
+                _ = crate::server::proxmox::create_user(email, db_user.clone().username, password).await?;
+                _ = crate::server::proxmox::create_user_pool(db_user).await?;
                 Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
             } else {
                 Err(AppError::InternalError("".to_string()))
@@ -793,6 +795,17 @@ pub async fn edit_password(old_password: String, new_password: String) -> Result
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
 
+            // let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+            //     Ok(Some(user)) => user,
+            //     Ok(None) => {
+            //         return Err(AppError::InternalError("internal error".to_string()));
+            //     }
+            //     Err(e) => {
+            //         tracing::error!(error = ?e);
+            //         return Err(AppError::InternalError("internal error".to_string()));
+            //     }
+            // };
+
             if old_password == new_password {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
             }
@@ -801,8 +814,13 @@ pub async fn edit_password(old_password: String, new_password: String) -> Result
 
             match DbUser::edit_password(&user.id, &pw_hash, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
-                Err(e) => Err(e.into())
+                Err(e) => return Err(e.into())
             }
+
+            // match crate::server::proxmox::change_user_password(db_user, new_password).await {
+            //     Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
+            //     Err(e) => Err(e.into())
+            // }
         } else {
             Err(AppError::NoServerConnection)
         }

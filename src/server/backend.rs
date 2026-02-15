@@ -123,7 +123,8 @@ cfg_if! {
                     last_active_at: chrono::Local::now(), 
                     role: UserRole::Competitor,
                     points: 0,
-                    group: "unassigned".to_string()
+                    group: "unassigned".to_string(),
+                    auth_type: "normal".to_string()
                 };
                 let new_user_id = new_user.add(&self.pool).await?;
 
@@ -216,7 +217,8 @@ cfg_if! {
                                 last_active_at: chrono::Local::now(), 
                                 role: UserRole::Competitor,
                                 points: 0,
-                                group
+                                group,
+                                auth_type: "ldap".to_string()
                             };
 
                             let new_user_id = match new_user.add_ldap(&mut *tx).await {

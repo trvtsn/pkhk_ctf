@@ -1,5 +1,6 @@
-use crate::{components::{navbar::NavBar, utils::HidePasswordButton}, server::{Register, user_exists}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, utils::HidePasswordButton}, server::{Register, get_user, user_exists}};
 use leptos::prelude::*;
+use leptos_router::hooks::use_navigate;
 
 /// Default Home Page
 #[component]
@@ -9,8 +10,20 @@ pub fn Register() -> impl IntoView {
     let confirm_password = RwSignal::new("".to_string());
     let password_hidden = RwSignal::new(true);
     let confirm_password_hidden = RwSignal::new(true);
+    let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let register: ServerAction<Register> = ServerAction::new();
+
+    let logged_in_user = Resource::new(
+        move || register.version().get(),
+        move |_user| async move {
+            if let Ok(Some(user)) = get_user().await {
+                Some(user)
+            } else {
+                None
+            }
+        }
+    );
 
     let name_taken = Resource::new(move || email.get(), move |email| async move {user_exists(email).await});
     let available_ui = Suspend::new(async move {
@@ -18,6 +31,14 @@ pub fn Register() -> impl IntoView {
             Ok(true) => "E-mail already in use.",
             Ok(false) => "",
             Err(_) => ""
+        }
+    });
+
+    Effect::new(move || {
+        if let Some(Some(_)) = logged_in_user.get() {
+            let nav = use_navigate();
+            nav("/", Default::default());
+            refresh_user.update(|r| r.iteration += 1);
         }
     });
 

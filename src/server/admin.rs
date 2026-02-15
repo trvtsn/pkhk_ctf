@@ -640,7 +640,8 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         last_active_at: chrono::Local::now(), 
                         role,
                         points: 0,
-                        group
+                        group,
+                        auth_type: "normal".to_string()
                     };
                     let mut tx = pool.begin().await?;
                     let new_user_id = match DbUser::add(&new_user, &mut *tx).await {

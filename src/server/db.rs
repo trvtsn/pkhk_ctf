@@ -113,7 +113,8 @@ pub mod structs {
         pub last_active_at: DateTime<Local>,
         pub role: UserRole,
         pub points: u32,
-        pub group: String
+        pub group: String,
+        pub auth_type: String
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -589,7 +590,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -608,7 +609,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -628,7 +629,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
                             FROM users 
                             WHERE username = ?
                             ", 
@@ -650,7 +651,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
                     FROM users 
                     "
                 )
@@ -830,7 +831,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
                             FROM users 
                             WHERE id = ? AND auth_type = \"ldap\"
                             ", 
@@ -849,7 +850,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
                             FROM users 
                             WHERE email = ? AND auth_type = \"ldap\"
                             ", 
@@ -869,7 +870,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
                             FROM users 
                             WHERE username = ? AND auth_type = \"ldap\"
                             ", 

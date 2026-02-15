@@ -394,17 +394,31 @@ pub async fn create_user_pool(user: DbUser) -> Result<(), AppError> {
                 .send()
                 .await?;
 
-            let body = serde_urlencoded::to_string(&[
-                ("path", format!("/pool/{poolid}")),
-                ("users", format!("{}@ctfpkhk", user.username)),
-                ("roles", "CTFCompetitor".to_string()),
-                ("propagate", "1".to_string())
-            ]).unwrap_or_default();
-            client.put(&acl_url)
-                .header(header::AUTHORIZATION, auth_value)
-                .body(body)
-                .send()
-                .await?;
+            if user.auth_type == "ldap" {
+                let body = serde_urlencoded::to_string(&[
+                    ("path", format!("/pool/{poolid}")),
+                    ("users", format!("{}@ctfpkhk", user.username)),
+                    ("roles", "CTFCompetitor".to_string()),
+                    ("propagate", "1".to_string())
+                ]).unwrap_or_default();
+                client.put(&acl_url)
+                    .header(header::AUTHORIZATION, auth_value)
+                    .body(body)
+                    .send()
+                    .await?;
+            } else {
+                let acl_body = serde_urlencoded::to_string(&[
+                    ("path", format!("/pool/{poolid}")),
+                    ("users", format!("{}@pve", user.username)),
+                    ("roles", "CTFCompetitor".to_string()),
+                    ("propagate", "1".to_string())
+                ]).unwrap_or_default();
+                client.put(&acl_url)
+                    .header(header::AUTHORIZATION, auth_value)
+                    .body(acl_body)
+                    .send()
+                    .await?;
+            }
 
             Ok(())
         } else {
@@ -755,6 +769,93 @@ async fn get_user_vmid_from_template_id(user: DbUser, template_id: u32) -> Resul
         }
     }
 }
+
+#[cfg(feature = "ssr")]
+#[instrument]
+pub async fn create_user(email: String, username: String, password: String) -> Result<(), AppError> {
+    match is_host_reachable().await {
+        Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("proxmox host not reachable".to_string())) },
+        Err(_) => return Err(AppError::InternalError("proxmox host not reachable".to_string()))
+    }
+
+    let client = Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
+        Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
+        Err(e) => return Err(e.into())
+    };
+    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+
+    let base_url = proxmox_args.base_url.trim_end_matches("/");
+    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+    let url = format!("{base_url}/{api_path}/access/users");
+
+    #[derive(Deserialize)]
+    struct User {
+        userid: Option<String>
+    }
+    match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+        Ok(res) => {
+            let users = res.json::<ProxmoxApiResponse<Vec<User>>>().await?;
+            let userid = format!("{}@pve", username);
+            for user in users.data {
+                if user.userid.unwrap_or_default() == userid {
+                    return Ok(());
+                }
+            }
+        },
+        Err(e) => return Err(e.into())
+    };
+
+    let body = serde_urlencoded::to_string(&[
+        ("userid", format!("{}@pve", username)),
+        ("password", password),
+        ("expire", 0.to_string()),
+        ("enable", 1.to_string()),
+        ("email", email),
+    ]).unwrap_or_default();
+
+    match client.post(&url).header(header::AUTHORIZATION, auth_value).body(body).send().await {
+        Ok(_) => Ok(()),
+        Err(e) => return Err(e.into())
+    }
+}
+
+// {"message":"Permission check failed (URI '/access/password' not available with API token, need proper ticket.\n)\n","data":null}
+// #[cfg(feature = "ssr")]
+// #[instrument]
+// pub async fn change_user_password(user: DbUser, password: String) -> Result<(), AppError> {
+//     match is_host_reachable().await {
+//         Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("proxmox host not reachable".to_string())) },
+//         Err(_) => return Err(AppError::InternalError("proxmox host not reachable".to_string()))
+//     }
+
+//     let client = Client::builder()
+//         .danger_accept_invalid_certs(true)
+//         .build()?;
+
+//     let proxmox_args = match db::structs::ProxmoxArgs::get(get_db_ref()).await {
+//         Ok(res) => if res.is_some() { res.unwrap_or_default() } else { return Err(AppError::InternalError("missing proxmox args".to_string())) },
+//         Err(e) => return Err(e.into())
+//     };
+//     let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+
+//     let base_url = proxmox_args.base_url.trim_end_matches("/");
+//     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+//     let url = format!("{base_url}/{api_path}/access/password");
+
+//     let body = serde_urlencoded::to_string(&[
+//         ("userid", format!("{}@pve", user.username)),
+//         ("password", password),
+//     ]).unwrap_or_default();
+
+//     match client.put(&url).header(header::AUTHORIZATION, auth_value).body(body).send().await {
+//         Ok(res) => {leptos::logging::log!("res is: {}", res.text().await?); Ok(())},
+//         Err(e) => return Err(e.into())
+//     }
+// }
 
 #[cfg(feature = "ssr")]
 #[instrument]
