@@ -154,7 +154,7 @@ pub fn Ldap() -> impl IntoView {
                                     bind:value=base_dn
                                 />
 
-                                <label class=r#"block mb-1 text-sm font-medium"#>".pem Certificate (Optional)"</label>
+                                <label class=r#"block mb-1 text-sm font-medium"#>"Certificate (Optional)"</label>
                                 <input
                                     class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                     type="file"

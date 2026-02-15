@@ -338,7 +338,8 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
                         };
                         let last_active_at = chrono::Local::now();
                         _ = DbUser::edit_last_active(&user.id.clone(), &last_active_at, &auth.backend.pool).await;
-                        _ = crate::server::proxmox::create_user(email, db_user.clone().username, password).await?;
+                        
+                        _ = crate::server::proxmox::create_user(email, db_user.clone().username, password).await;
                         _ = crate::server::proxmox::create_user_pool(db_user).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
                     },
