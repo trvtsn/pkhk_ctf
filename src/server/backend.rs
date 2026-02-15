@@ -4,7 +4,7 @@ use argon2::PasswordHasher;
 use axum_login::{AuthnBackend, AuthUser, UserId};
 use cfg_if::cfg_if;
 #[cfg(feature = "ssr")]
-use ldap3::{LdapConnAsync, SearchEntry};
+use ldap3::{LdapConnAsync, LdapConnSettings, SearchEntry};
 use password_hash::SaltString;
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
@@ -171,7 +171,16 @@ cfg_if! {
                             Err(e) => return Err(e.into())
                         };
 
-                        let (conn, mut ldap) = LdapConnAsync::new(ldap_args.url.as_str()).await?;
+                        let mut settings = LdapConnSettings::default();
+                        if let Some(cert) = ldap_args.certificate_blob {
+                            let cert = native_tls::Certificate::from_pem(&cert)?;
+                            let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
+                            settings = LdapConnSettings::new().set_connector(connector);
+                        } else {
+                            settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
+                        }
+
+                        let (conn, mut ldap) = LdapConnAsync::with_settings(settings, ldap_args.url.as_str()).await?;
                         ldap3::drive!(conn);
 
                         match ldap.simple_bind(email.as_str(), creds.password.as_str()).await {

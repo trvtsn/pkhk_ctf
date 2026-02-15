@@ -441,6 +441,43 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
     }
 }
 
+#[server(input=MultipartFormData, name=AdminUploadCertificate, prefix="/api/admin/certificate", endpoint="upload")]
+#[instrument(skip(file))]
+pub async fn upload_certificate(file: MultipartData) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let mut data = file.into_inner().unwrap();
+            while let Ok(Some(mut field)) = data.next_field().await {
+                // let file_name = match field.file_name() {
+                //     Some(n) => n.to_string(),
+                //     None => continue,
+                // };
+
+                // let mime_type = field.content_type().map(|ct| ct.to_string()).unwrap_or_default(); // if mime type isn't a certificate, return AppError
+
+                let mut file_blob = Vec::<u8>::new();
+                while let Ok(Some(chunk)) = field.chunk().await {
+                    file_blob.extend_from_slice(&chunk);
+                }
+
+                match LdapArgs::update_certificate(&Some(file_blob), &pool).await {
+                    Ok(_) => {},
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        return Err(e.into());
+                    }
+                }
+            }
+
+            Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully uploaded certificate".to_string()) })
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
 #[server(input=MultipartFormData, name=AdminUploadIllustration, prefix="/api/admin/illustration", endpoint="upload")]
 #[instrument(skip(file))]
 pub async fn upload_illustration(file: MultipartData) -> Result<ApiResult<AttachmentWithoutBlob>, AppError> {
@@ -881,8 +918,17 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppE
             if !args.enabled.0 {
                 return Err(AppError::InternalError("LDAP is disabled".to_string()));
             }
+
+            let mut settings = LdapConnSettings::default();
+            if let Some(cert) = args.certificate_blob {
+                let cert = native_tls::Certificate::from_pem(&cert)?;
+                let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
+                settings = LdapConnSettings::new().set_connector(connector);
+            } else {
+                settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
+            }
             
-            let (conn, mut ldap) = match LdapConnAsync::new(args.url.as_str()).await {
+            let (conn, mut ldap) = match LdapConnAsync::with_settings(settings, args.url.as_str()).await {
                 Ok(conn) => conn,
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
             };
@@ -936,8 +982,16 @@ pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, Ap
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
             
-            let ldap_conn_settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
-            let (conn, mut ldap) = match LdapConnAsync::with_settings(ldap_conn_settings, &args.url.as_str()).await {
+            let mut settings = LdapConnSettings::default();
+            if let Some(cert) = args.certificate_blob {
+                let cert = native_tls::Certificate::from_pem(&cert)?;
+                let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
+                settings = LdapConnSettings::new().set_connector(connector);
+            } else {
+                settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
+            }
+            
+            let (conn, mut ldap) = match LdapConnAsync::with_settings(settings, &args.url.as_str()).await {
                 Ok(conn) => conn,
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
             };

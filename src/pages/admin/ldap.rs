@@ -1,5 +1,5 @@
-use crate::{components::utils::HidePasswordButton, server::{admin::{disable_ldap, enable_ldap, get_ldap, test_ldap, update_ldap}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
-use leptos::{prelude::*, task::spawn_local};
+use crate::{components::utils::HidePasswordButton, server::{admin::{disable_ldap, enable_ldap, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
 
 /// Default Home Page
 #[component]
@@ -12,10 +12,23 @@ pub fn Ldap() -> impl IntoView {
     let bind_dn = RwSignal::new("".to_string());
     let bind_pw = RwSignal::new("".to_string());
     let base_dn = RwSignal::new("".to_string());
+    let certificate_blob = RwSignal::new(None);
     let enabled = RwSignal::new(SqlBool(true));
 
     let ldap_resource = Resource::new(move || (), move |_| async move {
         get_ldap().await.unwrap_or_default()
+    });
+
+    let cert_upload_action = Action::new_local(|data: &FormData| {
+        upload_certificate(data.clone().into())
+    });
+
+    let uploading_cert_text = Memo::new(move |_| {
+        if cert_upload_action.pending().get() {
+            "Uploading...".to_string()
+        } else {
+            "".to_string()
+        }
     });
 
     let connect_status_classes = Memo::new(move |_| {
@@ -44,6 +57,7 @@ pub fn Ldap() -> impl IntoView {
                     let bind_dn_test = bind_dn.get();
                     let bind_pw_test = bind_pw.get();
                     let base_dn_test = base_dn.get();
+                    let certificate_blob_test = certificate_blob.get();
                     let enabled_test = enabled.get();
                     spawn_local(async move {
                         if let Ok(ApiResult { result, .. }) = test_ldap(LdapArgs {
@@ -51,6 +65,7 @@ pub fn Ldap() -> impl IntoView {
                                 bind_dn: bind_dn_test,
                                 bind_pw: bind_pw_test,
                                 base_dn: base_dn_test,
+                                certificate_blob: certificate_blob_test,
                                 enabled: enabled_test
                             })
                             .await
@@ -139,6 +154,22 @@ pub fn Ldap() -> impl IntoView {
                                     bind:value=base_dn
                                 />
 
+                                <label class=r#"block mb-1 text-sm font-medium"#>".pem Certificate (Optional)"</label>
+                                <input
+                                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                    type="file"
+                                    name="certificate"
+                                    on:change=move |ev: Event| {
+                                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                        if let Some(files) = input.files() && files.length() > 0 {
+                                            let file = files.get(0).unwrap();
+                                            let fd = FormData::new().unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            cert_upload_action.dispatch_local(fd);
+                                        }
+                                    }
+                                /><p>{move || uploading_cert_text.get()}</p>
+
                                 <div class=r#"flex gap-3 mt-2 pt-2"#>
                                     <button
                                         type="button"
@@ -148,6 +179,7 @@ pub fn Ldap() -> impl IntoView {
                                             let bind_dn = bind_dn.get();
                                             let bind_pw = bind_pw.get();
                                             let base_dn = base_dn.get();
+                                            let certificate_blob = certificate_blob.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
                                                 if let Ok(ApiResult { result, details }) = test_ldap(LdapArgs {
@@ -155,6 +187,7 @@ pub fn Ldap() -> impl IntoView {
                                                         bind_dn,
                                                         bind_pw,
                                                         base_dn,
+                                                        certificate_blob,
                                                         enabled
                                                     })
                                                     .await
@@ -182,6 +215,7 @@ pub fn Ldap() -> impl IntoView {
                                             let bind_dn = bind_dn.get();
                                             let bind_pw = bind_pw.get();
                                             let base_dn = base_dn.get();
+                                            let certificate_blob = certificate_blob.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
                                                 if let Ok(ApiResult { result, details }) = update_ldap(LdapArgs {
@@ -189,6 +223,7 @@ pub fn Ldap() -> impl IntoView {
                                                         bind_dn,
                                                         bind_pw,
                                                         base_dn,
+                                                        certificate_blob,
                                                         enabled
                                                     })
                                                     .await

@@ -59,7 +59,7 @@ cfg_if! {
                 Err(e) => return Err(e.into())
             }
 
-            match LdapArgs::insert(&"".to_string(), &"".to_string(), &"".to_string(), &"".to_string(), get_db_ref()).await {
+            match LdapArgs::insert(&"".to_string(), &"".to_string(), &"".to_string(), &"".to_string(), &None, get_db_ref()).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e.into())
             }
@@ -207,6 +207,7 @@ pub mod structs {
         pub bind_dn: String,
         pub bind_pw: String,
         pub base_dn: String,
+        pub certificate_blob: Option<Vec<u8>>,
         pub enabled: SqlBool
     }
 
@@ -3088,17 +3089,19 @@ cfg_if! {
                 bind_dn: &String, 
                 bind_pw: &String, 
                 base_dn: &String, 
+                certificate_blob: &Option<Vec<u8>>,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
-                    INSERT INTO ldap (url, bind_dn, bind_pw, base_dn, enabled)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO ldap (url, bind_dn, bind_pw, base_dn, certificate_blob, enabled)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ",
                     url,
                     bind_dn,
                     bind_pw,
                     base_dn,
+                    certificate_blob,
                     0
                 )
                     .execute(executor)
@@ -3129,6 +3132,27 @@ cfg_if! {
                     bind_pw,
                     base_dn,
                     enabled
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn update_certificate(
+                certificate_blob: &Option<Vec<u8>>, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE ldap
+                    SET certificate_blob = ?
+                    ",
+                    certificate_blob
                 )
                     .execute(executor)
                     .await {
@@ -3194,7 +3218,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT url, bind_dn, bind_pw, base_dn, enabled
+                    SELECT url, bind_dn, bind_pw, base_dn, certificate_blob, enabled
                     FROM ldap
                     "
                 )
@@ -3212,13 +3236,30 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT url, bind_dn, bind_pw, base_dn, enabled
+                    SELECT url, bind_dn, bind_pw, base_dn, certificate_blob, enabled
                     FROM ldap
                     "
                 )
                     .fetch_optional(executor)
                     .await {
                         Ok(ldap_args) => Ok(ldap_args),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_certificate(executor: impl MySqlExecutor<'_>) -> Result<Option<Vec<u8>>, sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    SELECT certificate_blob
+                    FROM ldap
+                    "
+                )
+                    .fetch_one(executor)
+                    .await {
+                        Ok(row) => Ok(row.certificate_blob),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

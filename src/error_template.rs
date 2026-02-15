@@ -81,6 +81,12 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
+impl From<native_tls::Error> for AppError {
+    fn from(value: native_tls::Error) -> Self {
+        Self::InternalError(value.to_string())
+    }
+}
+
 impl FromServerFnError for AppError {
     type Encoder = JsonEncoding;
 
