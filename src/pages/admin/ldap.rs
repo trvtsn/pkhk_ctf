@@ -16,7 +16,36 @@ pub fn Ldap() -> impl IntoView {
     let enabled = RwSignal::new(SqlBool(true));
 
     let ldap_resource = Resource::new(move || (), move |_| async move {
-        get_ldap().await.unwrap_or_default()
+        let ldap_args = get_ldap().await.unwrap_or_default().unwrap_or_default();
+        let test_args = ldap_args.clone();
+        if ldap_args.enabled.0 {
+            let url = test_args.url;
+            let bind_dn = test_args.bind_dn;
+            let bind_pw = test_args.bind_pw;
+            let base_dn = test_args.base_dn;
+            let certificate_blob = test_args.certificate_blob;
+            let enabled = test_args.enabled;
+            spawn_local(async move {
+                if let Ok(ApiResult { result, .. }) = test_ldap(LdapArgs {
+                        url,
+                        bind_dn,
+                        bind_pw,
+                        base_dn,
+                        certificate_blob,
+                        enabled,
+                    })
+                    .await
+                {
+                    if result == ResultStatus::Success {
+                        connect_success.set(true);
+                    } else {
+                        connect_success.set(false);
+                    }
+                }
+            });
+        }
+
+        ldap_args
     });
 
     let cert_upload_action = Action::new_local(|data: &FormData| {
@@ -45,38 +74,12 @@ pub fn Ldap() -> impl IntoView {
             view! { <div>"Loading..."</div> }
         }>
             {move || {
-                let ldap_args = ldap_resource.get().unwrap_or_default().unwrap_or_default();
-                ldap_url.set(ldap_args.url.clone());
-                bind_dn.set(ldap_args.bind_dn.clone());
-                bind_pw.set(ldap_args.bind_pw.clone());
-                base_dn.set(ldap_args.base_dn.clone());
-                enabled.set(ldap_args.enabled);
-
-                if ldap_args.enabled.0 {
-                    let url_test = ldap_url.get();
-                    let bind_dn_test = bind_dn.get();
-                    let bind_pw_test = bind_pw.get();
-                    let base_dn_test = base_dn.get();
-                    let certificate_blob_test = certificate_blob.get();
-                    let enabled_test = enabled.get();
-                    spawn_local(async move {
-                        if let Ok(ApiResult { result, .. }) = test_ldap(LdapArgs {
-                                url: url_test,
-                                bind_dn: bind_dn_test,
-                                bind_pw: bind_pw_test,
-                                base_dn: base_dn_test,
-                                certificate_blob: certificate_blob_test,
-                                enabled: enabled_test
-                            })
-                            .await
-                        {
-                            if result == ResultStatus::Success {
-                                connect_success.set(true);
-                            } else {
-                                connect_success.set(false);
-                            }
-                        }
-                    });
+                if let Some(ldap_args) = ldap_resource.get() {
+                    ldap_url.set(ldap_args.url.clone());
+                    bind_dn.set(ldap_args.bind_dn.clone());
+                    bind_pw.set(ldap_args.bind_pw.clone());
+                    base_dn.set(ldap_args.base_dn.clone());
+                    enabled.set(ldap_args.enabled);
                 }
 
                 view! {

@@ -15,7 +15,37 @@ pub fn Proxmox() -> impl IntoView {
     let auth_type = RwSignal::new(ProxmoxAuthType::default());
 
     let proxmox_resource = Resource::new(move || (), move |_| async move {
-        get_proxmox_conf().await.unwrap_or_default()
+        let proxmox_args = get_proxmox_conf().await.unwrap_or_default().unwrap_or_default();
+        let test_args  = proxmox_args.clone();
+
+        let base_url = test_args.base_url;
+        let api_path = test_args.api_path;
+        let templates_pool_id = test_args.templates_pool_id;
+        let node = test_args.node;
+        let api_token = test_args.api_token;
+        let auth_type = test_args.auth_type;
+        spawn_local(async move {
+            if let Ok(ApiResult { result, .. }) = test_proxmox(ProxmoxArgs {
+                    base_url,
+                    api_path,
+                    templates_pool_id,
+                    node,
+                    username: None,
+                    password: None,
+                    api_token,
+                    auth_type
+                })
+                .await
+            {
+                if result == ResultStatus::Success {
+                    auth_success.set(true);
+                } else {
+                    auth_success.set(false);
+                }
+            }
+        });
+
+        proxmox_args
     });
 
     let auth_status_classes = Memo::new(move |_| {
@@ -32,42 +62,13 @@ pub fn Proxmox() -> impl IntoView {
             view! { <div>"Loading..."</div> }
         }>
             {move || {
-                match proxmox_resource.get().unwrap_or_default() {
-                    Some(proxmox_args) => {
-                        base_url.set(proxmox_args.base_url.clone());
-                        api_path.set(proxmox_args.api_path.clone());
-                        api_token.set(proxmox_args.api_token);
-                        auth_type.set(proxmox_args.auth_type);
-                    }
-                    None => {}
-                };
-
-                let base_url_test = base_url.get();
-                let api_path_test = api_path.get();
-                let templates_pool_id_test = templates_pool_id.get();
-                let node_test = node.get();
-                let api_token_test = api_token.get();
-                let auth_type_test = auth_type.get();
-                spawn_local(async move {
-                    if let Ok(ApiResult { result, .. }) = test_proxmox(ProxmoxArgs {
-                            base_url: base_url_test,
-                            api_path: api_path_test,
-                            templates_pool_id: templates_pool_id_test,
-                            node: node_test,
-                            username: None,
-                            password: None,
-                            api_token: api_token_test,
-                            auth_type: auth_type_test
-                        })
-                        .await
-                    {
-                        if result == ResultStatus::Success {
-                            auth_success.set(true);
-                        } else {
-                            auth_success.set(false);
-                        }
-                    }
-                });
+                let proxmox_args = proxmox_resource.get();
+                if let Some(proxmox_args) = proxmox_args {
+                    base_url.set(proxmox_args.base_url.clone());
+                    api_path.set(proxmox_args.api_path.clone());
+                    api_token.set(proxmox_args.api_token);
+                    auth_type.set(proxmox_args.auth_type);
+                }
 
                 view! {
                     <div class="grid gap-2">

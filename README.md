@@ -40,6 +40,11 @@ cargo leptos watch
 - [x] Create option to attach mulitple VM-s to a challenge
 - [x] When user inputs STOP VM (in proxmox use HARD STOP + additional vm remove api call)
 - [x] Add start/stop/console permissions to users in their proxmox pools, disallow editing of VM description and other metadata
+- [x] Remove VMs from user challenge popup view after solve
+- [x] Fix LDAP login auto-refresh
+- [ ] Fix refresh on start VM
+- [x] Fix signals not allowing writing on admin LDAP inputs
+- [ ] Add hints to challenges
 
 ### Security
 - [ ] Sanitize text inputs
