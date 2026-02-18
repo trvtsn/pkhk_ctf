@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, pages::admin::challenges::Hint, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -28,6 +28,7 @@ pub enum ChallengeAction {
         flag: String,
         visible_to_groups: String,
         vm_ids: Option<String>,
+        hints: Option<Vec<DbHint>>,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     },
@@ -45,6 +46,7 @@ pub enum ChallengeAction {
         flag: String,
         visible_to_groups: String,
         vm_ids: Option<String>,
+        hints: Option<Vec<DbHint>>,
         attachments: Option<Vec<AttachmentWithoutBlob>>,
         illustration: Option<AttachmentWithoutBlob>
     }
@@ -58,7 +60,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
             let (_, pool) = authenticated_check().await?;
 
             match action {
-                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids } => {
+                ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = pool.begin().await?;
                     let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
@@ -83,6 +85,19 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
 
+                    if let Some(hints) = hints {
+                        for hint in hints {
+                            match DbHint::add(&hint.hint, &new_challenge_id, &hint.points_penalty, &mut *tx).await {
+                                Ok(_) => {},
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
+                                }
+                            }
+                        }
+                    }
+                    
                     match illustration {
                         Some(illustration) => {
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::ChallengeId(new_challenge_id), &mut *tx).await {
@@ -133,7 +148,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
                 }
-                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids } => {
+                ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
                     let flag_hash = hash_string(flag.clone())?;
                     let mut tx = pool.begin().await?;
                     match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
@@ -148,6 +163,27 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     if let Some(attachments) = attachments {
                         for attachment in attachments {
                             match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
+                                Ok(_) => {},
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
+                                }
+                            }
+                        }
+                    }
+                    
+                    if let Some(hints) = hints {
+                        match DbHint::delete_all_from_challenge(&id.clone(), &mut *tx).await {
+                            Ok(_) => {},
+                            Err(e) => {
+                                tx.rollback().await?;
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError(e.to_string()));
+                            }
+                        }
+                        for hint in hints.clone() {
+                            match DbHint::add(&hint.hint, &id, &hint.points_penalty, &mut *tx).await {
                                 Ok(_) => {},
                                 Err(e) => {
                                     tx.rollback().await?;
@@ -1163,6 +1199,23 @@ pub async fn get_all_challenge_templates() -> Result<Vec<ProxmoxVMTemplate>, App
                     tracing::error!(error = ?e);
                     Err(AppError::InternalError("internal error".to_string()))
                 }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetAllHints, prefix="/api/admin/challenges", endpoint="get_hints")]
+#[instrument]
+pub async fn get_all_hints() -> Result<Vec<DbHint>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            match DbHint::get_all(&pool).await {
+                Ok(hints) => Ok(hints),
+                Err(e) => Err(e.into())
             }
         } else {
             Err(AppError::NoServerConnection)

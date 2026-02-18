@@ -1,5 +1,8 @@
 #![allow(clippy::too_many_arguments)]
 use crate::server::db::enums::ProxmoxAuthType;
+use crate::server::db::structs::DbHint;
+use crate::server::db::structs::DbHintWithoutHint;
+use crate::server::db::structs::HintsUsed;
 use crate::server::db::structs::ProxmoxArgs;
 use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata, LdapArgs}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
@@ -97,11 +100,14 @@ cfg_if! {
 pub mod structs {
     use crate::server::db::enums::{FileType, ProxmoxAuthType, UserRole};
     use chrono::{DateTime, Local};
+    use leptos::prelude::RwSignal;
     use serde::{Deserialize, Serialize};
     use time::OffsetDateTime;
 
     pub type DbUser = User;
     pub type DbUserWithoutPII = UserWithoutPII;
+    pub type DbHint = Hint;
+    pub type DbHintWithoutHint = HintWithoutHint;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub struct User {
@@ -247,6 +253,50 @@ pub mod structs {
         fn into(self) -> bool {
             self.0
         }
+    }
+
+    #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Eq)]
+    pub struct Hint {
+        pub id: String,
+        pub hint: String,
+        pub challenge_id: String,
+        pub points_penalty: u32
+    }
+
+    impl Into<crate::pages::admin::challenges::Hint> for DbHint {
+        fn into(self) -> crate::pages::admin::challenges::Hint {
+            crate::pages::admin::challenges::Hint {
+                id: self.id,
+                value: RwSignal::new(self.hint),
+                points_penalty: RwSignal::new(Some(self.points_penalty))
+            }
+        }
+    }
+
+    #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Eq)]
+    pub struct HintWithoutHint {
+        pub id: String,
+        pub challenge_id: String,
+        pub points_penalty: u32
+    }
+
+    impl Into<Hint> for DbHintWithoutHint {
+        fn into(self) -> Hint {
+            Hint {
+                id: self.id,
+                hint: "".to_string(),
+                challenge_id: self.challenge_id,
+                points_penalty: self.points_penalty
+            }
+        }
+    }
+
+    #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Eq)]
+    pub struct HintsUsed {
+        pub id: u32,
+        pub challenge_id: String,
+        pub user_id: String,
+        pub hint_id: String
     }
 }
 
@@ -434,6 +484,26 @@ cfg_if! {
                     WHERE user_id = ? AND file_type = \"avatar\"
                     ",
                     user_id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn deduct_points(&self, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE users
+                    SET points = points - ?
+                    WHERE id = ?
+                    ",
+                    points,
+                    self.id
                 )
                     .execute(executor)
                     .await {
@@ -3427,6 +3497,208 @@ cfg_if! {
                     .fetch_one(executor)
                     .await {
                         Ok(row) => Ok(row.auth_type.into()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+        }
+
+        impl DbHint {
+            pub async fn add(hint: &String, challenge_id: &String, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                let id = uuid::Uuid::new_v4();
+                match sqlx::query!(
+                    "
+                    INSERT INTO hints (id, hint, challenge_id, points_penalty)
+                    VALUES (?, ?, ?, ?)
+                    ",
+                    id.to_string(),
+                    hint,
+                    challenge_id,
+                    points_penalty
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn delete(id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    DELETE FROM hints
+                    WHERE id = ?
+                    ",
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn delete_all_from_challenge(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    DELETE FROM hints
+                    WHERE challenge_id = ?
+                    ",
+                    challenge_id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn edit(id: &String, hint: &String, challenge_id: &String, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE hints
+                    SET hint = ?, challenge_id = ?, points_penalty = ?
+                    WHERE id = ?
+                    ",
+                    hint,
+                    challenge_id,
+                    points_penalty,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get(id: &String, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, hint, challenge_id, points_penalty
+                    FROM hints
+                    WHERE id = ?
+                    ",
+                    id
+                )
+                    .fetch_one(executor)
+                    .await {
+                        Ok(hint) => Ok(hint),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, hint, challenge_id, points_penalty
+                    FROM hints
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(hint) => Ok(hint),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+        }
+
+        impl DbHintWithoutHint {
+            pub async fn get_all_hints(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, challenge_id, points_penalty
+                    FROM hints
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(hints) => Ok(hints),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_challenge_hints(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, challenge_id, points_penalty
+                    FROM hints
+                    WHERE challenge_id = ?
+                    ",
+                    challenge_id
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(hints) => Ok(hints),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+        }
+
+        impl HintsUsed {
+            pub async fn add(challenge_id: &String, user_id: &String, hint_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    INSERT INTO hints_used (challenge_id, user_id, hint_id)
+                    VALUES (?, ?, ?)
+                    ",
+                    challenge_id,
+                    user_id,
+                    hint_id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get(user: &DbUser, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, challenge_id, user_id, hint_id
+                    FROM hints_used
+                    WHERE user_id = ?
+                    ",
+                    user.id
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(hints_used) => Ok(hints_used),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

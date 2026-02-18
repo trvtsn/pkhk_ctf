@@ -1,13 +1,13 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, LdapArgs}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
-use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
+use leptos::{prelude::{*, expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
 use tracing::instrument;
@@ -1033,6 +1033,129 @@ pub async fn get_user_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
             match crate::server::proxmox::get_user_vms(db_user).await {
                 Ok(vms) => Ok(vms),
                 Err(e) => return Err(e)
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetUsedHints, prefix="/api/user", endpoint="hints_used")]
+#[instrument]
+pub async fn get_used_hints() -> Result<Vec<HintsUsed>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (user, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            match HintsUsed::get(&db_user, &pool).await {
+                Ok(hints_used) => Ok(hints_used),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetHint, prefix="/api/challenge", endpoint="get_hint")]
+#[instrument]
+pub async fn get_hint(challenge_id: String, hint_id: String) -> Result<crate::server::db::structs::Hint, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (user, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => {
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            let used_hints = HintsUsed::get(&db_user, &pool).await?;
+            let used_hint_ids = used_hints.into_iter().map(|h| h.hint_id).collect::<Vec<String>>();
+            if used_hint_ids.contains(&hint_id) {
+                match crate::server::db::structs::Hint::get(&hint_id, &pool).await {
+                    Ok(hint) => Ok(hint),
+                    Err(e) => {
+                        return Err(e.into());
+                    }
+                }
+            } else {
+                let mut tx = pool.begin().await?;
+                match HintsUsed::add(&challenge_id, &user.id, &hint_id, &mut *tx).await {
+                    Ok(_) => {},
+                    Err(e) => {
+                        tx.rollback().await?;
+                        return Err(e.into());
+                    }
+                }
+
+                let hint = match crate::server::db::structs::Hint::get(&hint_id, &mut *tx).await {
+                    Ok(hint) => hint,
+                    Err(e) => {
+                        tx.rollback().await?;
+                        return Err(e.into());
+                    }
+                };
+                
+                match db_user.deduct_points(&hint.points_penalty, &mut *tx).await {
+                    Ok(_) => tx.commit().await?,
+                    Err(e) => {
+                        tx.rollback().await?;
+                        return Err(e.into());
+                    }
+                }
+
+                Ok(hint)
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetAllHintsWithoutHints, prefix="/api/challenges", endpoint="get_hints")]
+#[instrument]
+pub async fn get_all_hints_without_hints() -> Result<Vec<HintWithoutHint>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            match HintWithoutHint::get_all_hints(&pool).await {
+                Ok(hints) => Ok(hints),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetChallengeHintsWithoutHints, prefix="/api/challenge", endpoint="get_hints")]
+#[instrument]
+pub async fn get_challenge_hints_without_hints(challenge_id: String) -> Result<Vec<HintWithoutHint>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            match HintWithoutHint::get_challenge_hints(&challenge_id, &pool).await {
+                Ok(hints) => Ok(hints),
+                Err(e) => Err(e.into())
             }
         } else {
             Err(AppError::NoServerConnection)

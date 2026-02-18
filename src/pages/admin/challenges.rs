@@ -1,15 +1,46 @@
-use crate::server::admin::{get_all_challenge_templates, get_all_user_groups, upload_illustration};
-use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments};
+use crate::server::admin::{get_all_challenge_templates, get_all_hints, get_all_user_groups, upload_illustration};
+use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbHint};
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
 use crate::server::proxmox::ProxmoxVMTemplate;
 use crate::server::structs::ApiResult;
 use crate::{components::admin::challenge::Challenge, server::{admin::{upload_files, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
 use gloo_timers::future::sleep;
+use icondata as i;
 use leptos::prelude::*;
 use leptos::{web_sys::{FormData, HtmlInputElement, Event, HtmlSelectElement, HtmlOptionElement}, wasm_bindgen::JsCast, task::spawn_local};
+use leptos_icons::Icon;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct Hint {
+    pub id: String,
+    pub value: RwSignal<String>,
+    pub points_penalty: RwSignal<Option<u32>>
+}
+
+impl Hint {
+    pub fn new(id: String, initial: impl Into<String>) -> Self {
+        Self {
+            id,
+            value: RwSignal::new(initial.into()),
+            points_penalty: RwSignal::new(None)
+        }
+    }
+}
+
+impl Into<crate::server::db::structs::Hint> for Hint {
+    fn into(self) -> crate::server::db::structs::Hint {
+        crate::server::db::structs::Hint {
+            id: self.id,
+            hint: self.value.get(),
+            challenge_id: "".to_string(),
+            points_penalty: self.points_penalty.get().unwrap_or(0)
+        }
+    }
+}
 
 /// Default Home Page
 #[component]
@@ -27,6 +58,8 @@ pub fn Challenges() -> impl IntoView {
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     let vm_ids = RwSignal::new(None);
+    let hints = RwSignal::new(Some(vec![Hint::new("0".to_string(), "")]));
+    let next_hint_id = RwSignal::new(1_usize);
 
     let refresh = RwSignal::new(0);
     let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
@@ -53,6 +86,11 @@ pub fn Challenges() -> impl IntoView {
         let templates = get_all_challenge_templates().await.unwrap_or_default();
         templates_signal.set(templates.clone());
         templates
+    });
+
+    let hints_signal = RwSignal::new(vec![]);
+    let hints_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_hints().await.unwrap_or_default()
     });
 
     let file_upload_action = Action::new_local(|data: &FormData| {
@@ -94,9 +132,6 @@ pub fn Challenges() -> impl IntoView {
     let uploading_file_text = Memo::new(move |_| {
         if file_upload_action.pending().get() {
             "Uploading...".to_string()
-        // } else if let Some(Ok(val)) = upload_action.value().get() {
-        //     format!("Uploaded: {}", val.details.file_name)
-        // } else {
         } else {
             "".to_string()
         }
@@ -105,9 +140,6 @@ pub fn Challenges() -> impl IntoView {
     let uploading_illustration_text = Memo::new(move |_| {
         if illustration_upload_action.pending().get() {
             "Uploading...".to_string()
-        // } else if let Some(Ok(val)) = upload_action.value().get() {
-        //     format!("Uploaded: {}", val.details.file_name)
-        // } else {
         } else {
             "".to_string()
         }
@@ -359,6 +391,74 @@ pub fn Challenges() -> impl IntoView {
                     </Suspense>
                 </select>
 
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
+                <ForEnumerate 
+                    each=move || hints.get().unwrap_or_default()
+                    key=|hint: &Hint| hint.id.clone()
+                    children={move |index, hint| {
+                        view! {
+                            <div class="flex gap-2">
+                                <input
+                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="hint"
+                                    prop:value=move || hint.value.get()
+                                    on:input=move |ev| {
+                                        let value = event_target_value(&ev);
+                                        hint.value.set(value.clone());
+                                    }
+                                />
+                                <input
+                                    class="w-1/2"
+                                    type="number"
+                                    min=0
+                                    prop:value=move || hint.points_penalty.get()
+                                    on:input=move |ev| {
+                                        let value = event_target_value(&ev);
+                                        hint.points_penalty.set(Some(value.parse::<u32>().unwrap_or_default()));
+                                    }
+                                    placeholder="0"
+                                />
+                                <button 
+                                    class="cursor-pointer"
+                                    on:click=move |_| {
+                                        hints.update(|vec| {
+                                            let vec = vec.get_or_insert_with(Vec::new);
+                                            next_hint_id.set(next_hint_id.get() + 1);
+                                            vec.push(Hint::new(next_hint_id.get().to_string(), ""));
+                                            leptos::logging::log!("{vec:?}");
+                                        });
+                                    }
+                                >
+                                    <Icon icon=i::LuPlus />
+                                </button>
+                                {
+                                    if index.get() != 0 {
+                                        view! {
+                                            <button 
+                                                class="cursor-pointer"
+                                                on:click=move |_| {
+                                                    let remove_at = index.get();
+
+                                                    hints.update(|vec| {
+                                                        let vec = vec.get_or_insert_with(Vec::new);
+                                                        vec.remove(remove_at);
+                                                        leptos::logging::log!("{vec:?}");
+                                                    });
+                                                } 
+                                            >
+                                                <Icon icon=i::LuX />
+                                            </button>
+                                        }.into_any()
+                                    } else {
+                                        "".into_any()
+                                    }
+                                }
+                            </div>
+                        }
+                    }}
+                />
+
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>
                     "Attachment (Max 16 MiB)"
                 </label>
@@ -424,6 +524,7 @@ pub fn Challenges() -> impl IntoView {
                             let attachments = attachments.get();
                             let illustration = illustration.get();
                             let vm_ids = vm_ids.get();
+                            let hints = hints.get().unwrap_or_default().into_iter().map(|h| Into::<DbHint>::into(h)).collect::<Vec<DbHint>>();
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Create {
                                         event_id,
@@ -435,6 +536,7 @@ pub fn Challenges() -> impl IntoView {
                                         flag,
                                         visible_to_groups,
                                         vm_ids,
+                                        hints: hints.into(),
                                         attachments,
                                         illustration,
                                     })
@@ -459,6 +561,9 @@ pub fn Challenges() -> impl IntoView {
                 view! { <div>"Loading..."</div> }
             }>
                 {move || {
+                    let hints = hints_resource.get().unwrap_or_default();
+                    hints_signal.set(hints);
+
                     let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
                     for ch in cwa_resource.get().unwrap_or_default().into_iter() {
                         map.entry(ch.challenge.category.clone()).or_default().push(ch);
@@ -501,6 +606,7 @@ pub fn Challenges() -> impl IntoView {
                                                 categories=categories_signal
                                                 events=events_signal
                                                 templates=templates_signal
+                                                hints=hints_signal.clone()
                                             />
                                         </div>
                                     </For>

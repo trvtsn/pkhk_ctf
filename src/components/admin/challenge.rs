@@ -1,8 +1,12 @@
 use crate::components::utils::TruncatedDesc;
+use crate::pages::admin::challenges::Hint;
 use crate::server::admin::{get_all_user_groups, upload_illustration};
+use crate::server::db::structs::DbHint;
 use crate::server::proxmox::ProxmoxVMTemplate;
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
+use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
+use leptos_icons::Icon;
 
 #[component]
 pub fn Challenge(
@@ -10,7 +14,8 @@ pub fn Challenge(
     refresh: RwSignal<i32>,
     categories: RwSignal<Vec<String>>,
     events: RwSignal<Vec<db::structs::Event>>,
-    templates: RwSignal<Vec<ProxmoxVMTemplate>>
+    templates: RwSignal<Vec<ProxmoxVMTemplate>>,
+    hints: RwSignal<Vec<DbHint>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments, illustration } = cwa;
     let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids } = challenge;
@@ -37,7 +42,9 @@ pub fn Challenge(
     let illustration_edit = RwSignal::new(None);
     let visible_to_groups_edit = RwSignal::new(visible_to_groups);
     let proxmox_vm_id_edit = RwSignal::new(vm_ids);
+    let hints_edit = RwSignal::new(vec![]);
 
+    let next_hint_id = RwSignal::new(1_usize);
     let category_add_new_selected = RwSignal::new(false);
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
@@ -356,6 +363,92 @@ pub fn Challenge(
                     </Suspense>
                 </select>
 
+                <Transition>
+                    {move || {
+                        let challenge_id = id_signal.get();
+                        let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<DbHint>>();
+                        hints_edit.set(hints.into_iter()
+                            .map(|h| crate::pages::admin::challenges::Hint {
+                                id: h.id,
+                                value: RwSignal::new(h.hint),
+                                points_penalty: RwSignal::new(Some(h.points_penalty))
+                            })
+                            .collect::<Vec<crate::pages::admin::challenges::Hint>>()
+                        );
+                        if hints_edit.get_untracked().is_empty() {
+                            hints_edit.set(vec![Hint::new(next_hint_id.get().to_string(), "")]);
+                        }
+
+                        view! {
+                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
+                            <ForEnumerate
+                                each=move || hints_edit.get()
+                                key=|hint: &Hint| hint.id.clone()
+                                children={move |index, hint| {
+                                    view! {
+                                        <div class="flex gap-2">
+                                            <input
+                                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                                name="hint"
+                                                prop:value=move || hint.value.get()
+                                                on:input=move |ev| {
+                                                    let value = event_target_value(&ev);
+                                                    hint.value.set(value);
+                                                }
+                                            />
+                                            <input
+                                                class="w-1/2"
+                                                type="number"
+                                                min=0
+                                                prop:value=move || hint.points_penalty.get()
+                                                on:input=move |ev| {
+                                                    let value = event_target_value(&ev);
+                                                    hint.points_penalty.set(Some(value.parse::<u32>().unwrap_or_default()));
+                                                }
+                                                placeholder="0"
+                                            />
+                                            <button 
+                                                class="cursor-pointer"
+                                                on:click=move |_| {
+                                                    hints_edit.update(|vec| {
+                                                        next_hint_id.set(next_hint_id.get() + 1);
+                                                        vec.push(Hint::new(next_hint_id.get().to_string(), ""));
+                                                        leptos::logging::log!("{vec:?}");
+                                                    });
+                                                }
+                                            >
+                                                <Icon icon=i::LuPlus />
+                                            </button>
+                                            {
+                                                if index.get() != 0 {
+                                                    view! {
+                                                        <button 
+                                                            class="cursor-pointer"
+                                                            on:click=move |_| {
+                                                                let remove_at = index.get();
+
+                                                                hints_edit.update(|vec| {
+                                                                    vec.remove(remove_at);
+                                                                    leptos::logging::log!("{vec:?}");
+                                                                });
+                                                            } 
+                                                        >
+                                                            <Icon icon=i::LuX />
+                                                        </button>
+                                                    }.into_any()
+                                                } else {
+                                                    "".into_any()
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                }}
+                            />
+                        }
+                    }}
+                </Transition>
+
                 <label class=r#"block mb-1 text-sm font-medium"#>"Attachment"</label>
                 <input
                     class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
@@ -423,6 +516,11 @@ pub fn Challenge(
                         let attachments = attachments_edit.get();
                         let illustration = illustration_edit.get();
                         let vm_ids = proxmox_vm_id_edit.get();
+                        let hints = hints_edit.get().into_iter().map(|h| {
+                            let mut hint = Into::<DbHint>::into(h); 
+                            hint.challenge_id = challenge_id.clone(); 
+                            hint
+                        }).collect::<Vec<DbHint>>();
                         if editing.get() {
                             spawn_local(async move {
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
@@ -437,7 +535,8 @@ pub fn Challenge(
                                         visible_to_groups,
                                         attachments: attachments.clone(),
                                         illustration: illustration.clone(),
-                                        vm_ids
+                                        vm_ids,
+                                        hints: hints.into()
                                     })
                                     .await && result == ResultStatus::Success
                                 {

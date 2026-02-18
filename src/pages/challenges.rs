@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_templates, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::DimmingOverlay}, server::{db::{self, structs::{ChallengeWithAttachments, HintsUsed}}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_used_hints, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -22,8 +22,8 @@ pub fn Challenges() -> impl IntoView {
     });
 
     let user_vms_signal = RwSignal::new(Vec::<ProxmoxVMInstance>::default());
-    let user_vms_resource = Resource::new(move || refresh.get(), move |_| {
-        async move { get_user_vms().await.unwrap_or_default() }
+    let user_vms_resource = Resource::new(move || refresh.get(), move |_| async move { 
+        get_user_vms().await.unwrap_or_default()
     });
 
     let solved_challenge_ids = RwSignal::new(Vec::<String>::default());
@@ -34,6 +34,16 @@ pub fn Challenges() -> impl IntoView {
     let all_templates_signal = RwSignal::<Vec<ProxmoxVMTemplate>>::new(vec![]);
     let all_templates_resource = Resource::new(move || (), move |_| async move {
         get_all_templates().await.unwrap_or_default()
+    });
+
+    let hints_signal = RwSignal::new(vec![]);
+    let hints_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_hints_without_hints().await.unwrap_or_default()
+    });
+
+    let hints_used_signal = RwSignal::<Vec<HintsUsed>>::new(vec![]);
+    let hints_used_resource = Resource::new(move || refresh.get(), move |_| async move { 
+        get_used_hints().await.unwrap_or_default() 
     });
 
     let UseEventSourceReturn { message, .. } = 
@@ -75,6 +85,12 @@ pub fn Challenges() -> impl IntoView {
                     let user_vms = user_vms_resource.get().unwrap_or_default();
                     user_vms_signal.set(user_vms);
 
+                    let hints = hints_resource.get().unwrap_or_default();
+                    hints_signal.set(hints);
+                    
+                    let hints_used = hints_used_resource.get().unwrap_or_default();
+                    hints_used_signal.set(hints_used);
+
                     let mut map = HashMap::<
                         Option<String>,
                         Vec<db::structs::ChallengeWithAttachments>,
@@ -101,6 +117,8 @@ pub fn Challenges() -> impl IntoView {
                             overlay_triggered 
                             user_vms=user_vms_signal 
                             all_templates=all_templates_signal
+                            hints=hints_signal
+                            hints_used=hints_used_signal
                             refresh 
                         />
 

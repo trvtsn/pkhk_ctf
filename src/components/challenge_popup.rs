@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
-use crate::server::db::structs::{ChallengeWithAttachments};
+use crate::server::db::structs::{ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint, HintsUsed};
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
-use crate::server::{add_vm_time, destroy_vm, restart_vm, start_vm};
+use crate::server::{add_vm_time, destroy_vm, get_all_hints_without_hints, get_challenge_hints_without_hints, get_hint, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
@@ -16,16 +18,19 @@ pub fn ChallengePopup(
     overlay_triggered: RwSignal<bool>,
     user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
     all_templates: RwSignal<Vec<ProxmoxVMTemplate>>,
+    hints: RwSignal<Vec<DbHintWithoutHint>>,
+    hints_used: RwSignal<Vec<HintsUsed>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
     let flag_signal = RwSignal::new("".to_string());
+    let hints_bought_signal = RwSignal::new(HashMap::<String, String>::new());
 
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
-
+    
     let card_classes = Memo::new(move |_| {
         let base = "absolute inset-0 z-20 flex content-center items-center justify-center rounded-lg p-4";
         if overlay_triggered.get() {
@@ -58,6 +63,29 @@ pub fn ChallengePopup(
             "Incorrect"
         } else {
             "Submit"
+        }
+    });
+
+    Effect::new(move |_| {
+        let challenge_id = cwa_popup.get_untracked().challenge.id.clone();
+        let hints_used = hints_used.get(); // effect re-runs only when hints_used changes
+
+        for hint_used in hints_used {
+            let hint_id = hint_used.hint_id.clone();
+
+            if hints_bought_signal.get_untracked().contains_key(&hint_id) {
+                continue;
+            }
+
+            let challenge_id = challenge_id.clone();
+            let hint_id_clone = hint_id.clone();
+            spawn_local(async move {
+                if let Ok(hint) = get_hint(challenge_id, hint_id_clone.clone()).await {
+                    hints_bought_signal.update(|map| {
+                        map.insert(hint.id.clone(), hint.hint);
+                    });
+                }
+            });
         }
     });
 
@@ -119,6 +147,67 @@ pub fn ChallengePopup(
                     {move || cwa_popup.get().challenge.points}
                 </p>
                 <br />
+
+                <Transition>
+                    {move || {
+                        if solved_challenges.get_untracked().contains(&cwa_popup.get().challenge.id) { 
+                            solved.set(true);
+                        } else {
+                            solved.set(false);
+                        }
+
+                        if !solved.get_untracked() {
+                            let challenge_id = cwa_popup.get_untracked().challenge.id;
+                            let hints = hints.get_untracked().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<HintWithoutHint>>();
+                            let hints_used = hints_used.get_untracked();
+                            let used_hint_ids = hints_used.into_iter().map(|h| h.hint_id).collect::<Vec<String>>();
+                            view! {
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
+                                <ForEnumerate
+                                    each=move || hints.clone()
+                                    key=|hint: &HintWithoutHint| hint.id.clone()
+                                    children={move |index, hint| {
+                                        let hint_id = hint.id.clone();
+                                        if used_hint_ids.contains(&hint.id) {
+                                            let bought_hint = hints_bought_signal.get_untracked().get(&hint_id).cloned();
+                                            view! {
+                                                <div class="flex gap-2">
+                                                    <label>{format!("Hint {}", index.get() + 1)}</label>
+                                                    <p>{bought_hint.unwrap_or_default()}</p>
+                                                </div>
+                                            }.into_any()
+                                        } else {
+                                            view! {
+                                                <div class="flex gap-2">
+                                                    <label>{format!("Hint {}", index.get_untracked())}</label>
+                                                    <button
+                                                        class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                        on:click=move |_| {
+                                                            let hint = hint.clone();
+                                                            let challenge_id = cwa_popup.get_untracked().challenge.id;
+                                                            spawn_local(async move {
+                                                                if let Ok(hint) = get_hint(challenge_id, hint.id).await
+                                                                {
+                                                                    refresh.update(|n| *n += 1);
+                                                                }
+                                                            });
+                                                        }
+                                                    >
+                                                        {format!("Get (-{}p)", hint.points_penalty)}
+                                                    </button>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                    }}
+                                />
+                            }.into_any()
+                        } else {
+                            "".into_any()
+                        }
+                    }}
+                </Transition>
 
                 <div class="flex gap-2 items-center">
                     <label
@@ -186,7 +275,7 @@ pub fn ChallengePopup(
                             solved.set(false);
                         }
 
-                        if !solved.get() {
+                        if !solved.get_untracked() {
                             let all_templates = all_templates.get();
                             let challenge = cwa_popup.get().challenge;
                             let challenge_vm_ids = challenge.clone().vm_ids;

@@ -119,6 +119,47 @@ CREATE INDEX `file_name_idx` ON `ctfpkhk`.`attachments` (`file_name` ASC) VISIBL
 
 
 -- -----------------------------------------------------
+-- Table `ctfpkhk`.`hints`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctfpkhk`.`hints` (
+  `id` CHAR(36) NOT NULL,
+  `hint` TEXT NOT NULL,
+  `challenge_id` CHAR(36) NOT NULL,
+  `points_penalty` INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`id`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb3;
+
+
+-- -----------------------------------------------------
+-- Table `ctfpkhk`.`hints_used`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctfpkhk`.`hints_used` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `challenge_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `hint_id` CHAR(36) NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_hints_used_challenges1`
+    FOREIGN KEY (`challenge_id`)
+    REFERENCES `ctfpkhk`.`challenges` (`id`),
+  CONSTRAINT `fk_hints_used_hints1`
+    FOREIGN KEY (`hint_id`)
+    REFERENCES `ctfpkhk`.`hints` (`id`),
+  CONSTRAINT `fk_hints_used_users1`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `ctfpkhk`.`users` (`id`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE INDEX `fk_hints_used_challenges1_idx` ON `ctfpkhk`.`hints_used` (`challenge_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_hints_used_users1_idx` ON `ctfpkhk`.`hints_used` (`user_id` ASC) VISIBLE;
+
+CREATE INDEX `fk_hints_used_hints1_idx` ON `ctfpkhk`.`hints_used` (`hint_id` ASC) VISIBLE;
+
+
+-- -----------------------------------------------------
 -- Table `ctfpkhk`.`ldap`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`ldap` (
