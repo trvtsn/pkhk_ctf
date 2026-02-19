@@ -1,3 +1,4 @@
+use crate::components::utils::ComponentSize;
 use crate::server::admin::{get_all_challenge_templates, get_all_hints, get_all_user_groups, upload_illustration};
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbHint};
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
@@ -558,7 +559,7 @@ pub fn Challenges() -> impl IntoView {
 
         <div class=r#"challenges pt-4"#>
             <Transition fallback=move || {
-                view! { <Spinner /> }
+                view! { <Spinner component_size=ComponentSize::Small /> }
             }>
                 {move || {
                     let hints = hints_resource.get().unwrap_or_default();

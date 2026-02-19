@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use crate::app::RefreshUser;
-use crate::components::utils::TruncatedDesc;
-use crate::server::db::structs::{ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
-use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
-use crate::server::{add_vm_time, destroy_vm, get_hint, get_used_hints, restart_vm, start_vm};
+use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize};
+use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
+use crate::server::proxmox::{ProxmoxVMTemplate};
+use crate::server::{StartVM, add_vm_time, destroy_vm, get_hint, get_used_hints, get_user_vms, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
@@ -16,22 +16,22 @@ pub fn ChallengePopup(
     cwa_popup: RwSignal<ChallengeWithAttachments>,
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
-    user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
     all_templates: RwSignal<Vec<ProxmoxVMTemplate>>,
-    hints: RwSignal<Vec<DbHintWithoutHint>>,
-    refresh: RwSignal<i32>
+    hints: RwSignal<Vec<DbHintWithoutHint>>
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
     let flag_signal = RwSignal::new("".to_string());
     let hints_bought_signal = RwSignal::new(HashMap::<String, String>::new());
+    let refresh = RwSignal::new(0);
 
-    //let hints_used_signal = RwSignal::<Vec<HintsUsed>>::new(vec![]);
     let hints_used_resource = Resource::new(move || hints_bought_signal.get(), move |_| async move { 
         get_used_hints().await.unwrap_or_default() 
     });
+    let user_vms_resource = Resource::new(move || refresh.get(), move |_| async move { 
+        get_user_vms().await.unwrap_or_default()
+    });
 
     let incorrect = RwSignal::new(false);
-
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     
     let solved = Memo::new(move |_| {
@@ -62,6 +62,39 @@ pub fn ChallengePopup(
         }
     });
 
+    let get_hint_action = Action::new(move |(challenge_id, hint_id): &(String, String)| {
+        let challenge_id = challenge_id.clone();
+        let hint_id = hint_id.clone();
+        async move {
+            get_hint(challenge_id, hint_id).await
+        }
+    });
+    let start_vm_action = Action::new(move |(template_id, challenge): &(u32, Challenge)| {
+        let template_id = template_id.clone();
+        let challenge = challenge.clone();
+        async move {
+            start_vm(template_id, challenge).await
+        }
+    });
+    let restart_vm_action = Action::new(move |template_id: &u32| {
+        let template_id = template_id.clone();
+        async move {
+            restart_vm(template_id).await
+        }
+    });
+    let add_vm_time_action = Action::new(move |template_id: &u32| {
+        let template_id = template_id.clone();
+        async move {
+            add_vm_time(template_id).await
+        }
+    });
+    let destroy_vm_action = Action::new(move |template_id: &u32| {
+        let template_id = template_id.clone();
+        async move {
+            destroy_vm(template_id).await
+        }
+    });
+
     let submit_btn_text = Memo::new(move |_| {
         if solved.get() { 
             "Solved" 
@@ -77,6 +110,25 @@ pub fn ChallengePopup(
             // runs after the delay on the client
             incorrect.set(false);
         }, 2000.0);
+
+    Effect::new(move |_| {
+        if let Some(Ok(ApiResult { .. })) = start_vm_action.value().get() {
+            refresh.update(|n| *n += 1);
+        }
+        if let Some(Ok(ApiResult { .. })) = restart_vm_action.value().get() {
+            refresh.update(|n| *n += 1);
+        }
+        if let Some(Ok(ApiResult { .. })) = add_vm_time_action.value().get() {
+            refresh.update(|n| *n += 1);
+        }
+        if let Some(Ok(ApiResult { .. })) = destroy_vm_action.value().get() {
+            refresh.update(|n| *n += 1);
+        }
+        if let Some(Ok(hint)) = get_hint_action.value().get() {
+            hints_bought_signal.update(|map| {map.insert(hint.id, hint.hint);});
+            refresh_user.update(|r| r.iteration += 1);
+        }
+    });
 
     let result_view = move || if !overlay_triggered.get() {
         "".into_any()
@@ -153,13 +205,8 @@ pub fn ChallengePopup(
                                                 let hint_id = hint.id.clone();
                                                 if used_hint_ids.contains(&hint.id) {
                                                     let challenge_id = challenge_id.clone();
-                                                    spawn_local(async move {
-                                                        if let Ok(hint) = get_hint(challenge_id, hint.id.clone()).await
-                                                        {
-                                                            hints_bought_signal.update(|map| {map.insert(hint.id, hint.hint);});
-                                                            refresh_user.update(|r| r.iteration += 1);
-                                                        }
-                                                    });
+                                                    get_hint_action.dispatch((challenge_id, hint.id));
+
                                                     view! {
                                                         <div class="flex gap-2 items-center">
                                                             <label>{format!("Hint {}", index.get() + 1)}</label>
@@ -177,16 +224,16 @@ pub fn ChallengePopup(
                                                                 on:click=move |_| {
                                                                     let hint = hint.clone();
                                                                     let challenge_id = cwa_popup.get_untracked().challenge.id;
-                                                                    spawn_local(async move {
-                                                                        if let Ok(hint) = get_hint(challenge_id, hint.id).await
-                                                                        {
-                                                                            hints_bought_signal.update(|map| {map.insert(hint.id, hint.hint);});
-                                                                            refresh_user.update(|r| r.iteration += 1);
-                                                                        }
-                                                                    });
+                                                                    get_hint_action.dispatch((challenge_id, hint.id));
                                                                 }
                                                             >
-                                                                {format!("Get (-{}p)", hint.points_penalty)}
+                                                                {move || {
+                                                                    if get_hint_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        view! { { format!("Get (-{}p)", hint.points_penalty) } }.into_any()
+                                                                    }
+                                                                }}
                                                             </button>
                                                         </div>
                                                     }.into_any()
@@ -280,7 +327,7 @@ pub fn ChallengePopup(
                                             <div class="flex gap-2 items-center">
                                                 <label>{template.name}</label>
                                                 <Show when=move || {
-                                                    let user_vms = user_vms.get();
+                                                    let user_vms = user_vms_resource.get().unwrap_or_default();
                                                     let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
                                                     !active_vm_origin_ids.contains(&template.id)
                                                 }>
@@ -290,24 +337,21 @@ pub fn ChallengePopup(
                                                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                         on:click=move |_| {
                                                             let challenge = cwa_popup.get().challenge;
-                                                            spawn_local(async move {
-                                                                if let Ok(ApiResult { result, details }) = start_vm(template.id, challenge).await
-                                                                {
-                                                                    if result == ResultStatus::Fail && details == "failed to start vm" {
-                                                                        refresh.update(|n| *n += 1);
-                                                                    } else {
-                                                                        refresh.update(|n| *n += 1);
-                                                                    }
-                                                                }
-                                                            });
+                                                            start_vm_action.dispatch((template.id, challenge));
                                                         }
                                                     >
-                                                        "Start VM"
+                                                        {move || {
+                                                            if start_vm_action.pending().get() {
+                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                            } else {
+                                                                "Start VM".into_any()
+                                                            }
+                                                        }}
                                                     </button>
                                                 </Show>
 
                                                 <Show when=move || {
-                                                    let user_vms = user_vms.get();
+                                                    let user_vms = user_vms_resource.get().unwrap_or_default();
                                                     let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
                                                     active_vm_origin_ids.contains(&template.id)
                                                 }>
@@ -316,13 +360,16 @@ pub fn ChallengePopup(
                                                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                                                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                         on:click=move |_| {
-                                                            spawn_local(async move {
-                                                                _ = restart_vm(template.id).await;
-                                                                refresh.update(|n| *n += 1);
-                                                            });
+                                                            restart_vm_action.dispatch(template.id);
                                                         }
                                                     >
-                                                        "Restart VM"
+                                                        {move || {
+                                                            if restart_vm_action.pending().get() {
+                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                            } else {
+                                                                "Restart VM".into_any()
+                                                            }
+                                                        }}
                                                     </button>
 
                                                     <button
@@ -330,13 +377,16 @@ pub fn ChallengePopup(
                                                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                                                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                         on:click=move |_| {
-                                                            spawn_local(async move {
-                                                                _ = add_vm_time(template.id).await;
-                                                                refresh.update(|n| *n += 1);
-                                                            });
+                                                            add_vm_time_action.dispatch(template.id);
                                                         }
                                                     >
-                                                        "Add Time (+30 min)"
+                                                        {move || {
+                                                            if add_vm_time_action.pending().get() {
+                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                            } else {
+                                                                "Add Time (+30 min)".into_any()
+                                                            }
+                                                        }}
                                                     </button>
 
                                                     <button
@@ -344,13 +394,16 @@ pub fn ChallengePopup(
                                                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                                                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                         on:click=move |_| {
-                                                            spawn_local(async move {
-                                                                _ = destroy_vm(template.id).await;
-                                                                refresh.update(|n| *n += 1);
-                                                            });
+                                                            destroy_vm_action.dispatch(template.id);
                                                         }
                                                     >
-                                                        "Destroy VM"
+                                                        {move || {
+                                                            if destroy_vm_action.pending().get() {
+                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                            } else {
+                                                                "Destroy VM".into_any()
+                                                            }
+                                                        }}
                                                     </button>
                                                 </Show>
                                             </div>

@@ -96,17 +96,35 @@ pub fn DimmingOverlay(overlay_triggered: RwSignal<bool>) -> impl IntoView {
     }
 }
 
+pub enum ComponentSize {
+    Small,
+    Medium,
+    Big,
+}
+
+/// Thanks to devAaus (https://github.com/devAaus)
+/// https://uiverse.io/devAaus/funny-catfish-94
 #[component]
-pub fn Spinner() -> impl IntoView {
+pub fn Spinner(component_size: ComponentSize) -> impl IntoView {
+    let blue_indicator_classes_base = "border-4 border-transparent text-blue-400 text-4xl animate-spin flex items-center justify-center border-t-blue-400 rounded-full".to_string();
+    let blue_indicator_classes = match component_size {
+        ComponentSize::Small => Memo::new(move |_| format!("w-5 h-5 {blue_indicator_classes_base}")),
+        ComponentSize::Medium => Memo::new(move |_| format!("w-10 h-10 {blue_indicator_classes_base}")),
+        ComponentSize::Big => Memo::new(move |_| format!("w-20 h-20 {blue_indicator_classes_base}")),
+    };
+    let red_indicator_classes_base = "border-4 border-transparent text-red-400 text-2xl animate-spin flex items-center justify-center border-t-red-400 rounded-full".to_string();
+    let red_indicator_classes = match component_size {
+        ComponentSize::Small => Memo::new(move |_| format!("w-4 h-4 {red_indicator_classes_base}")),
+        ComponentSize::Medium => Memo::new(move |_| format!("w-8 h-8 {red_indicator_classes_base}")),
+        ComponentSize::Big => Memo::new(move |_| format!("w-16 h-16 {red_indicator_classes_base}")),
+    };
     view! {
-        /// Thanks to devAaus (https://github.com/devAaus)
-        /// https://uiverse.io/devAaus/funny-catfish-94
         <div class="flex-col gap-4 w-full flex items-center justify-center">
             <div 
-                class="w-20 h-20 border-4 border-transparent text-blue-400 text-4xl animate-spin flex items-center justify-center border-t-blue-400 rounded-full"
+                class=move || blue_indicator_classes.get()
             >
                 <div
-                    class="w-16 h-16 border-4 border-transparent text-red-400 text-2xl animate-spin flex items-center justify-center border-t-red-400 rounded-full"
+                    class=move || red_indicator_classes.get()
                 ></div>
             </div>
         </div>

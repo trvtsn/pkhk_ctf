@@ -179,8 +179,25 @@ pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> R
     };
     let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
+    #[derive(Serialize, Deserialize)]
+    struct Members {
+        members: Vec<Member>,
+        poolid: Option<String>
+    }
+    #[derive(Serialize, Deserialize)]
+    struct Member {
+        name: Option<String>,
+        vmid: Option<u32>,
+        status: Option<String>
+    }
+    #[derive(Serialize, Deserialize)]
+    struct Config {
+        description: Option<String>
+    }
+
     let base_url = proxmox_args.base_url.trim_end_matches("/");
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+    let poolid = format!("CTFPKHK-{}", user.username);
     match get_user_vmid_from_template_id(user.clone(), template_id).await? {
         Some(vm_id) => {
             let start_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, vm_id);
@@ -198,7 +215,22 @@ pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> R
             match client.post(start_url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
                 Ok(_) => {
                     _ = schedule_vm_deletion(user, new_vm_id).await;
-                    Ok(())
+                    let pools_url = format!("{base_url}/{api_path}/pools/{poolid}");
+                    loop {
+                        async_std::task::sleep(Duration::from_secs(1)).await;
+                        let vms = match client.get(pools_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+                            Ok(res) => {
+                                res.json::<ProxmoxApiResponse<Members>>().await?
+                            },
+                            Err(e) => return Err(e.into())
+                        };
+
+                        for vm in vms.data.members {
+                            let vm_status = vm.status.unwrap_or_default();
+                            let vm_id = vm.vmid.unwrap_or_default();
+                            if vm_status == "running" && vm_id == new_vm_id { return Ok(()); } else { continue };
+                        }
+                    }
                 },
                 Err(e) => return Err(e.into())
             }

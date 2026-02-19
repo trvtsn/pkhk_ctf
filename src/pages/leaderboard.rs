@@ -1,4 +1,4 @@
-use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar, utils::Spinner}, server::{build_leaderboard_data, enums::AdminEventPayloadKind, structs::PivotRow}};
+use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar, utils::{ComponentSize, Spinner}}, server::{build_leaderboard_data, enums::AdminEventPayloadKind, structs::PivotRow}};
 use leptos::prelude::*;
 use leptos_chartistry::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -36,7 +36,7 @@ pub fn Leaderboard() -> impl IntoView {
         <div class=r#"grid justify-center p-4 bg-background text-text min-h-screen"#>
             <h3 class=r#"m-2 text-4xl text-center"#>"Leaderboard"</h3>
             <Transition fallback=move || {
-                view! { <Spinner /> }
+                view! { <Spinner component_size=ComponentSize::Small /> }
             }>
                 {move || {
                     let data = leaderboard_data_resource.get().unwrap_or_default();

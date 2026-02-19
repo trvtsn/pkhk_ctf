@@ -1,4 +1,4 @@
-use crate::{components::{admin::event::Event, utils::Spinner}, pages::admin::Actions, server::{admin::{get_all_events, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::{admin::event::Event, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use leptos::{prelude::*, task:: spawn_local};
 use leptos::{web_sys::{FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
 
@@ -239,7 +239,7 @@ pub fn Events() -> impl IntoView {
 
         <div class=r#"events pt-4"#>
             <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
-                <Transition fallback=move || view! { <Spinner /> }>
+                <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Big /> }>
                     <For
                         each=move || events_resource.get().unwrap_or_default()
                         key=|event: &db::structs::Event| event.id.clone()

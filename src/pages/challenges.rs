@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{DimmingOverlay, Spinner, ComponentSize}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -71,14 +71,11 @@ pub fn Challenges() -> impl IntoView {
             class=r#"challenges"# 
         >
             <Transition fallback=move || {
-                view! { <Spinner /> }
+                view! { <Spinner component_size=ComponentSize::Big /> }
             }>
                 {move || {
                     let all_templates = all_templates_resource.get().unwrap_or_default();
                     all_templates_signal.set(all_templates);
-
-                    let user_vms = user_vms_resource.get().unwrap_or_default();
-                    user_vms_signal.set(user_vms);
 
                     let hints = hints_resource.get().unwrap_or_default();
                     hints_signal.set(hints);
@@ -130,10 +127,8 @@ pub fn Challenges() -> impl IntoView {
                                                     cwa_popup
                                                     solved_challenges=solved_challenge_ids 
                                                     overlay_triggered 
-                                                    user_vms=user_vms_signal 
                                                     all_templates=all_templates_signal
                                                     hints=hints_signal
-                                                    refresh 
                                                 />
                                                 <div class=r#"p-2 challenge"#>
                                                     <Challenge
