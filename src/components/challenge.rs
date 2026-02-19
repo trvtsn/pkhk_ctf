@@ -173,20 +173,6 @@ pub fn Challenge(
                         </a>
                     </For>
                 </div>
-
-                // <div class="col-start-1 col-end-1">
-                //     <button
-                //         class=r#"gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                //         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                //         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                //         on:click=move |_| {
-                //             overlay_triggered.set(true);
-                //             cwa_popup.set(cwa.clone());
-                //         }
-                //     >
-                //         "View"
-                //     </button>
-                // </div>
             </div>
         </div>
     }

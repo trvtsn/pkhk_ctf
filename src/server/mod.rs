@@ -7,7 +7,7 @@ use axum::{extract::Path, Router, routing::get};
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
-use leptos::{prelude::{*, expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
+use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
 use tracing::instrument;

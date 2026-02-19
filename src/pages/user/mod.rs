@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::navbar::NavBar, pages::not_found::NotFound, server::{db::enums::UserIdentifier, get_avatar_id, get_db_user_without_pii}};
+use crate::{components::{navbar::NavBar, utils::Spinner}, pages::not_found::NotFound, server::{db::enums::UserIdentifier, get_avatar_id, get_db_user_without_pii}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
@@ -30,7 +30,7 @@ pub fn User() -> impl IntoView {
             <div class=r#"grid grid-cols-4"#>
                 <div class="col-start-1 col-end-1 bg-background-secondary m-4 p-4 rounded-lg">
                     <Suspense fallback=move || {
-                        view! { <div>"Loading..."</div> }
+                        view! { <Spinner /> }
                     }>
                         {move || {
                             let user = user_res.get().unwrap_or_default();

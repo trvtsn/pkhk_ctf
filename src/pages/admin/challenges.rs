@@ -3,7 +3,7 @@ use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
 use crate::server::proxmox::ProxmoxVMTemplate;
 use crate::server::structs::ApiResult;
-use crate::{components::admin::challenge::Challenge, server::{admin::{upload_files, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
+use crate::{components::{admin::challenge::Challenge, utils::Spinner}, server::{admin::{upload_files, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
 use gloo_timers::future::sleep;
 use icondata as i;
 use leptos::prelude::*;
@@ -558,7 +558,7 @@ pub fn Challenges() -> impl IntoView {
 
         <div class=r#"challenges pt-4"#>
             <Transition fallback=move || {
-                view! { <div>"Loading..."</div> }
+                view! { <Spinner /> }
             }>
                 {move || {
                     let hints = hints_resource.get().unwrap_or_default();

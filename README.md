@@ -44,7 +44,7 @@ cargo leptos watch
 - [x] Fix LDAP login auto-refresh
 - [ ] Fix refresh on start VM
 - [x] Fix signals not allowing writing on admin LDAP inputs
-- [ ] Add hints to challenges
+- [x] Add hints to challenges
 
 ### Security
 - [ ] Sanitize text inputs
@@ -56,7 +56,7 @@ cargo leptos watch
 - [x] Remove flag input box on challenge solve
 - [ ] Fix tooltip color on leaderboard hover
 - [x] Fix select option color
-- [ ] Add spinner for indicating pending tasks
+- [x] Add spinner for indicating pending tasks
 
 ### Project Longevity
 - [ ] Add doc comments to pages and components

@@ -1,4 +1,4 @@
-use crate::{components::{admin::user::User, utils::HidePasswordButton}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::{admin::user::User, utils::{HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
 /// Default Home Page
@@ -274,7 +274,7 @@ pub fn Users() -> impl IntoView {
             </Show>
         </div>
 
-        <Transition fallback=move || view! { <div>"Loading..."</div> }>
+        <Transition fallback=move || view! { <Spinner /> }>
             <div class=r#"grid grid-cols-4 gap-4 p-4 m-4 pt-4"#>
                 <For
                     each=move || users_resource.get().unwrap_or_default()

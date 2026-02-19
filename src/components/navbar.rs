@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, server::{LogoutUser, db::{enums::UserRole, structs::DbUserWithoutPII}}};
+use crate::{app::RefreshUser, components::utils::Spinner, server::{LogoutUser, db::{enums::UserRole, structs::DbUserWithoutPII}}};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
@@ -53,7 +53,7 @@ pub fn NavBar() -> impl IntoView {
                             "Leaderboard"
                         </a>
                     </li>
-                    <Transition fallback=move || view! { <p>"Loading..."</p> }>
+                    <Transition fallback=move || view! { <Spinner /> }>
                         <Show when=move || user.get().is_some() && role.get() == UserRole::Admin>
                             <a href="/admin" class=r#"inline-flex gap-2 items-center m-1"#>
                                 <Icon icon=i::LuSettings />
@@ -66,7 +66,7 @@ pub fn NavBar() -> impl IntoView {
 
             <nav class=r#"flex flex-1 gap-2 justify-end items-center p-2"#>
                 <ul class=r#"flex gap-4 items-center p-0 m-0 list-none"#>
-                    <Transition fallback=move || view! { <p>"Loading..."</p> }>
+                    <Transition fallback=move || view! { <Spinner /> }>
                         <Show when=move || user.get().is_some()>
                             <li class=r#"flex gap-2 items-center"#>
                                 <a

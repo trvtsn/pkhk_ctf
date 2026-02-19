@@ -3616,7 +3616,27 @@ cfg_if! {
                 )
                     .fetch_all(executor)
                     .await {
-                        Ok(hint) => Ok(hint),
+                        Ok(hints) => Ok(hints),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_all_from_challenge(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, hint, challenge_id, points_penalty
+                    FROM hints
+                    WHERE challenge_id = ?
+                    ",
+                    challenge_id
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(hints) => Ok(hints),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

@@ -1,4 +1,4 @@
-use crate::server::{admin::{get_proxmox_conf, test_proxmox, update_proxmox}, db::{enums::ProxmoxAuthType, structs::ProxmoxArgs}, enums::ResultStatus, structs::ApiResult};
+use crate::{components::utils::Spinner, server::{admin::{get_proxmox_conf, test_proxmox, update_proxmox}, db::{enums::ProxmoxAuthType, structs::ProxmoxArgs}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local};
 
 /// Default Home Page
@@ -59,7 +59,7 @@ pub fn Proxmox() -> impl IntoView {
 
     view! {
         <Suspense fallback=move || {
-            view! { <div>"Loading..."</div> }
+            view! { <Spinner /> }
         }>
             {move || {
                 let proxmox_args = proxmox_resource.get();

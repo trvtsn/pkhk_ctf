@@ -171,6 +171,7 @@ cfg_if! {
                             Err(e) => return Err(e.into())
                         };
 
+                        #[allow(unused)]
                         let mut settings = LdapConnSettings::default();
                         if let Some(cert) = ldap_args.certificate_blob {
                             let cert = native_tls::Certificate::from_pem(&cert)?;

@@ -1,4 +1,4 @@
-use crate::server::structs::{LeaderboardData, PivotRow};
+use crate::{components::utils::Spinner, server::structs::{LeaderboardData, PivotRow}};
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
 use leptos_chartistry::*;
@@ -22,7 +22,7 @@ pub fn LeaderboardChart(
 
     view! {
         <Transition fallback=move || {
-            view! { <p>"Loading..."</p> }
+            view! { <Spinner /> }
         }>
             {move || {
                 let event_name = event_name.get();

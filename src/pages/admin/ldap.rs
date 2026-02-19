@@ -1,4 +1,4 @@
-use crate::{components::utils::HidePasswordButton, server::{admin::{disable_ldap, enable_ldap, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::utils::{HidePasswordButton, Spinner}, server::{admin::{disable_ldap, enable_ldap, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
 
 /// Default Home Page
@@ -71,7 +71,7 @@ pub fn Ldap() -> impl IntoView {
 
     view! {
         <Transition fallback=move || {
-            view! { <div>"Loading..."</div> }
+            view! { <Spinner /> }
         }>
             {move || {
                 if let Some(ldap_args) = ldap_resource.get() {

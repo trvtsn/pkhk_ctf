@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, pages::admin::challenges::Hint, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -174,21 +174,56 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
                     
                     if let Some(hints) = hints {
-                        match DbHint::delete_all_from_challenge(&id.clone(), &mut *tx).await {
-                            Ok(_) => {},
+                        let all_challenge_hint_ids = match DbHint::get_all_from_challenge(&id, &mut *tx).await {
+                            Ok(all_hints) => all_hints.iter().map(|h| h.id.clone()).collect::<Vec<String>>(),
                             Err(e) => {
                                 tx.rollback().await?;
                                 tracing::error!(error = ?e);
                                 return Err(AppError::InternalError(e.to_string()));
                             }
-                        }
+                        };
+                        
+                        let new_hints_ids = hints.clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
                         for hint in hints.clone() {
-                            match DbHint::add(&hint.hint, &id, &hint.points_penalty, &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    return Err(AppError::InternalError(e.to_string()));
+                            if !hint.hint.is_empty() && !all_challenge_hint_ids.contains(&hint.id) {
+                                match DbHint::add(&hint.hint, &id, &hint.points_penalty, &mut *tx).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
+                                }
+                            } else if !hint.hint.is_empty() && all_challenge_hint_ids.contains(&hint.id) {
+                                match DbHint::edit(&hint.id, &hint.hint, &id, &hint.points_penalty, &mut *tx).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
+                                }
+                            } else if hint.hint.is_empty() && hint.points_penalty == 0 && all_challenge_hint_ids.contains(&hint.id) {
+                                match DbHint::delete(&hint.id, &mut *tx).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
+                                }
+                            }
+                        }
+
+                        for existing_hint_id in all_challenge_hint_ids {
+                            if !new_hints_ids.contains(&existing_hint_id) {
+                                match DbHint::delete(&existing_hint_id, &mut *tx).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
                                 }
                             }
                         }
@@ -955,6 +990,7 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppE
                 return Err(AppError::InternalError("LDAP is disabled".to_string()));
             }
 
+            #[allow(unused)]
             let mut settings = LdapConnSettings::default();
             if let Some(cert) = args.certificate_blob {
                 let cert = native_tls::Certificate::from_pem(&cert)?;
@@ -1018,6 +1054,7 @@ pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, Ap
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
             
+            #[allow(unused)]
             let mut settings = LdapConnSettings::default();
             if let Some(cert) = args.certificate_blob {
                 let cert = native_tls::Certificate::from_pem(&cert)?;

@@ -42,7 +42,7 @@ pub fn Challenge(
     let illustration_edit = RwSignal::new(None);
     let visible_to_groups_edit = RwSignal::new(visible_to_groups);
     let proxmox_vm_id_edit = RwSignal::new(vm_ids);
-    let hints_edit = RwSignal::new(vec![]);
+    let hints_edit = RwSignal::new(vec![Hint::new("1".to_string(), "")]);
 
     let next_hint_id = RwSignal::new(1_usize);
     let category_add_new_selected = RwSignal::new(false);
@@ -367,16 +367,16 @@ pub fn Challenge(
                     {move || {
                         let challenge_id = id_signal.get();
                         let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<DbHint>>();
-                        hints_edit.set(hints.into_iter()
-                            .map(|h| crate::pages::admin::challenges::Hint {
-                                id: h.id,
-                                value: RwSignal::new(h.hint),
-                                points_penalty: RwSignal::new(Some(h.points_penalty))
-                            })
-                            .collect::<Vec<crate::pages::admin::challenges::Hint>>()
-                        );
-                        if hints_edit.get_untracked().is_empty() {
-                            hints_edit.set(vec![Hint::new(next_hint_id.get().to_string(), "")]);
+                        if !hints.is_empty() {
+                            hints_edit.set(
+                                hints.into_iter()
+                                    .map(|h| crate::pages::admin::challenges::Hint {
+                                        id: h.id,
+                                        value: RwSignal::new(h.hint),
+                                        points_penalty: RwSignal::new(Some(h.points_penalty))
+                                    })
+                                    .collect::<Vec<crate::pages::admin::challenges::Hint>>()
+                            );
                         }
 
                         view! {
@@ -414,7 +414,6 @@ pub fn Challenge(
                                                     hints_edit.update(|vec| {
                                                         next_hint_id.set(next_hint_id.get() + 1);
                                                         vec.push(Hint::new(next_hint_id.get().to_string(), ""));
-                                                        leptos::logging::log!("{vec:?}");
                                                     });
                                                 }
                                             >
@@ -430,7 +429,6 @@ pub fn Challenge(
 
                                                                 hints_edit.update(|vec| {
                                                                     vec.remove(remove_at);
-                                                                    leptos::logging::log!("{vec:?}");
                                                                 });
                                                             } 
                                                         >
