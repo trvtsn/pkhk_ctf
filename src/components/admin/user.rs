@@ -38,13 +38,12 @@ pub fn User(
         get_all_user_groups().await.unwrap_or_default()
     });
 
-    let avatar_upload_action = Action::new_local(|data: &FormData| {
-        upload_avatar(data.clone().into())
-    });
-
-    Effect::new(move |_| {
-        if let Some(Ok(api_result)) = avatar_upload_action.value().get() {
-            avatar_edit.set(Some(api_result.details.clone()));
+    let avatar_upload_action = Action::new_local(move |data: &FormData| {
+        let data = data.clone();
+        async move {
+            if let Ok(api_result) = upload_avatar(data.clone().into()).await {
+                avatar_edit.set(Some(api_result.details.clone()));
+            }
         }
     });
 

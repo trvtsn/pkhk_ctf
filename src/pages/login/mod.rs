@@ -18,6 +18,7 @@ pub fn Login() -> impl IntoView {
         move || login.version().get(),
         move |_user| async move {
             if let Ok(Some(user)) = get_user().await {
+                refresh_user.update(|r| r.iteration += 1);
                 Some(user)
             } else {
                 None
@@ -49,7 +50,6 @@ pub fn Login() -> impl IntoView {
         if let Some(Some(_)) = logged_in_user.get() {
             let nav = use_navigate();
             nav("/", Default::default());
-            refresh_user.update(|r| r.iteration += 1);
         }
     });
 

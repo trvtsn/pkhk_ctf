@@ -94,12 +94,22 @@ pub fn Challenges() -> impl IntoView {
         get_all_hints().await.unwrap_or_default()
     });
 
-    let file_upload_action = Action::new_local(|data: &FormData| {
-        upload_files(data.clone().into())
+    let file_upload_action = Action::new_local(move |data: &FormData| {
+        let data = data.clone();
+        async move {
+            if let Ok(api_result) = upload_files(data.clone().into()).await {
+                attachments.set(Some(api_result.details.clone()))
+            }
+        }
     });
 
-    let illustration_upload_action = Action::new_local(|data: &FormData| {
-        upload_illustration(data.clone().into())
+    let illustration_upload_action = Action::new_local(move |data: &FormData| {
+        let data = data.clone();
+        async move {
+            if let Ok(api_result) = upload_illustration(data.into()).await {
+                illustration.set(Some(api_result.details.clone()));
+            }
+        }
     });
 
     let UseEventSourceReturn { message, .. } = 
@@ -109,12 +119,6 @@ pub fn Challenges() -> impl IntoView {
         );
 
     Effect::new(move |_| {
-        if let Some(Ok(api_result)) = file_upload_action.value().get() {
-            attachments.set(Some(api_result.details.clone()));
-        } else if let Some(Ok(api_result)) = illustration_upload_action.value().get() {
-            illustration.set(Some(api_result.details.clone()));
-        }
-
         if let Some(msg) = message.get() {
             match serde_json::from_str::<AdminEventPayloadKind>(&msg.data) {
                 Ok(AdminEventPayloadKind::ChallengeEdited)  => refresh.update(|n| *n += 1),
@@ -427,7 +431,6 @@ pub fn Challenges() -> impl IntoView {
                                             let vec = vec.get_or_insert_with(Vec::new);
                                             next_hint_id.set(next_hint_id.get() + 1);
                                             vec.push(Hint::new(next_hint_id.get().to_string(), ""));
-                                            leptos::logging::log!("{vec:?}");
                                         });
                                     }
                                 >
@@ -444,7 +447,6 @@ pub fn Challenges() -> impl IntoView {
                                                     hints.update(|vec| {
                                                         let vec = vec.get_or_insert_with(Vec::new);
                                                         vec.remove(remove_at);
-                                                        leptos::logging::log!("{vec:?}");
                                                     });
                                                 } 
                                             >

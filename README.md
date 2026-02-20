@@ -35,7 +35,7 @@ cargo leptos watch
 - [ ] Add LDAPS/ work in progress needs certs from DC2 
 - [x] Create CTF Realm to Proxmox
 - [x] Create competitor pools, permissions, accesses in Proxmox
-- [ ] Create Kali Linux Proxmox !!template!! (that means vm is already preconfigured)
+- [x] Create Kali Linux Proxmox !!template!! (that means vm is already preconfigured)
 - [x] Create script to automate clone & start process in Proxmox
 - [x] Create option to attach mulitple VM-s to a challenge
 - [x] When user inputs STOP VM (in proxmox use HARD STOP + additional vm remove api call)

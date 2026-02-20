@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use crate::app::RefreshUser;
 use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize};
-use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint, HintsUsed};
+use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
 use crate::server::{add_vm_time, destroy_vm, get_hint, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
@@ -10,6 +8,7 @@ use icondata as i;
 use leptos::{prelude::*};
 use leptos_icons::Icon;
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
+use std::collections::HashMap;
 
 #[component]
 pub fn ChallengePopup(
@@ -20,8 +19,7 @@ pub fn ChallengePopup(
     all_templates: RwSignal<Vec<ProxmoxVMTemplate>>,
     hints: RwSignal<Vec<DbHintWithoutHint>>,
     user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
-    hints_used: RwSignal<Vec<HintsUsed>>,
-    hints_bought_signal: RwSignal<HashMap::<String, String>>,
+    hints_used: RwSignal<HashMap::<String, String>>,
     refresh_solved_challenges: RwSignal<i32>,
     refresh_user_vms: RwSignal<i32>
 ) -> impl IntoView {
@@ -66,7 +64,7 @@ pub fn ChallengePopup(
             incorrect.set(false);
         }, 2000.0);
 
-    let check_flag_action = Action::new(move |(flag, challenge, template_id): &(String, Challenge, u32)| {
+    let check_flag_action = Action::new_local(move |(flag, challenge, template_id): &(String, Challenge, u32)| {
         let start = start.clone();
         let stop = stop.clone();
         let flag = flag.clone();
@@ -149,8 +147,8 @@ pub fn ChallengePopup(
                             let challenge_id = cwa_popup.get().challenge.id;
                             let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<HintWithoutHint>>();
                             if !solved_challenges.get().contains(&cwa_popup.get().challenge.id) && !hints.is_empty() {
-                                let hints_used = hints_used.get();
-                                let used_hint_ids = hints_used.into_iter().map(|h| h.hint_id).collect::<Vec<String>>();
+                                let hints_used_value = hints_used.get();
+                                let used_hint_ids = hints_used_value.into_iter().map(|h| h.0).collect::<Vec<String>>();
                                 view! {
                                     <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
                                     <div class="grid gap-2">
@@ -158,25 +156,23 @@ pub fn ChallengePopup(
                                             each=move || hints.clone()
                                             key=|hint: &HintWithoutHint| hint.id.clone()
                                             children={move |index, hint| {
-                                                let get_hint_action = Action::new(move |(challenge_id, hint_id): &(String, String)| {
+                                                let get_hint_action = Action::new_local(move |(challenge_id, hint_id): &(String, String)| {
                                                     let challenge_id = challenge_id.clone();
                                                     let hint_id = hint_id.clone();
                                                     async move {
                                                         if let Ok(hint) = get_hint(challenge_id, hint_id).await {
-                                                            hints_bought_signal.update(|map| {map.insert(hint.id, hint.hint);});
+                                                            hints_used.update(|map| {map.insert(hint.id, hint.hint);});
                                                             refresh_user.update(|r| r.iteration += 1);
                                                         }
                                                     }
                                                 });
+
                                                 let hint_id = hint.id.clone();
                                                 if used_hint_ids.contains(&hint.id) {
-                                                    let challenge_id = challenge_id.clone();
-                                                    get_hint_action.dispatch((challenge_id, hint.id));
-
                                                     view! {
                                                         <div class="flex gap-2 items-center">
                                                             <label>{format!("Hint {}", index.get() + 1)}</label>
-                                                            <p>{move || hints_bought_signal.get().get(&hint_id).cloned().unwrap_or_default()}</p>
+                                                            <p>{move || hints_used.get().get(&hint_id).cloned().unwrap_or_default()}</p>
                                                         </div>
                                                     }.into_any()
                                                 } else {
@@ -214,7 +210,7 @@ pub fn ChallengePopup(
                         }}
                     </Transition>
 
-                    <div class="flex gap-2 items-center">
+                    <div class="flex gap-2 items-center pt-2">
                         <label
                             hidden=move || solved.get()
                             for="flag"
@@ -278,7 +274,7 @@ pub fn ChallengePopup(
                                             each=move || templates.clone()
                                             key=|template: &ProxmoxVMTemplate| template.id
                                             children=move |template| {
-                                                let start_vm_action = Action::new(move |(template_id, challenge): &(u32, Challenge)| {
+                                                let start_vm_action = Action::new_local(move |(template_id, challenge): &(u32, Challenge)| {
                                                     let template_id = template_id.clone();
                                                     let challenge = challenge.clone();
                                                     async move {
@@ -287,7 +283,7 @@ pub fn ChallengePopup(
                                                         }
                                                     }
                                                 });
-                                                let restart_vm_action = Action::new(move |template_id: &u32| {
+                                                let restart_vm_action = Action::new_local(move |template_id: &u32| {
                                                     let template_id = template_id.clone();
                                                     async move {
                                                         if let Ok(_) = restart_vm(template_id).await {
@@ -295,7 +291,7 @@ pub fn ChallengePopup(
                                                         }
                                                     }
                                                 });
-                                                let add_vm_time_action = Action::new(move |template_id: &u32| {
+                                                let add_vm_time_action = Action::new_local(move |template_id: &u32| {
                                                     let template_id = template_id.clone();
                                                     async move {
                                                         if let Ok(_) = add_vm_time(template_id).await {
@@ -303,7 +299,7 @@ pub fn ChallengePopup(
                                                         }
                                                     }
                                                 });
-                                                let destroy_vm_action = Action::new(move |template_id: &u32| {
+                                                let destroy_vm_action = Action::new_local(move |template_id: &u32| {
                                                     let template_id = template_id.clone();
                                                     async move {
                                                         if let Ok(_) = destroy_vm(template_id).await {

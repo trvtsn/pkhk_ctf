@@ -25,19 +25,21 @@ pub fn Events() -> impl IntoView {
         get_all_user_groups().await.unwrap_or_default()
     });
 
-    let file_upload_action = Action::new_local(|data: &FormData| {
-        upload_files(data.clone().into())
+    let file_upload_action = Action::new_local(move |data: &FormData| {
+        let data = data.clone();
+        async move {
+            if let Ok(api_result) = upload_files(data.clone().into()).await {
+                attachments.set(Some(api_result.details.clone()))
+            }
+        }
     });
 
-    let illustration_upload_action = Action::new_local(|data: &FormData| {
-        upload_illustration(data.clone().into())
-    });
-
-    Effect::new(move |_| {
-        if let Some(Ok(api_result)) = file_upload_action.value().get() {
-            attachments.set(Some(api_result.details.clone()));
-        } else if let Some(Ok(api_result)) = illustration_upload_action.value().get() {
-            illustration.set(Some(api_result.details.clone()));
+    let illustration_upload_action = Action::new_local(move |data: &FormData| {
+        let data = data.clone();
+        async move {
+            if let Ok(api_result) = upload_illustration(data.into()).await {
+                illustration.set(Some(api_result.details.clone()));
+            }
         }
     });
 

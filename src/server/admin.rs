@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, HintsUsed, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -130,6 +130,18 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
 
                     if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id.clone()), &mut *tx).await {
+                        tx.rollback().await?;
+                        tracing::error!(error = ?e);
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
+                    }
+
+                    if let Err(e) = HintsUsed::delete_all_from_challenge(&id, &mut *tx).await {
+                        tx.rollback().await?;
+                        tracing::error!(error = ?e);
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
+                    }
+
+                    if let Err(e) = DbHint::delete_all_from_challenge(&id, &mut *tx).await {
                         tx.rollback().await?;
                         tracing::error!(error = ?e);
                         return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });

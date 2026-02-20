@@ -84,7 +84,6 @@ pub fn DimmingOverlay(overlay_triggered: RwSignal<bool>) -> impl IntoView {
         view! {
             <div
                 class="absolute inset-0 bg-black/45 backdrop-blur-[1px] z-10"
-                aria-hidden=move || !overlay_triggered.get()
                 on:click=move |_| overlay_triggered.set(false)
             ></div>
         }.into_any()

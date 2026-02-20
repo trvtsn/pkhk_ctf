@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, utils::HidePasswordButton}, server::{Register, get_user, user_exists}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, utils::{ComponentSize, HidePasswordButton, Spinner}}, server::{Register, get_user, user_exists}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
@@ -18,6 +18,7 @@ pub fn Register() -> impl IntoView {
         move || register.version().get(),
         move |_user| async move {
             if let Ok(Some(user)) = get_user().await {
+                refresh_user.update(|r| r.iteration += 1);
                 Some(user)
             } else {
                 None
@@ -30,7 +31,7 @@ pub fn Register() -> impl IntoView {
         match name_taken.await {
             Ok(true) => "E-mail already in use.",
             Ok(false) => "",
-            Err(_) => ""
+            Err(_) => ""            
         }
     });
 
@@ -38,7 +39,6 @@ pub fn Register() -> impl IntoView {
         if let Some(Some(_)) = logged_in_user.get() {
             let nav = use_navigate();
             nav("/", Default::default());
-            refresh_user.update(|r| r.iteration += 1);
         }
     });
 
@@ -48,7 +48,9 @@ pub fn Register() -> impl IntoView {
             <h3 class=r#"text-4xl text-center"#>"Register"</h3>
             <ActionForm action=register>
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Email"</label>
-                <Transition fallback=|| view! { "..." }>{available_ui}</Transition>
+                <Transition fallback=|| view! { <Spinner component_size=ComponentSize::Medium /> }>
+                    {available_ui}
+                </Transition>
 
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
@@ -90,7 +92,7 @@ pub fn Register() -> impl IntoView {
                 <Transition fallback=|| {
                     view! { "..." }
                 }>
-                    {if password.get() != confirm_password.get() {
+                    {move || if password.get() != confirm_password.get() {
                         "Confirmation must match"
                     } else {
                         ""

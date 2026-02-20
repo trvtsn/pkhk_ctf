@@ -9,18 +9,17 @@ pub fn Files() -> impl IntoView {
         get_all_files().await.unwrap_or_default()
     });
 
-    let upload_action = Action::new_local(|data: &FormData| {
-        upload_files(data.clone().into())
+    let upload_action = Action::new_local(move |data: &FormData| {
+        let data = data.clone();
+        async move {
+            if let Ok(_) = upload_files(data.clone().into()).await {
+                refresh.update(|n| *n += 1);
+            }
+        }
     });
 
     let upload_action_text = Memo::new(move |_| {
         if upload_action.pending().get() { "Uploading..." } else { "" }
-    });
-
-    Effect::new(move |_| {
-        if let Some(Ok(_)) = upload_action.value().get() {
-            all_files.refetch();
-        }
     });
 
     view! {

@@ -3725,6 +3725,24 @@ cfg_if! {
                         }
                     }
             }
+
+            pub async fn delete_all_from_challenge(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    DELETE FROM hints_used
+                    WHERE challenge_id = ?
+                    ",
+                    challenge_id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
         }
     }
 }

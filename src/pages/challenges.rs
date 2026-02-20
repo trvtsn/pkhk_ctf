@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_used_hints, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_hint, get_used_hints, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -44,10 +44,19 @@ pub fn Challenges() -> impl IntoView {
         get_all_hints_without_hints().await.unwrap_or_default()
     });
 
-    let hints_bought_signal = RwSignal::new(HashMap::<String, String>::new());
-    let hints_used_signal = RwSignal::new(vec![]);
-    let hints_used_resource = Resource::new(move || hints_bought_signal.get(), move |_| async move { 
+    let hints_used_signal = RwSignal::new(HashMap::<String, String>::new());
+    let hints_used_resource = Resource::new(move || (), move |_| async move { 
         get_used_hints().await.unwrap_or_default() 
+    });
+    
+    let get_hint_action = Action::new(move |(challenge_id, hint_id): &(String, String)| {
+        let challenge_id = challenge_id.clone();
+        let hint_id = hint_id.clone();
+        async move {
+            if let Ok(hint) = get_hint(challenge_id, hint_id).await {
+                hints_used_signal.update(|map| {map.insert(hint.id, hint.hint);});
+            }
+        }
     });
 
     let UseEventSourceReturn { message, .. } = 
@@ -90,7 +99,9 @@ pub fn Challenges() -> impl IntoView {
                     hints_signal.set(hints);
 
                     let hints_used = hints_used_resource.get().unwrap_or_default();
-                    hints_used_signal.set(hints_used);
+                    for hint_used in hints_used {
+                        get_hint_action.dispatch((hint_used.challenge_id, hint_used.hint_id));
+                    }
 
                     let user_vms = user_vms_resource.get().unwrap_or_default();
                     user_vms_signal.set(user_vms);
@@ -147,7 +158,6 @@ pub fn Challenges() -> impl IntoView {
                                                     hints=hints_signal
                                                     user_vms=user_vms_signal
                                                     hints_used=hints_used_signal
-                                                    hints_bought_signal
                                                     refresh_solved_challenges
                                                     refresh_user_vms
                                                 />

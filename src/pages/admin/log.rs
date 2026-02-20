@@ -14,12 +14,6 @@ pub fn Log() -> impl IntoView {
             UseEventSourceOptions::default().immediate(true)
         );
 
-    // let UseEventSourceReturn { message, .. } = 
-    //     use_event_source_with_options::<String, FromToStringCodec>(
-    //         "/admin_sse".to_string(), 
-    //         UseEventSourceOptions::default().immediate(true)
-    //     );
-
     Effect::new(move |_| {
         if let Some(msg) = message.get() {
             let text = format!("[{}] {}\n", msg.event_type, msg.data);
