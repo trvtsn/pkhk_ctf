@@ -2,49 +2,37 @@ use std::collections::HashMap;
 
 use crate::app::RefreshUser;
 use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize};
-use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
-use crate::server::proxmox::{ProxmoxVMTemplate};
-use crate::server::{StartVM, add_vm_time, destroy_vm, get_hint, get_used_hints, get_user_vms, restart_vm, start_vm};
+use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint, HintsUsed};
+use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
+use crate::server::{add_vm_time, destroy_vm, get_hint, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
-use leptos::{prelude::*, task::spawn_local};
+use leptos::{prelude::*};
 use leptos_icons::Icon;
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 
 #[component]
 pub fn ChallengePopup(
+    cwa: ChallengeWithAttachments,
     cwa_popup: RwSignal<ChallengeWithAttachments>,
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
     all_templates: RwSignal<Vec<ProxmoxVMTemplate>>,
-    hints: RwSignal<Vec<DbHintWithoutHint>>
+    hints: RwSignal<Vec<DbHintWithoutHint>>,
+    user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
+    hints_used: RwSignal<Vec<HintsUsed>>,
+    hints_bought_signal: RwSignal<HashMap::<String, String>>,
+    refresh_solved_challenges: RwSignal<i32>,
+    refresh_user_vms: RwSignal<i32>
 ) -> impl IntoView {
     let description_signal = RwSignal::new(None);
     let flag_signal = RwSignal::new("".to_string());
-    let hints_bought_signal = RwSignal::new(HashMap::<String, String>::new());
-    let refresh = RwSignal::new(0);
-
-    let hints_used_resource = Resource::new(move || hints_bought_signal.get(), move |_| async move { 
-        get_used_hints().await.unwrap_or_default() 
-    });
-    let user_vms_resource = Resource::new(move || refresh.get(), move |_| async move { 
-        get_user_vms().await.unwrap_or_default()
-    });
 
     let incorrect = RwSignal::new(false);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     
     let solved = Memo::new(move |_| {
         if solved_challenges.get().contains(&cwa_popup.get().challenge.id) { true } else { false }
-    });
-
-    let card_classes = Memo::new(move |_| {
-        let base = "absolute inset-0 z-20 flex content-center items-center justify-center rounded-lg p-4";
-        if overlay_triggered.get() {
-            base.to_string()
-        } else {
-            format!("{base} hidden")
-        }
     });
 
     let button_classes = Memo::new(move |_| {
@@ -59,39 +47,6 @@ pub fn ChallengePopup(
                 "{base} {}",
                 "bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"
             )
-        }
-    });
-
-    let get_hint_action = Action::new(move |(challenge_id, hint_id): &(String, String)| {
-        let challenge_id = challenge_id.clone();
-        let hint_id = hint_id.clone();
-        async move {
-            get_hint(challenge_id, hint_id).await
-        }
-    });
-    let start_vm_action = Action::new(move |(template_id, challenge): &(u32, Challenge)| {
-        let template_id = template_id.clone();
-        let challenge = challenge.clone();
-        async move {
-            start_vm(template_id, challenge).await
-        }
-    });
-    let restart_vm_action = Action::new(move |template_id: &u32| {
-        let template_id = template_id.clone();
-        async move {
-            restart_vm(template_id).await
-        }
-    });
-    let add_vm_time_action = Action::new(move |template_id: &u32| {
-        let template_id = template_id.clone();
-        async move {
-            add_vm_time(template_id).await
-        }
-    });
-    let destroy_vm_action = Action::new(move |template_id: &u32| {
-        let template_id = template_id.clone();
-        async move {
-            destroy_vm(template_id).await
         }
     });
 
@@ -111,39 +66,40 @@ pub fn ChallengePopup(
             incorrect.set(false);
         }, 2000.0);
 
-    Effect::new(move |_| {
-        if let Some(Ok(ApiResult { .. })) = start_vm_action.value().get() {
-            refresh.update(|n| *n += 1);
-        }
-        if let Some(Ok(ApiResult { .. })) = restart_vm_action.value().get() {
-            refresh.update(|n| *n += 1);
-        }
-        if let Some(Ok(ApiResult { .. })) = add_vm_time_action.value().get() {
-            refresh.update(|n| *n += 1);
-        }
-        if let Some(Ok(ApiResult { .. })) = destroy_vm_action.value().get() {
-            refresh.update(|n| *n += 1);
-        }
-        if let Some(Ok(hint)) = get_hint_action.value().get() {
-            hints_bought_signal.update(|map| {map.insert(hint.id, hint.hint);});
-            refresh_user.update(|r| r.iteration += 1);
+    let check_flag_action = Action::new(move |(flag, challenge, template_id): &(String, Challenge, u32)| {
+        let start = start.clone();
+        let stop = stop.clone();
+        let flag = flag.clone();
+        let challenge = challenge.clone();
+        let template_id = template_id.clone();
+        async move {
+            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
+                if result == ResultStatus::Fail && details == "incorrect solution" {
+                    incorrect.set(true);
+                    stop();
+                    start(());
+                } else if result == ResultStatus::Success {
+                    _ = destroy_vm(template_id).await;
+                    refresh_user.update(|r| r.iteration += 1);
+                    refresh_solved_challenges.update(|r| *r += 1);
+                }
+            }
         }
     });
 
-    let result_view = move || if !overlay_triggered.get() {
-        "".into_any()
-    } else {
-        let start = start.clone();
-        let stop = stop.clone();
+    let result_view = move || if overlay_triggered.get() && cwa_popup.get().challenge == cwa.challenge {
         view! {
             <div
-                class=move || card_classes.get()
+                class="absolute inset-0 z-20 flex content-center items-center justify-center rounded-lg p-4"
             >
                 <div class="bg-card p-4 rounded-lg">
                     <div class="flex justify-end">
                         <button 
                             class="cursor-pointer"
-                            on:click=move |_| overlay_triggered.set(false)
+                            on:click=move |_| {
+                                overlay_triggered.set(false);
+                                cwa_popup.set(ChallengeWithAttachments::default());
+                            }
                         >
                             <Icon icon=i::LuX />
                         </button>
@@ -192,8 +148,8 @@ pub fn ChallengePopup(
                         {move || {
                             let challenge_id = cwa_popup.get().challenge.id;
                             let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<HintWithoutHint>>();
-                            if !solved.get() && !hints.is_empty() {
-                                let hints_used = hints_used_resource.get().unwrap_or_default();
+                            if !solved_challenges.get().contains(&cwa_popup.get().challenge.id) && !hints.is_empty() {
+                                let hints_used = hints_used.get();
                                 let used_hint_ids = hints_used.into_iter().map(|h| h.hint_id).collect::<Vec<String>>();
                                 view! {
                                     <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
@@ -202,6 +158,16 @@ pub fn ChallengePopup(
                                             each=move || hints.clone()
                                             key=|hint: &HintWithoutHint| hint.id.clone()
                                             children={move |index, hint| {
+                                                let get_hint_action = Action::new(move |(challenge_id, hint_id): &(String, String)| {
+                                                    let challenge_id = challenge_id.clone();
+                                                    let hint_id = hint_id.clone();
+                                                    async move {
+                                                        if let Ok(hint) = get_hint(challenge_id, hint_id).await {
+                                                            hints_bought_signal.update(|map| {map.insert(hint.id, hint.hint);});
+                                                            refresh_user.update(|r| r.iteration += 1);
+                                                        }
+                                                    }
+                                                });
                                                 let hint_id = hint.id.clone();
                                                 if used_hint_ids.contains(&hint.id) {
                                                     let challenge_id = challenge_id.clone();
@@ -257,34 +223,23 @@ pub fn ChallengePopup(
                         </label>
                         <input
                             hidden=move || solved.get()
-                            class=r#"m-1 bg-white rounded-sm"#
+                            class=r#"m-1 bg-white rounded-sm text-black"#
                             bind:value=flag_signal
                         />
                         <button
                             class=move || button_classes.get()
                             disabled=move || solved.get() || incorrect.get()
                             on:click=move |_| {
-                                let start = start.clone();
-                                let stop = stop.clone();
-                                let refresh_user = refresh_user;
                                 let flag = flag_signal.get();
                                 let challenge = cwa_popup.get().challenge;
-                                let challenge_vm_ids = challenge.clone().vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
-                                spawn_local(async move {
-                                    if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
-                                    {
-                                        if result == ResultStatus::Fail && details == "incorrect solution" {
-                                            incorrect.set(true);
-                                            stop();
-                                            start(());
-                                        } else if result == ResultStatus::Success {
-                                            for template_id in challenge_vm_ids {
-                                                _ = destroy_vm(template_id).await;
-                                            }
-                                            refresh_user.update(|r| r.iteration += 1);
-                                        }
+                                let user_vms = user_vms.get();
+                                let mut user_vm_id = 0_u32;
+                                for user_vm in user_vms {
+                                    if user_vm.challenge_id == challenge.id {
+                                        user_vm_id = user_vm.id;
                                     }
-                                });
+                                }
+                                check_flag_action.dispatch((flag, challenge, user_vm_id));
                             }
                         >
                             {move || submit_btn_text.get()}
@@ -307,7 +262,7 @@ pub fn ChallengePopup(
 
                     <Transition>
                         {move || {
-                            if !solved.get() {
+                            if !solved_challenges.get().contains(&cwa_popup.get().challenge.id) {
                                 let all_templates = all_templates.get();
                                 let challenge = cwa_popup.get().challenge;
                                 let challenge_vm_ids = challenge.clone().vm_ids;
@@ -322,92 +277,127 @@ pub fn ChallengePopup(
                                         <For
                                             each=move || templates.clone()
                                             key=|template: &ProxmoxVMTemplate| template.id
-                                            let(template)
-                                        >
-                                            <div class="flex gap-2 items-center">
-                                                <label>{template.name}</label>
-                                                <Show when=move || {
-                                                    let user_vms = user_vms_resource.get().unwrap_or_default();
-                                                    let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                                    !active_vm_origin_ids.contains(&template.id)
-                                                }>
-                                                    <button
-                                                        class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                        on:click=move |_| {
-                                                            let challenge = cwa_popup.get().challenge;
-                                                            start_vm_action.dispatch((template.id, challenge));
+                                            children=move |template| {
+                                                let start_vm_action = Action::new(move |(template_id, challenge): &(u32, Challenge)| {
+                                                    let template_id = template_id.clone();
+                                                    let challenge = challenge.clone();
+                                                    async move {
+                                                        if let Ok(_) = start_vm(template_id, challenge).await {
+                                                            refresh_user_vms.update(|n| *n += 1);
                                                         }
-                                                    >
-                                                        {move || {
-                                                            if start_vm_action.pending().get() {
-                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                            } else {
-                                                                "Start VM".into_any()
-                                                            }
-                                                        }}
-                                                    </button>
-                                                </Show>
+                                                    }
+                                                });
+                                                let restart_vm_action = Action::new(move |template_id: &u32| {
+                                                    let template_id = template_id.clone();
+                                                    async move {
+                                                        if let Ok(_) = restart_vm(template_id).await {
+                                                            refresh_user_vms.update(|n| *n += 1);
+                                                        }
+                                                    }
+                                                });
+                                                let add_vm_time_action = Action::new(move |template_id: &u32| {
+                                                    let template_id = template_id.clone();
+                                                    async move {
+                                                        if let Ok(_) = add_vm_time(template_id).await {
+                                                            refresh_user_vms.update(|n| *n += 1);
+                                                        }
+                                                    }
+                                                });
+                                                let destroy_vm_action = Action::new(move |template_id: &u32| {
+                                                    let template_id = template_id.clone();
+                                                    async move {
+                                                        if let Ok(_) = destroy_vm(template_id).await {
+                                                            refresh_user_vms.update(|n| *n += 1);
+                                                        }
+                                                    }
+                                                });
+                                                view! {
+                                                    <div class="flex gap-2 items-center">
+                                                        <label>{template.name}</label>
+                                                        <Show when=move || {
+                                                            let user_vms = user_vms.get();
+                                                            let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
+                                                            !active_vm_origin_ids.contains(&template.id)
+                                                        }>
+                                                            <button
+                                                                class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                on:click=move |_| {
+                                                                    let challenge = cwa_popup.get().challenge;
+                                                                    start_vm_action.dispatch((template.id, challenge));
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if start_vm_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Start VM".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
+                                                        </Show>
 
-                                                <Show when=move || {
-                                                    let user_vms = user_vms_resource.get().unwrap_or_default();
-                                                    let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                                    active_vm_origin_ids.contains(&template.id)
-                                                }>
-                                                    <button
-                                                        class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                        on:click=move |_| {
-                                                            restart_vm_action.dispatch(template.id);
-                                                        }
-                                                    >
-                                                        {move || {
-                                                            if restart_vm_action.pending().get() {
-                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                            } else {
-                                                                "Restart VM".into_any()
-                                                            }
-                                                        }}
-                                                    </button>
+                                                        <Show when=move || {
+                                                            let user_vms = user_vms.get();
+                                                            let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
+                                                            active_vm_origin_ids.contains(&template.id)
+                                                        }>
+                                                            <button
+                                                                class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                on:click=move |_| {
+                                                                    restart_vm_action.dispatch(template.id);
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if restart_vm_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Restart VM".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
 
-                                                    <button
-                                                        class=r#"col-start-3 col-end-3 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                        on:click=move |_| {
-                                                            add_vm_time_action.dispatch(template.id);
-                                                        }
-                                                    >
-                                                        {move || {
-                                                            if add_vm_time_action.pending().get() {
-                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                            } else {
-                                                                "Add Time (+30 min)".into_any()
-                                                            }
-                                                        }}
-                                                    </button>
+                                                            <button
+                                                                class=r#"col-start-3 col-end-3 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                on:click=move |_| {
+                                                                    add_vm_time_action.dispatch(template.id);
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if add_vm_time_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Add Time (+30 min)".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
 
-                                                    <button
-                                                        class=r#"col-start-4 col-end-4 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                        on:click=move |_| {
-                                                            destroy_vm_action.dispatch(template.id);
-                                                        }
-                                                    >
-                                                        {move || {
-                                                            if destroy_vm_action.pending().get() {
-                                                                view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                            } else {
-                                                                "Destroy VM".into_any()
-                                                            }
-                                                        }}
-                                                    </button>
-                                                </Show>
-                                            </div>
-                                        </For>
+                                                            <button
+                                                                class=r#"col-start-4 col-end-4 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                on:click=move |_| {
+                                                                    destroy_vm_action.dispatch(template.id);
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if destroy_vm_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Destroy VM".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
+                                                        </Show>
+                                                    </div>
+                                                }
+                                            }
+                                        />
                                     </div>
                                 }.into_any()
                             } else {
@@ -418,6 +408,8 @@ pub fn ChallengePopup(
                 </div>
             </div>
         }.into_any()
+    } else {
+        "".into_any()
     };
 
     view! {

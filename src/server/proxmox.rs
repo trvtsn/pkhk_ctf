@@ -190,10 +190,6 @@ pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> R
         vmid: Option<u32>,
         status: Option<String>
     }
-    #[derive(Serialize, Deserialize)]
-    struct Config {
-        description: Option<String>
-    }
 
     let base_url = proxmox_args.base_url.trim_end_matches("/");
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");

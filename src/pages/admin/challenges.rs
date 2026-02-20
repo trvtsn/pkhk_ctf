@@ -559,7 +559,7 @@ pub fn Challenges() -> impl IntoView {
 
         <div class=r#"challenges pt-4"#>
             <Transition fallback=move || {
-                view! { <Spinner component_size=ComponentSize::Small /> }
+                view! { <Spinner component_size=ComponentSize::Big /> }
             }>
                 {move || {
                     let hints = hints_resource.get().unwrap_or_default();

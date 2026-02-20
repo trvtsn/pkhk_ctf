@@ -1,13 +1,12 @@
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
-use crate::server::db::structs::ChallengeWithAttachments;
+use crate::server::db::structs::{Challenge, ChallengeWithAttachments};
 use crate::server::proxmox::ProxmoxVMInstance;
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, destroy_vm, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
-use leptos::{prelude::*, task::spawn_local};
+use leptos::prelude::*;
 use leptos_icons::Icon;
 use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
-// use thaw::*;
 
 #[component]
 pub fn Challenge(
@@ -15,7 +14,8 @@ pub fn Challenge(
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
     cwa_popup: RwSignal<ChallengeWithAttachments>,
-    user_vms: RwSignal<Vec<ProxmoxVMInstance>>
+    user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
+    refresh_solved_challenges: RwSignal<i32>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments, illustration } = cwa.clone();
     let challenge_signal = RwSignal::new(challenge.clone());
@@ -60,6 +60,27 @@ pub fn Challenge(
             // runs after the delay on the client
             incorrect.set(false);
         }, 2000.0);
+
+    let check_flag_action = Action::new(move |(flag, challenge, template_id): &(String, Challenge, u32)| {
+        let start = start.clone();
+        let stop = stop.clone();
+        let flag = flag.clone();
+        let challenge = challenge.clone();
+        let template_id = template_id.clone();
+        async move {
+            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
+                if result == ResultStatus::Fail && details == "incorrect solution" {
+                    incorrect.set(true);
+                    stop();
+                    start(());
+                } else if result == ResultStatus::Success {
+                    _ = destroy_vm(template_id).await;
+                    refresh_user.update(|r| r.iteration += 1);
+                    refresh_solved_challenges.update(|r| *r += 1);
+                }
+            }
+        }
+    });
 
     view! {
         <div
@@ -118,39 +139,23 @@ pub fn Challenge(
                 </label>
                 <input
                     hidden=move || solved.get()
-                    class=r#"m-1 bg-white rounded-sm"#
+                    class=r#"m-1 bg-white rounded-sm text-black"#
                     bind:value=flag_signal
                 />
                 <button
                     class=move || button_classes.get()
                     disabled=move || solved.get() || incorrect.get()
                     on:click=move |_| {
-                        let start = start.clone();
-                        let stop = stop.clone();
-                        let refresh_user = refresh_user;
                         let flag = flag_signal.get();
                         let challenge = challenge_signal.get();
                         let user_vms = user_vms.get();
-                        spawn_local(async move {
-                            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge.clone()).await
-                            {
-                                if result == ResultStatus::Fail && details == "incorrect solution" {
-                                    incorrect.set(true);
-                                    stop();
-                                    start(());
-                                } else if result == ResultStatus::Success {
-                                    solved.set(true);
-                                    let mut user_vm_id = 0_u32;
-                                    for user_vm in user_vms {
-                                        if user_vm.challenge_id == challenge.id {
-                                            user_vm_id = user_vm.id;
-                                        }
-                                    }
-                                    _ = destroy_vm(user_vm_id).await;
-                                    refresh_user.update(|r| r.iteration += 1);
-                                }
+                        let mut user_vm_id = 0_u32;
+                        for user_vm in user_vms {
+                            if user_vm.challenge_id == challenge.id {
+                                user_vm_id = user_vm.id;
                             }
-                        });
+                        }
+                        check_flag_action.dispatch((flag, challenge, user_vm_id));
                     }
                 >
                     {move || submit_btn_text.get()}

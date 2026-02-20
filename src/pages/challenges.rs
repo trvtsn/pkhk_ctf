@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{DimmingOverlay, Spinner, ComponentSize}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_used_hints, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -12,7 +12,10 @@ pub fn Challenges() -> impl IntoView {
     let cwa_popup = RwSignal::new(ChallengeWithAttachments::default());
     let overlay_triggered = RwSignal::new(false);
     let refresh = RwSignal::new(0);
+    let refresh_solved_challenges = RwSignal::new(0);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
+    let refresh_user_vms = RwSignal::new(0);
+
     let challenges_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_challenges_with_attachments().await.unwrap_or_default()
     });
@@ -22,23 +25,29 @@ pub fn Challenges() -> impl IntoView {
     });
 
     let user_vms_signal = RwSignal::new(Vec::<ProxmoxVMInstance>::default());
-    let user_vms_resource = Resource::new(move || refresh.get(), move |_| async move { 
+    let user_vms_resource = Resource::new(move || refresh_user_vms.get(), move |_| async move { 
         get_user_vms().await.unwrap_or_default()
     });
 
     let solved_challenge_ids = RwSignal::new(Vec::<String>::default());
-    let solved_challenges_resource = Resource::new(move || (), move |_| async move {
+    let solved_challenges_resource = Resource::new(move || refresh_solved_challenges.get(), move |_| async move {
         get_user_solved_challenges().await.unwrap_or_default()
     });
 
     let all_templates_signal = RwSignal::<Vec<ProxmoxVMTemplate>>::new(vec![]);
-    let all_templates_resource = Resource::new(move || (), move |_| async move {
+    let all_templates_resource = Resource::new(move || refresh_user_vms.get(), move |_| async move {
         get_all_templates().await.unwrap_or_default()
     });
 
     let hints_signal = RwSignal::new(vec![]);
     let hints_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_hints_without_hints().await.unwrap_or_default()
+    });
+
+    let hints_bought_signal = RwSignal::new(HashMap::<String, String>::new());
+    let hints_used_signal = RwSignal::new(vec![]);
+    let hints_used_resource = Resource::new(move || hints_bought_signal.get(), move |_| async move { 
+        get_used_hints().await.unwrap_or_default() 
     });
 
     let UseEventSourceReturn { message, .. } = 
@@ -79,6 +88,12 @@ pub fn Challenges() -> impl IntoView {
 
                     let hints = hints_resource.get().unwrap_or_default();
                     hints_signal.set(hints);
+
+                    let hints_used = hints_used_resource.get().unwrap_or_default();
+                    hints_used_signal.set(hints_used);
+
+                    let user_vms = user_vms_resource.get().unwrap_or_default();
+                    user_vms_signal.set(user_vms);
 
                     let mut map = HashMap::<
                         Option<String>,
@@ -124,11 +139,17 @@ pub fn Challenges() -> impl IntoView {
                                         children=move |challenge| {
                                             view! {
                                                 <ChallengePopup 
+                                                    cwa=challenge.clone()
                                                     cwa_popup
                                                     solved_challenges=solved_challenge_ids 
                                                     overlay_triggered 
                                                     all_templates=all_templates_signal
                                                     hints=hints_signal
+                                                    user_vms=user_vms_signal
+                                                    hints_used=hints_used_signal
+                                                    hints_bought_signal
+                                                    refresh_solved_challenges
+                                                    refresh_user_vms
                                                 />
                                                 <div class=r#"p-2 challenge"#>
                                                     <Challenge
@@ -137,6 +158,7 @@ pub fn Challenges() -> impl IntoView {
                                                         overlay_triggered
                                                         cwa_popup
                                                         user_vms=user_vms_signal
+                                                        refresh_solved_challenges
                                                     />
                                                 </div>
                                             }
