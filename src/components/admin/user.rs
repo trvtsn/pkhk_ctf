@@ -1,9 +1,11 @@
-use crate::{components::utils::HidePasswordButton, server::{admin::{get_all_user_groups, upload_avatar}, db::{enums::{UserIdentifier, UserRole}, structs::DbUser}, enums::ResultStatus, get_avatar_id, structs::ApiResult}};
+use crate::{components::utils::HidePasswordButton, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
 #[component]
 pub fn User(
     user: DbUser,
+    user_avatars: RwSignal<Vec<UserAvatar>>,
+    groups: RwSignal<Vec<String>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
     let group_add_new_selected = RwSignal::new(false);
@@ -29,15 +31,6 @@ pub fn User(
     let avatar_edit = RwSignal::new(None);
     let group_edit = RwSignal::new(user.group);
 
-    let user_avatar = Resource::new(move || refresh.get(), move |_| {
-        let id = id_signal.get();
-        async move { get_avatar_id(UserIdentifier::Id(id)).await.unwrap_or_default() }
-    });
-
-    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_user_groups().await.unwrap_or_default()
-    });
-
     let avatar_upload_action = Action::new_local(move |data: &FormData| {
         let data = data.clone();
         async move {
@@ -53,6 +46,17 @@ pub fn User(
     let new_password_hidden = RwSignal::new(true);
     let confirm_new_password_hidden = RwSignal::new(true);
 
+    let user_avatar_id = Memo::new(move |_| {
+        let user_id = id_signal.get();
+        let user_avatars = user_avatars.get();
+        let mut user_avatar_id = "".to_string();
+        for avatar in user_avatars {
+            if avatar.user_id.unwrap_or_default() == user_id {
+                user_avatar_id = avatar.attachment_id
+            }
+        }
+        user_avatar_id
+    });
     let delete_submit_btn_text = Memo::new(move |_| {
         if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
     });
@@ -69,18 +73,19 @@ pub fn User(
                 view! { <div>"Loading..."</div> }
             }>
                 {move || {
-                    if let Some(id) = user_avatar.get().unwrap_or_default() {
+                    let user_avatar_id = user_avatar_id.get();
+                    if user_avatar_id.is_empty() {
+                        "".into_any()
+                    } else {
                         view! {
                             <div class="h-48 w-48 flex justify-center m-auto">
                                 <img 
-                                    src=move || format!("/avatar/{}", id) 
+                                    src=move || format!("/avatar/{}", user_avatar_id) 
                                     class=r#"text-blue-600 underline rounded-[50%] 
                                     object-cover shadow-sm"#
                                 />
                             </div>
                         }.into_any()
-                    } else {
-                        "".into_any()
                     }
                 }}
             </Transition>
@@ -207,7 +212,7 @@ pub fn User(
                         view! { <div>"Loading..."</div> }
                     }>
                         {move || {
-                            let groups = groups_resource.get().unwrap_or_default();
+                            let groups = groups.get();
                             view! {
                                 <For
                                     each=move || groups.clone()

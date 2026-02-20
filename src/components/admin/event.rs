@@ -1,9 +1,13 @@
-use crate::{server::{admin::{get_all_user_groups, upload_files, upload_illustration}, db::{self, enums::AttachmentIdentifier}, enums::ResultStatus, get_illustration_id, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{server::{admin::{upload_files, upload_illustration}, db::{self, enums::AttachmentIdentifier}, enums::ResultStatus, get_illustration_id, structs::ApiResult}, utils::html_local_to_datetime};
 use chrono::DateTime;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
 
 #[component]
-pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView {
+pub fn Event(
+    event: db::structs::Event,
+    user_groups: RwSignal<Vec<String>>, 
+    refresh: RwSignal<i32>
+) -> impl IntoView {
     let id_signal = RwSignal::new(event.id.clone());
     let name_signal = RwSignal::new(event.name.clone());
     let description_signal = RwSignal::new(event.description.clone());
@@ -22,9 +26,6 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
     let illustration = Resource::new(move || refresh.get(), move |_| {
         let event_id = id_signal.get();
         async move { get_illustration_id(AttachmentIdentifier::EventId(event_id)).await.unwrap_or_default() }
-    });
-    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_user_groups().await.unwrap_or_default()
     });
 
     let file_upload_action = Action::new_local(move |data: &FormData| {
@@ -208,10 +209,10 @@ pub fn Event(event: db::structs::Event, refresh: RwSignal<i32>) -> impl IntoView
                         view! { <div>"Loading..."</div> }
                     }>
                         {move || {
-                            let groups = groups_resource.get().unwrap_or_default();
+                            let user_groups = user_groups.get();
                             view! {
                                 <For
-                                    each=move || groups.clone()
+                                    each=move || user_groups.clone()
                                     key=|group: &String| group.clone()
                                     let(group)
                                 >

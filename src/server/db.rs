@@ -4,6 +4,7 @@ use crate::server::db::structs::DbHint;
 use crate::server::db::structs::DbHintWithoutHint;
 use crate::server::db::structs::HintsUsed;
 use crate::server::db::structs::ProxmoxArgs;
+use crate::server::db::structs::UserAvatar;
 use crate::{constants, error_template::AppError, server::db::{enums::{AttachmentIdentifier, FileType, SubmissionIdentifier, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, DbUserWithoutPII, EventMetadata, LdapArgs}}};
 use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
@@ -297,6 +298,12 @@ pub mod structs {
         pub challenge_id: String,
         pub user_id: String,
         pub hint_id: String
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
+    pub struct UserAvatar {
+        pub user_id: Option<String>,
+        pub attachment_id: String
     }
 }
 
@@ -894,6 +901,30 @@ cfg_if! {
                             }
                     }
                 }
+            }
+
+            pub async fn get_all_avatar_ids(executor: impl MySqlExecutor<'_>) -> Result<Vec<UserAvatar>, sqlx::Error> {
+                match sqlx::query_as!(
+                    UserAvatar,
+                    "
+                    SELECT id AS attachment_id, user_id
+                    FROM attachments
+                    WHERE file_type = \"avatar\"
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(rows) => {
+                            let all_avatar_ids = rows.iter().map(|a| UserAvatar { 
+                                user_id: a.user_id.clone(), attachment_id: a.attachment_id.clone() }
+                            ).collect::<Vec<UserAvatar>>();
+                            Ok(all_avatar_ids)
+                        },
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
             }
 
             pub async fn get_ldap(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {

@@ -1,4 +1,4 @@
-use crate::{components::{admin::user::User, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::{admin::user::User, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
 /// Default Home Page
@@ -20,10 +20,16 @@ pub fn Users() -> impl IntoView {
     let avatar_signal = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     let group_signal = RwSignal::<String>::new("".to_string());
 
+    let avatars_signal = RwSignal::new(vec![]);
+    let avatars_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_user_avatar_ids().await.unwrap_or_default()
+    });
+
     let users_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_users().await.unwrap_or_default()
     });
 
+    let groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
     });
@@ -274,15 +280,30 @@ pub fn Users() -> impl IntoView {
         </div>
 
         <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Big /> }>
-            <div class=r#"grid grid-cols-4 gap-4 p-4 m-4 pt-4"#>
-                <For
-                    each=move || users_resource.get().unwrap_or_default()
-                    key=|user: &DbUser| user.id.clone()
-                    let(user)
-                >
-                    <User user refresh />
-                </For>
-            </div>
+            {move || {
+                let groups = groups_resource.get().unwrap_or_default();
+                groups_signal.set(groups);
+
+                let avatars = avatars_resource.get().unwrap_or_default();
+                avatars_signal.set(avatars);
+                view! {
+                    <div class=r#"grid grid-cols-4 gap-4 p-4 m-4 pt-4"#>
+                        <For
+                            each=move || users_resource.get().unwrap_or_default()
+                            key=|user: &DbUser| user.id.clone()
+                            let(user)
+                        >
+                            <User 
+                                user 
+                                user_avatars=avatars_signal
+                                groups=groups_signal
+                                refresh 
+                            />
+                        </For>
+                    </div>
+                }
+            }}
+
         </Transition>
     }
 }

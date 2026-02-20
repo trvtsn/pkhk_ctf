@@ -21,6 +21,7 @@ pub fn Events() -> impl IntoView {
     let events_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_events().await.unwrap_or_default()
     });
+    let groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
     });
@@ -147,6 +148,7 @@ pub fn Events() -> impl IntoView {
                     }>
                         {move || {
                             let groups = groups_resource.get().unwrap_or_default();
+                            groups_signal.set(groups.clone());
                             view! {
                                 <For
                                     each=move || groups.clone()
@@ -248,7 +250,11 @@ pub fn Events() -> impl IntoView {
                         let(event)
                     >
                         <div class=r#"p-2 event"#>
-                            <Event event refresh />
+                            <Event 
+                                event 
+                                user_groups=groups_signal
+                                refresh 
+                            />
                         </div>
                     </For>
                 </Transition>
