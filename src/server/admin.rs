@@ -161,7 +161,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
                 }
                 ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
-                    let flag_hash = hash_string(flag.clone())?;
+                    let mut flag_hash = "".to_string();
+                    if !flag.is_empty() {
+                        flag_hash = hash_string(flag.clone())?;
+                    }
                     let mut tx = pool.begin().await?;
                     match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
                         Ok(_) => {},

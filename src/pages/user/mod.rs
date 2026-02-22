@@ -61,15 +61,24 @@ pub fn User() -> impl IntoView {
                                         </p>
                                         <p>
                                             <b>"Group: "</b>
-                                            {user.group}
+                                            {
+                                                let user_group = user.group;
+                                                if user_group.clone().is_empty() {
+                                                    view! {
+                                                        <i>"None"</i>
+                                                    }.into_any()
+                                                } else {
+                                                    user_group.into_any()
+                                                }
+                                            }
                                         </p>
                                         <p>
                                             <b>"Date Joined: "</b>
-                                            {user.created_at.to_string()}
+                                            {user.created_at.format("%Y-%m-%d %H:%M:%S").to_string()}
                                         </p>
                                         <p>
                                             <b>"Last Active: "</b>
-                                            {user.last_active_at.to_string()}
+                                            {user.last_active_at.format("%Y-%m-%d %H:%M:%S").to_string()}
                                         </p>
                                     }.into_any()
                                 }

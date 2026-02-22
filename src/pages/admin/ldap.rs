@@ -116,62 +116,72 @@ pub fn Ldap() -> impl IntoView {
                                 </svg>
                             </div>
 
-                            <div class="grid gap-2 pt-2">
-                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"LDAP URL"</label>
-                                <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                    name="name"
-                                    value=move || ldap_url.get()
-                                    bind:value=ldap_url
-                                />
-
-                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind DN"</label>
-                                <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                    name="name"
-                                    value=move || bind_dn.get()
-                                    bind:value=bind_dn
-                                />
-
-                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind Password"</label>
-                                <div class="flex gap-2">
+                            <div class="grid gap-3 pt-4">
+                                <div class="grid">
+                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"LDAP URL"</label>
                                     <input
                                         class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                        type=move || if password_hidden.get() { "password" } else { "text" }
-                                        name="password"
-                                        value=move || bind_pw.get()
-                                        bind:value=bind_pw
+                                        name="name"
+                                        value=move || ldap_url.get()
+                                        bind:value=ldap_url
                                     />
-                                    <HidePasswordButton hidden=password_hidden />
                                 </div>
 
-                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base DN"</label>
-                                <input
-                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                    name="name"
-                                    value=move || base_dn.get()
-                                    bind:value=base_dn
-                                />
+                                <div class="grid">
+                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind DN"</label>
+                                    <input
+                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                        name="name"
+                                        value=move || bind_dn.get()
+                                        bind:value=bind_dn
+                                    />
+                                </div>
 
-                                <label class=r#"block mb-1 text-sm font-medium"#>"Certificate (Optional)"</label>
-                                <input
-                                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                                    type="file"
-                                    name="certificate"
-                                    on:change=move |ev: Event| {
-                                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                        if let Some(files) = input.files() && files.length() > 0 {
-                                            let file = files.get(0).unwrap();
-                                            let fd = FormData::new().unwrap();
-                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                            cert_upload_action.dispatch_local(fd);
+                                <div class="grid">
+                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Bind Password"</label>
+                                    <div class="flex gap-2">
+                                        <input
+                                            class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                            type=move || if password_hidden.get() { "password" } else { "text" }
+                                            name="password"
+                                            value=move || bind_pw.get()
+                                            bind:value=bind_pw
+                                        />
+                                        <HidePasswordButton hidden=password_hidden />
+                                    </div>
+                                </div>
+
+                                <div class="grid">
+                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base DN"</label>
+                                    <input
+                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                        name="name"
+                                        value=move || base_dn.get()
+                                        bind:value=base_dn
+                                    />
+                                </div>
+
+                                <div class="grid">
+                                    <label class=r#"block mb-1 text-sm font-medium"#>"Certificate (Optional)"</label>
+                                    <input
+                                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                        type="file"
+                                        name="certificate"
+                                        on:change=move |ev: Event| {
+                                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                            if let Some(files) = input.files() && files.length() > 0 {
+                                                let file = files.get(0).unwrap();
+                                                let fd = FormData::new().unwrap();
+                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                cert_upload_action.dispatch_local(fd);
+                                            }
                                         }
-                                    }
-                                /><p>{move || uploading_cert_text.get()}</p>
+                                    /><p>{move || uploading_cert_text.get()}</p>
+                                </div>
 
                                 <div class=r#"flex gap-3 mt-2 pt-2"#>
                                     <button

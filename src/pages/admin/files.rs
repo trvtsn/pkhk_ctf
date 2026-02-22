@@ -27,7 +27,9 @@ pub fn Files() -> impl IntoView {
             ev.prevent_default();
             let target = ev.target().unwrap().unchecked_into::<HtmlFormElement>();
             let form_data = FormData::new_with_form(&target).unwrap();
-            upload_action.dispatch_local(form_data);
+            if !form_data.is_null() {
+                upload_action.dispatch_local(form_data);
+            }
         }>
             <input class=r#"p-3 bg-background rounded-lg shadow-sm"# type="file" name="files" multiple />
             <input
@@ -39,7 +41,7 @@ pub fn Files() -> impl IntoView {
             />
         </form>
         <p>{move || upload_action_text.get()}</p>
-        <div class=r#"grid grid-cols-4 m-2 files"#>
+        <div class=r#"grid grid-cols-4 m-2 files items-start"#>
             <For
                 each=move || all_files.get().clone().unwrap_or_default()
                 key=|file: &db::structs::AttachmentWithoutBlob| file.id.clone()

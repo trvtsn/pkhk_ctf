@@ -106,7 +106,7 @@ pub fn Challenge(
     });
 
     view! {
-        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text"#>
+        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get() && !deleted.get()>
                 <Transition fallback=move || {
                     view! { <div>"Loading..."</div> }
@@ -145,396 +145,429 @@ pub fn Challenge(
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Visible To Groups: "</b>
-                    {visible_to_groups_signal.get().replace(",", ", ")}
+                    {
+                        let visible_to_groups = visible_to_groups_signal.get().replace(",", ", ");
+                        if visible_to_groups.clone().is_empty() {
+                            view! {
+                                <i>"None"</i>
+                            }.into_any()
+                        } else {
+                            visible_to_groups.into_any()
+                        }
+                    }
                 </p>
                 <br />
             </Show>
 
             <Show when=move || editing.get()>
-                <label class=r#"block mb-1 text-sm font-medium"#>"Event"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="event_id"
-                    bind:value=event_id_edit
-                >
-                    <option value="">"-- Select Event --"</option>
-                    <For
-                        each=move || events.get()
-                        key=|e: &crate::server::db::structs::Event| e.id.clone()
-                        let(e: crate::server::db::structs::Event)
-                    >
-                        <option value=e
-                            .id
-                            .clone()>{e.name.clone()} " (ID: " {e.id.clone()} ")"</option>
-                    </For>
-                </select>
+                <div class="grid gap-3">
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Event"</label>
+                        <select
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="event_id"
+                            bind:value=event_id_edit
+                        >
+                            <option value="">"-- Select Event --"</option>
+                            <For
+                                each=move || events.get()
+                                key=|e: &crate::server::db::structs::Event| e.id.clone()
+                                let(e: crate::server::db::structs::Event)
+                            >
+                                <option value=e
+                                    .id
+                                    .clone()>{e.name.clone()} " (ID: " {e.id.clone()} ")"</option>
+                            </For>
+                        </select>
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="name"
-                    value=move || name_signal.get()
-                    bind:value=name_edit
-                />
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="name"
+                            value=move || name_signal.get()
+                            bind:value=name_edit
+                        />
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="description"
-                    value=move || description_signal.get().unwrap_or_default()
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        description_edit.set(Some(value));
-                    }
-                />
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="description"
+                            value=move || description_signal.get().unwrap_or_default()
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                description_edit.set(Some(value));
+                            }
+                        />
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Category"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="category"
-                    on:change=move |ev: Event| {
-                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                        let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                        let new_input = doc
-                            .get_element_by_id("action_create_category_input")
-                            .unwrap()
-                            .unchecked_into::<HtmlInputElement>();
-                        if sel.value() == "__new__" {
-                            let _ = sel.remove_attribute("name");
-                            let _ = new_input.set_attribute("name", "category");
-                            category_add_new_selected.set(true);
-                        } else {
-                            let _ = sel.set_attribute("name", "category");
-                            let _ = new_input.remove_attribute("name");
-                            category_add_new_selected.set(false);
-                        }
-                        category_edit.set(Some(sel.value()));
-                    }
-                >
-                    <option value="">"-- Select Category --"</option>
-                    <For
-                        each=move || categories.get()
-                        key=|category: &String| category.clone()
-                        let(category)
-                    >
-                        <option value=category.clone()>{category.clone()}</option>
-                    </For>
-                    <option value="__new__">"-- Add New --"</option>
-                </select>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    hidden=move || !category_add_new_selected.get()
-                    type="text"
-                    id="action_create_category_input"
-                    value=""
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        category_edit.set(Some(value));
-                    }
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"Difficulty"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type="number"
-                    name="difficulty"
-                    min=0
-                    max=5
-                    value=move || difficulty_signal.get()
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        difficulty_edit.set(value.parse::<i8>().unwrap_or_default());
-                    }
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"Points"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type="number"
-                    name="points"
-                    value=move || points_signal.get()
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        points_edit.set(value.parse::<u32>().unwrap_or_default());
-                    }
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"Flag"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="flag"
-                    bind:value=flag_edit
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="visible_to_groups"
-                    multiple=true
-                    on:change=move |ev: Event| {
-                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                        let selected = sel.selected_options();
-                        let mut picked: Vec<String> = Vec::new();
-
-                        for i in 0..selected.length() {
-                            if let Some(item) = selected.item(i) {
-                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                    picked.push(opt.value());
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Category"</label>
+                        <select
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="category"
+                            on:change=move |ev: Event| {
+                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let doc = leptos::web_sys::window().unwrap().document().unwrap();
+                                let new_input = doc
+                                    .get_element_by_id("action_create_category_input")
+                                    .unwrap()
+                                    .unchecked_into::<HtmlInputElement>();
+                                if sel.value() == "__new__" {
+                                    let _ = sel.remove_attribute("name");
+                                    let _ = new_input.set_attribute("name", "category");
+                                    category_add_new_selected.set(true);
+                                } else {
+                                    let _ = sel.set_attribute("name", "category");
+                                    let _ = new_input.remove_attribute("name");
+                                    category_add_new_selected.set(false);
                                 }
+                                category_edit.set(Some(sel.value()));
                             }
-                        }
-
-                        visible_to_groups_edit.set(picked.join(","));
-                    }
-                >
-                    <option value="all">"All"</option>
-                    <Suspense fallback=move || {
-                        view! { <div>"Loading..."</div> }
-                    }>
-                        {move || {
-                            let groups = groups_resource.get().unwrap_or_default();
-                            view! {
-                                <For
-                                    each=move || groups.clone()
-                                    key=|group: &String| group.clone()
-                                    let(group)
-                                >
-                                    <option value={group.clone()}>{group.clone()}</option>
-                                </For>
+                        >
+                            <option value="">"-- Select Category --"</option>
+                            <For
+                                each=move || categories.get()
+                                key=|category: &String| category.clone()
+                                let(category)
+                            >
+                                <option value=category.clone()>{category.clone()}</option>
+                            </For>
+                            <option value="__new__">"-- Add New --"</option>
+                        </select>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            hidden=move || !category_add_new_selected.get()
+                            type="text"
+                            id="action_create_category_input"
+                            value=""
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                category_edit.set(Some(value));
                             }
-                        }}
-                    </Suspense>
-                </select>
+                        />
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Proxmox VM IDs (Optional)"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="vm_ids"
-                    multiple=true
-                    on:change=move |ev: Event| {
-                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                        let selected = sel.selected_options();
-                        let mut picked: Vec<String> = Vec::new();
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Difficulty"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            type="number"
+                            name="difficulty"
+                            min=0
+                            max=5
+                            value=move || difficulty_signal.get()
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                difficulty_edit.set(value.parse::<i8>().unwrap_or_default());
+                            }
+                        />
+                    </div>
 
-                        for i in 0..selected.length() {
-                            if let Some(item) = selected.item(i) {
-                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                    picked.push(opt.value());
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Points"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            type="number"
+                            name="points"
+                            value=move || points_signal.get()
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                points_edit.set(value.parse::<u32>().unwrap_or_default());
+                            }
+                        />
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Flag"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="flag"
+                            bind:value=flag_edit
+                        />
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
+                        <select
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="visible_to_groups"
+                            multiple=true
+                            on:change=move |ev: Event| {
+                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let selected = sel.selected_options();
+                                let mut picked: Vec<String> = Vec::new();
+
+                                for i in 0..selected.length() {
+                                    if let Some(item) = selected.item(i) {
+                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                            picked.push(opt.value());
+                                        }
+                                    }
                                 }
+
+                                visible_to_groups_edit.set(picked.join(","));
                             }
-                        }
-
-                        proxmox_vm_id_edit.set(Some(picked.join(",")));
-                    }
-                >
-                    <Suspense fallback=move || {
-                        view! { <div>"Loading..."</div> }
-                    }>
-                        {move || {
-                            let templates = templates.get();
-                            view! {
-                                <For
-                                    each=move || templates.clone()
-                                    key=|template: &ProxmoxVMTemplate| template.id
-                                    let(template)
-                                >
-                                    <option value={template.id}>{format!("{} (VM ID: {})", template.name, template.id)}</option>
-                                </For>
-                            }
-                        }}
-                    </Suspense>
-                </select>
-
-                <Transition>
-                    {move || {
-                        let challenge_id = id_signal.get();
-                        let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<DbHint>>();
-                        if !hints.is_empty() {
-                            hints_edit.set(
-                                hints.into_iter()
-                                    .map(|h| crate::pages::admin::challenges::Hint {
-                                        id: h.id,
-                                        value: RwSignal::new(h.hint),
-                                        points_penalty: RwSignal::new(Some(h.points_penalty))
-                                    })
-                                    .collect::<Vec<crate::pages::admin::challenges::Hint>>()
-                            );
-                        }
-
-                        view! {
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
-                            <ForEnumerate
-                                each=move || hints_edit.get()
-                                key=|hint: &Hint| hint.id.clone()
-                                children={move |index, hint| {
+                        >
+                            <option value="all">"All"</option>
+                            <Suspense fallback=move || {
+                                view! { <div>"Loading..."</div> }
+                            }>
+                                {move || {
+                                    let groups = groups_resource.get().unwrap_or_default();
                                     view! {
-                                        <div class="flex gap-2">
-                                            <input
-                                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                                name="hint"
-                                                prop:value=move || hint.value.get()
-                                                on:input=move |ev| {
-                                                    let value = event_target_value(&ev);
-                                                    hint.value.set(value);
-                                                }
-                                            />
-                                            <input
-                                                class="w-1/2"
-                                                type="number"
-                                                min=0
-                                                prop:value=move || hint.points_penalty.get()
-                                                on:input=move |ev| {
-                                                    let value = event_target_value(&ev);
-                                                    hint.points_penalty.set(Some(value.parse::<u32>().unwrap_or_default()));
-                                                }
-                                                placeholder="0"
-                                            />
+                                        <For
+                                            each=move || groups.clone()
+                                            key=|group: &String| group.clone()
+                                            let(group)
+                                        >
+                                            <option value={group.clone()}>{group.clone()}</option>
+                                        </For>
+                                    }
+                                }}
+                            </Suspense>
+                        </select>
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Proxmox VM IDs (Optional)"</label>
+                        <select
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="vm_ids"
+                            multiple=true
+                            on:change=move |ev: Event| {
+                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let selected = sel.selected_options();
+                                let mut picked: Vec<String> = Vec::new();
+
+                                for i in 0..selected.length() {
+                                    if let Some(item) = selected.item(i) {
+                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                            picked.push(opt.value());
+                                        }
+                                    }
+                                }
+
+                                proxmox_vm_id_edit.set(Some(picked.join(",")));
+                            }
+                        >
+                            <Suspense fallback=move || {
+                                view! { <div>"Loading..."</div> }
+                            }>
+                                {move || {
+                                    let templates = templates.get();
+                                    view! {
+                                        <For
+                                            each=move || templates.clone()
+                                            key=|template: &ProxmoxVMTemplate| template.id
+                                            let(template)
+                                        >
+                                            <option value={template.id}>{format!("{} (VM ID: {})", template.name, template.id)}</option>
+                                        </For>
+                                    }
+                                }}
+                            </Suspense>
+                        </select>
+                    </div>
+
+                    <div class="grid">
+                        <Transition>
+                            {move || {
+                                let challenge_id = id_signal.get();
+                                let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<DbHint>>();
+                                if !hints.is_empty() {
+                                    hints_edit.set(
+                                        hints.into_iter()
+                                            .map(|h| crate::pages::admin::challenges::Hint {
+                                                id: h.id,
+                                                value: RwSignal::new(h.hint),
+                                                points_penalty: RwSignal::new(Some(h.points_penalty))
+                                            })
+                                            .collect::<Vec<crate::pages::admin::challenges::Hint>>()
+                                    );
+                                }
+
+                                view! {
+                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
+                                    <ForEnumerate
+                                        each=move || hints_edit.get()
+                                        key=|hint: &Hint| hint.id.clone()
+                                        children={move |index, hint| {
+                                            view! {
+                                                <div class="flex gap-2">
+                                                    <input
+                                                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                                        name="hint"
+                                                        prop:value=move || hint.value.get()
+                                                        on:input=move |ev| {
+                                                            let value = event_target_value(&ev);
+                                                            hint.value.set(value);
+                                                        }
+                                                    />
+                                                    <input
+                                                        class="w-1/2"
+                                                        type="number"
+                                                        min=0
+                                                        prop:value=move || hint.points_penalty.get()
+                                                        on:input=move |ev| {
+                                                            let value = event_target_value(&ev);
+                                                            hint.points_penalty.set(Some(value.parse::<u32>().unwrap_or_default()));
+                                                        }
+                                                        placeholder="0"
+                                                    />
+                                                    <button 
+                                                        class="cursor-pointer"
+                                                        on:click=move |_| {
+                                                            hints_edit.update(|vec| {
+                                                                next_hint_id.set(next_hint_id.get() + 1);
+                                                                vec.push(Hint::new(next_hint_id.get().to_string(), ""));
+                                                            });
+                                                        }
+                                                    >
+                                                        <Icon icon=i::LuPlus />
+                                                    </button>
+                                                    {
+                                                        if index.get() != 0 {
+                                                            view! {
+                                                                <button 
+                                                                    class="cursor-pointer"
+                                                                    on:click=move |_| {
+                                                                        let remove_at = index.get();
+
+                                                                        hints_edit.update(|vec| {
+                                                                            vec.remove(remove_at);
+                                                                        });
+                                                                    } 
+                                                                >
+                                                                    <Icon icon=i::LuX />
+                                                                </button>
+                                                            }.into_any()
+                                                        } else {
+                                                            "".into_any()
+                                                        }
+                                                    }
+                                                </div>
+                                            }
+                                        }}
+                                    />
+                                }
+                            }}
+                        </Transition>
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Attachments"</label>
+                        <div class="grid gap-2">
+                            <ForEnumerate
+                                each=move || attachments_edit.get().clone()
+                                key=|a: &AttachmentWithoutBlob| a.id.clone()
+                                children={move |index, a| {
+                                    view! {  
+                                        <div class="flex gap-2 items-center">
+                                            {a.file_name.clone()}
+                                            <a
+                                                download
+                                                href=move || format!("/file/{}", a.id.clone())
+                                            >
+                                                <Icon icon=i::LuDownload />
+                                            </a>
                                             <button 
                                                 class="cursor-pointer"
                                                 on:click=move |_| {
-                                                    hints_edit.update(|vec| {
-                                                        next_hint_id.set(next_hint_id.get() + 1);
-                                                        vec.push(Hint::new(next_hint_id.get().to_string(), ""));
-                                                    });
-                                                }
-                                            >
-                                                <Icon icon=i::LuPlus />
-                                            </button>
-                                            {
-                                                if index.get() != 0 {
-                                                    view! {
-                                                        <button 
-                                                            class="cursor-pointer"
-                                                            on:click=move |_| {
-                                                                let remove_at = index.get();
+                                                    let remove_at = index.get();
 
-                                                                hints_edit.update(|vec| {
-                                                                    vec.remove(remove_at);
-                                                                });
-                                                            } 
-                                                        >
-                                                            <Icon icon=i::LuX />
-                                                        </button>
-                                                    }.into_any()
-                                                } else {
-                                                    "".into_any()
-                                                }
-                                            }
+                                                    attachments_edit.update(|a| {
+                                                        a.remove(remove_at);
+                                                    });
+                                                } 
+                                            >
+                                                <Icon icon=i::LuX />
+                                            </button>
                                         </div>
                                     }
                                 }}
                             />
-                        }
-                    }}
-                </Transition>
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"Attachments"</label>
-                <div class="grid gap-2">
-                    <ForEnumerate
-                        each=move || attachments_edit.get().clone()
-                        key=|a: &AttachmentWithoutBlob| a.id.clone()
-                        children={move |index, a| {
-                            view! {  
-                                <div class="flex gap-2 items-center">
-                                    {a.file_name.clone()}
-                                    <a
-                                        download
-                                        href=move || format!("/file/{}", a.id.clone())
-                                        //class=r#"text-blue-600 underline"#
-                                    >
-                                        <Icon icon=i::LuDownload />
-                                    </a>
-                                    <button 
-                                        class="cursor-pointer"
-                                        on:click=move |_| {
-                                            let remove_at = index.get();
-
-                                            attachments_edit.update(|a| {
-                                                a.remove(remove_at);
-                                            });
-                                        } 
-                                    >
-                                        <Icon icon=i::LuX />
-                                    </button>
-                                </div>
-                            }
-                        }}
-                    />
-                    <div class="flex gap-2">
-                        <input
-                            class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                            type="file"
-                            name="attachment"
-                            multiple
-                            on:change=move |ev: Event| {
-                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                if let Some(files) = input.files() && files.length() > 0 {
-                                    let file = files.get(0).unwrap();
-                                    let fd = FormData::new().unwrap();
-                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                    file_upload_action.dispatch_local(fd);
-                                }
-                            }
-                        /><p>{move || uploading_file_text.get()}</p>
+                            <div class="flex gap-2">
+                                <input
+                                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                    type="file"
+                                    name="attachment"
+                                    multiple
+                                    on:change=move |ev: Event| {
+                                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                        if let Some(files) = input.files() && files.length() > 0 {
+                                            let file = files.get(0).unwrap();
+                                            let fd = FormData::new().unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            file_upload_action.dispatch_local(fd);
+                                        }
+                                    }
+                                /><p>{move || uploading_file_text.get()}</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
-                <div class="grid gap-2">
-                    <Transition>
-                        {move || {
-                            let illustration = illustration_edit.get();
-                            if let Some(illustration) = illustration {
-                                view! {
-                                    <div class="flex gap-2 items-center">
-                                        {move || illustration.file_name.clone()}
-                                        <a
-                                            download
-                                            href=move || format!("/file/{}", illustration.id.clone())
-                                            //class=r#"text-blue-600 underline"#
-                                        >
-                                            <Icon icon=i::LuDownload />
-                                        </a>
-                                        <button 
-                                            class="cursor-pointer"
-                                            on:click=move |_| {
-                                                illustration_edit.set(None);
-                                            } 
-                                        >
-                                            <Icon icon=i::LuX />
-                                        </button>
-                                    </div>
-                                }.into_any()
-                            } else {
-                                "".into_any()
-                            }
-                        }}
-                    </Transition>
-                    <input
-                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                        type="file"
-                        name="illustration"
-                        on:change=move |ev: Event| {
-                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                            if let Some(files) = input.files() && files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                illustration_upload_action.dispatch_local(fd);
-                            }
-                        }
-                    /><p>{move || uploading_illustration_text.get()}</p>
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
+                        <div class="grid gap-2">
+                            <Transition>
+                                {move || {
+                                    let illustration = illustration_edit.get();
+                                    if let Some(illustration) = illustration {
+                                        view! {
+                                            <div class="flex gap-2 items-center">
+                                                {move || illustration.file_name.clone()}
+                                                <a
+                                                    download
+                                                    href=move || format!("/file/{}", illustration.id.clone())
+                                                >
+                                                    <Icon icon=i::LuDownload />
+                                                </a>
+                                                <button 
+                                                    class="cursor-pointer"
+                                                    on:click=move |_| {
+                                                        illustration_edit.set(None);
+                                                    } 
+                                                >
+                                                    <Icon icon=i::LuX />
+                                                </button>
+                                            </div>
+                                        }.into_any()
+                                    } else {
+                                        "".into_any()
+                                    }
+                                }}
+                            </Transition>
+                            <input
+                                class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                type="file"
+                                name="illustration"
+                                on:change=move |ev: Event| {
+                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                    if let Some(files) = input.files() && files.length() > 0 {
+                                        let file = files.get(0).unwrap();
+                                        let fd = FormData::new().unwrap();
+                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                        illustration_upload_action.dispatch_local(fd);
+                                    }
+                                }
+                            /><p>{move || uploading_illustration_text.get()}</p>
+                        </div>
+                    </div>
                 </div>
             </Show>
 

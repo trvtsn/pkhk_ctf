@@ -81,7 +81,7 @@ pub fn Event(
     });
 
     view! {
-        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text"#>
+        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get()>
                 <Transition fallback=move || {
                     view! { <div>"Loading..."</div> }
@@ -128,203 +128,217 @@ pub fn Event(
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Start Date: "</b>
-                    {move || start_at_signal.get().to_string()}
+                    {move || start_at_signal.get().format("%Y-%m-%d %H:%M:%S").to_string()}
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"End Date: "</b>
-                    {move || end_at_signal.get().to_string()}
+                    {move || end_at_signal.get().format("%Y-%m-%d %H:%M:%S").to_string()}
                 </p>
             </Show>
 
             <Show when=move || editing.get()>
-                <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="name"
-                    value=move || name_signal.get()
-                    bind:value=name_edit
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="description"
-                    value=move || description_signal.get()
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        description_edit.set(Some(value));
-                    }
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"Start Date"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type="datetime-local"
-                    name="start_at"
-                    value=move || start_at_signal.get().to_string()
-                    on:change=move |ev: Event| {
-                        let value_string = event_target_value(&ev);
-                        let value = DateTime::from_event(&ev)
-                            .unwrap_or(html_local_to_datetime(value_string));
-                        start_at_edit.set(value);
-                    }
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"End Date"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type="datetime-local"
-                    name="end_at"
-                    value=move || end_at_signal.get().to_string()
-                    on:change=move |ev: Event| {
-                        let value_string = event_target_value(&ev);
-                        let value = DateTime::from_event(&ev)
-                            .unwrap_or(html_local_to_datetime(value_string));
-                        end_at_edit.set(value);
-                    }
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="visible_to_groups"
-                    multiple=true
-                    on:change=move |ev: Event| {
-                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                        let selected = sel.selected_options();
-                        let mut picked: Vec<String> = Vec::new();
-
-                        for i in 0..selected.length() {
-                            if let Some(item) = selected.item(i) {
-                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                    picked.push(opt.value());
-                                }
-                            }
-                        }
-
-                        visible_to_groups_edit.set(picked.join(","));
-                    }
-                >
-                    <option value="all">"All"</option>
-                    <Suspense fallback=move || {
-                        view! { <div>"Loading..."</div> }
-                    }>
-                        {move || {
-                            let user_groups = user_groups.get();
-                            view! {
-                                <For
-                                    each=move || user_groups.clone()
-                                    key=|group: &String| group.clone()
-                                    let(group)
-                                >
-                                    <option value={group.clone()}>{group.clone()}</option>
-                                </For>
-                            }
-                        }}
-                    </Suspense>
-                </select>
-
-                <label class=r#"block mb-1 text-sm font-medium"#>"Attachments"</label>
-                <div class="grid gap-2">
-                    <ForEnumerate
-                        each=move || attachments_edit.get()
-                        key=|a: &AttachmentWithoutBlob| a.id.clone()
-                        children={move |index, a| {
-                            view! {  
-                                <div class="flex gap-2 items-center">
-                                    {a.file_name.clone()}
-                                    <a
-                                        download
-                                        href=move || format!("/file/{}", a.id.clone())
-                                        //class=r#"text-blue-600 underline"#
-                                    >
-                                        <Icon icon=i::LuDownload />
-                                    </a>
-                                    <button 
-                                        class="cursor-pointer"
-                                        on:click=move |_| {
-                                            let remove_at = index.get();
-
-                                            attachments_edit.update(|a| {
-                                                a.remove(remove_at);
-                                            });
-                                        } 
-                                    >
-                                        <Icon icon=i::LuX />
-                                    </button>
-                                </div>
-                            }
-                        }}
-                    />
-                    <div class="flex gap-2">
+                <div class="grid gap-3">
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
                         <input
-                            class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                            type="file"
-                            name="attachment"
-                            multiple
-                            on:change=move |ev: Event| {
-                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                if let Some(files) = input.files() && files.length() > 0 {
-                                    let file = files.get(0).unwrap();
-                                    let fd = FormData::new().unwrap();
-                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                    file_upload_action.dispatch_local(fd);
-                                }
-                            }
-                        /><p>{move || uploading_file_text.get()}</p>
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="name"
+                            value=move || name_signal.get()
+                            bind:value=name_edit
+                        />
                     </div>
-                </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
-                <div class="grid gap-2">
-                    <Transition>
-                        {move || {
-                            let illustration = illustration_edit.get();
-                            if let Some(illustration) = illustration {
-                                view! {
-                                    <div class="flex gap-2 items-center">
-                                        {move || illustration.file_name.clone()}
-                                        <a
-                                            download
-                                            href=move || format!("/file/{}", illustration.id.clone())
-                                            // class=r#"text-blue-600 underline"#
-                                        >
-                                            <Icon icon=i::LuDownload />
-                                        </a>
-                                        <button 
-                                            class="cursor-pointer"
-                                            on:click=move |_| {
-                                                illustration_edit.set(None);
-                                            } 
-                                        >
-                                            <Icon icon=i::LuX />
-                                        </button>
-                                    </div>
-                                }.into_any()
-                            } else {
-                                "".into_any()
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="description"
+                            value=move || description_signal.get()
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                description_edit.set(Some(value));
                             }
-                        }}
-                    </Transition>
-                    <input
-                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                        type="file"
-                        name="illustration"
-                        on:change=move |ev: Event| {
-                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                            if let Some(files) = input.files() && files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                illustration_upload_action.dispatch_local(fd);
+                        />
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Start Date"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            type="datetime-local"
+                            name="start_at"
+                            value=move || start_at_signal.get().to_string()
+                            on:change=move |ev: Event| {
+                                let value_string = event_target_value(&ev);
+                                let value = DateTime::from_event(&ev)
+                                    .unwrap_or(html_local_to_datetime(value_string));
+                                start_at_edit.set(value);
                             }
-                        }
-                    /><p>{move || uploading_illustration_text.get()}</p>
+                        />
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"End Date"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            type="datetime-local"
+                            name="end_at"
+                            value=move || end_at_signal.get().to_string()
+                            on:change=move |ev: Event| {
+                                let value_string = event_target_value(&ev);
+                                let value = DateTime::from_event(&ev)
+                                    .unwrap_or(html_local_to_datetime(value_string));
+                                end_at_edit.set(value);
+                            }
+                        />
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
+                        <select
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="visible_to_groups"
+                            multiple=true
+                            on:change=move |ev: Event| {
+                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let selected = sel.selected_options();
+                                let mut picked: Vec<String> = Vec::new();
+
+                                for i in 0..selected.length() {
+                                    if let Some(item) = selected.item(i) {
+                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                            picked.push(opt.value());
+                                        }
+                                    }
+                                }
+
+                                visible_to_groups_edit.set(picked.join(","));
+                            }
+                        >
+                            <option value="all">"All"</option>
+                            <Suspense fallback=move || {
+                                view! { <div>"Loading..."</div> }
+                            }>
+                                {move || {
+                                    let user_groups = user_groups.get();
+                                    view! {
+                                        <For
+                                            each=move || user_groups.clone()
+                                            key=|group: &String| group.clone()
+                                            let(group)
+                                        >
+                                            <option value={group.clone()}>{group.clone()}</option>
+                                        </For>
+                                    }
+                                }}
+                            </Suspense>
+                        </select>
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Attachments"</label>
+                        <div class="grid gap-2">
+                            <ForEnumerate
+                                each=move || attachments_edit.get()
+                                key=|a: &AttachmentWithoutBlob| a.id.clone()
+                                children={move |index, a| {
+                                    view! {  
+                                        <div class="flex gap-2 items-center">
+                                            {a.file_name.clone()}
+                                            <a
+                                                download
+                                                href=move || format!("/file/{}", a.id.clone())
+                                            >
+                                                <Icon icon=i::LuDownload />
+                                            </a>
+                                            <button 
+                                                class="cursor-pointer"
+                                                on:click=move |_| {
+                                                    let remove_at = index.get();
+
+                                                    attachments_edit.update(|a| {
+                                                        a.remove(remove_at);
+                                                    });
+                                                } 
+                                            >
+                                                <Icon icon=i::LuX />
+                                            </button>
+                                        </div>
+                                    }
+                                }}
+                            />
+                            <div class="flex gap-2">
+                                <input
+                                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                    type="file"
+                                    name="attachment"
+                                    multiple
+                                    on:change=move |ev: Event| {
+                                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                        if let Some(files) = input.files() && files.length() > 0 {
+                                            let file = files.get(0).unwrap();
+                                            let fd = FormData::new().unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            file_upload_action.dispatch_local(fd);
+                                        }
+                                    }
+                                /><p>{move || uploading_file_text.get()}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
+                        <div class="grid gap-2">
+                            <Transition>
+                                {move || {
+                                    let illustration = illustration_edit.get();
+                                    if let Some(illustration) = illustration {
+                                        view! {
+                                            <div class="flex gap-2 items-center">
+                                                {move || illustration.file_name.clone()}
+                                                <a
+                                                    download
+                                                    href=move || format!("/file/{}", illustration.id.clone())
+                                                >
+                                                    <Icon icon=i::LuDownload />
+                                                </a>
+                                                <button 
+                                                    class="cursor-pointer"
+                                                    on:click=move |_| {
+                                                        illustration_edit.set(None);
+                                                    } 
+                                                >
+                                                    <Icon icon=i::LuX />
+                                                </button>
+                                            </div>
+                                        }.into_any()
+                                    } else {
+                                        "".into_any()
+                                    }
+                                }}
+                            </Transition>
+                            <input
+                                class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                type="file"
+                                name="illustration"
+                                on:change=move |ev: Event| {
+                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                    if let Some(files) = input.files() && files.length() > 0 {
+                                        let file = files.get(0).unwrap();
+                                        let fd = FormData::new().unwrap();
+                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                        illustration_upload_action.dispatch_local(fd);
+                                    }
+                                }
+                            /><p>{move || uploading_illustration_text.get()}</p>
+                        </div>
+                    </div>
                 </div>
             </Show>
 

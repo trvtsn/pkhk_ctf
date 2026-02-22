@@ -64,7 +64,7 @@ pub fn User(
     });
     
     view! {
-        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text"#>
+        <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
             }>
@@ -106,11 +106,11 @@ pub fn User(
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Created: "</b>
-                    {move || created_signal.get().to_string()}
+                    {move || created_signal.get().format("%Y-%m-%d %H:%M:%S").to_string()}
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Last active: "</b>
-                    {move || last_active_signal.get().to_string()}
+                    {move || last_active_signal.get().format("%Y-%m-%d %H:%M:%S").to_string()}
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Group: "</b>
@@ -119,166 +119,180 @@ pub fn User(
             </Show>
 
             <Show when=move || editing.get()>
-                <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="username"
-                    value=move || username_signal.get()
-                    bind:value=username_edit
-                />
+                <div class="grid gap-3">
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Name"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="username"
+                            value=move || username_signal.get()
+                            bind:value=username_edit
+                        />
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"E-mail"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="email"
-                    value=move || email_signal.get()
-                    bind:value=email_edit
-                />
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"E-mail"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="email"
+                            value=move || email_signal.get()
+                            bind:value=email_edit
+                        />
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Points"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="points"
-                    type="number"
-                    value=move || points_signal.get()
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        points_edit.set(value.parse::<u32>().unwrap_or_default());
-                    }
-                />
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Points"</label>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="points"
+                            type="number"
+                            value=move || points_signal.get()
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                points_edit.set(value.parse::<u32>().unwrap_or_default());
+                            }
+                        />
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Role"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="event_id"
-                    bind:value=role_edit
-                >
-                    <option value="">"-- Select Role --"</option>
-                    <For
-                        each=move || roles_signal.get()
-                        key=|r: &UserRole| r.to_string()
-                        let(role: UserRole)
-                    >
-                        <option value=role.to_string()>{role.to_string()}</option>
-                    </For>
-                </select>
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Role"</label>
+                        <select
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="event_id"
+                            bind:value=role_edit
+                        >
+                            <option value="">"-- Select Role --"</option>
+                            <For
+                                each=move || roles_signal.get()
+                                key=|r: &UserRole| r.to_string()
+                                let(role: UserRole)
+                            >
+                                <option value=role.to_string()>{role.to_string()}</option>
+                            </For>
+                        </select>
+                    </div>
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Group"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="group"
-                    multiple=true
-                    on:change=move |ev: Event| {
-                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                        let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                        let new_input = doc
-                            .get_element_by_id("action_create_group_input")
-                            .unwrap()
-                            .unchecked_into::<HtmlInputElement>();
-                        if sel.value() == "__new__" {
-                            let _ = sel.remove_attribute("name");
-                            let _ = new_input.set_attribute("name", "group");
-                            group_add_new_selected.set(true);
-                        } else {
-                            let _ = sel.set_attribute("name", "group");
-                            let _ = new_input.remove_attribute("name");
-                            group_add_new_selected.set(false);
-                        }
-
-                        let selected = sel.selected_options();
-                        let mut picked: Vec<String> = Vec::new();
-
-                        for i in 0..selected.length() {
-                            if let Some(item) = selected.item(i) {
-                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                    picked.push(opt.value());
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"Group"</label>
+                        <select
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            name="group"
+                            multiple=true
+                            on:change=move |ev: Event| {
+                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let doc = leptos::web_sys::window().unwrap().document().unwrap();
+                                let new_input = doc
+                                    .get_element_by_id("action_create_group_input")
+                                    .unwrap()
+                                    .unchecked_into::<HtmlInputElement>();
+                                if sel.value() == "__new__" {
+                                    let _ = sel.remove_attribute("name");
+                                    let _ = new_input.set_attribute("name", "group");
+                                    group_add_new_selected.set(true);
+                                } else {
+                                    let _ = sel.set_attribute("name", "group");
+                                    let _ = new_input.remove_attribute("name");
+                                    group_add_new_selected.set(false);
                                 }
-                            }
-                        }
 
-                        group_edit.set(picked.join(","));
-                    }
-                >
-                    <option value="__new__">"-- Add New --"</option>
-                    <Suspense fallback=move || {
-                        view! { <div>"Loading..."</div> }
-                    }>
-                        {move || {
-                            let groups = groups.get();
-                            view! {
-                                <For
-                                    each=move || groups.clone()
-                                    key=|group: &String| group.clone()
-                                    let(group)
-                                >
-                                    <option value={group.clone()}>{group.clone()}</option>
-                                </For>
-                            }
-                        }}
-                    </Suspense>
-                </select>
-                <input
-                    class=r#"bg-background py-2 px-3 mt-2 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    hidden=move || !group_add_new_selected.get()
-                    type="text"
-                    id="action_create_group_input"
-                    value=""
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        group_edit.set(value);
-                    }
-                />
+                                let selected = sel.selected_options();
+                                let mut picked: Vec<String> = Vec::new();
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Avatar"</label>
-                <div class="grid gap-2">
-                    <Transition>
-                        {move || {
-                            let user_avatar = avatar_edit.get();
-                            if let Some(user_avatar) = user_avatar {
-                                view! {
-                                    <div class="flex gap-2 items-center">
-                                        {move || user_avatar.file_name.clone()}
-                                        <a
-                                            download
-                                            href=move || format!("/file/{}", user_avatar.attachment_id.clone())
-                                        >
-                                            <Icon icon=i::LuDownload />
-                                        </a>
-                                        <button 
-                                            class="cursor-pointer"
-                                            on:click=move |_| {
-                                                avatar_edit.set(None);
-                                            } 
-                                        >
-                                            <Icon icon=i::LuX />
-                                        </button>
-                                    </div>
-                                }.into_any()
-                            } else {
-                                "".into_any()
+                                for i in 0..selected.length() {
+                                    if let Some(item) = selected.item(i) {
+                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                            picked.push(opt.value());
+                                        }
+                                    }
+                                }
+
+                                group_edit.set(picked.join(","));
                             }
-                        }}
-                    </Transition>
-                    <input
-                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                        type="file"
-                        name="avatar"
-                        on:change=move |ev: Event| {
-                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                            if let Some(files) = input.files() && files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                avatar_upload_action.dispatch_local(fd);
+                        >
+                            <option value="__new__">"-- Add New --"</option>
+                            <Suspense fallback=move || {
+                                view! { <div>"Loading..."</div> }
+                            }>
+                                {move || {
+                                    let groups = groups.get();
+                                    view! {
+                                        <For
+                                            each=move || groups.clone()
+                                            key=|group: &String| group.clone()
+                                            let(group)
+                                        >
+                                            <option value={group.clone()}>{group.clone()}</option>
+                                        </For>
+                                    }
+                                }}
+                            </Suspense>
+                        </select>
+                        <input
+                            class=r#"bg-background py-2 px-3 mt-2 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            hidden=move || !group_add_new_selected.get()
+                            type="text"
+                            id="action_create_group_input"
+                            value=""
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                group_edit.set(value);
                             }
-                        }
-                    />
+                        />
+                    </div>
+
+                    <div class="grid">
+                        <label class=r#"block mb-1 text-sm font-medium"#>"Avatar"</label>
+                        <div class="grid gap-2">
+                            <Transition>
+                                {move || {
+                                    let user_avatar = avatar_edit.get();
+                                    if let Some(user_avatar) = user_avatar {
+                                        view! {
+                                            <div class="flex gap-2 items-center">
+                                                {move || user_avatar.file_name.clone()}
+                                                <a
+                                                    download
+                                                    href=move || format!("/file/{}", user_avatar.attachment_id.clone())
+                                                >
+                                                    <Icon icon=i::LuDownload />
+                                                </a>
+                                                <button 
+                                                    class="cursor-pointer"
+                                                    on:click=move |_| {
+                                                        avatar_edit.set(None);
+                                                    } 
+                                                >
+                                                    <Icon icon=i::LuX />
+                                                </button>
+                                            </div>
+                                        }.into_any()
+                                    } else {
+                                        "".into_any()
+                                    }
+                                }}
+                            </Transition>
+                            <input
+                                class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                type="file"
+                                name="avatar"
+                                on:change=move |ev: Event| {
+                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                    if let Some(files) = input.files() && files.length() > 0 {
+                                        let file = files.get(0).unwrap();
+                                        let fd = FormData::new().unwrap();
+                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                        avatar_upload_action.dispatch_local(fd);
+                                    }
+                                }
+                            />
+                        </div>
+                    </div>
                 </div>
             </Show>
 

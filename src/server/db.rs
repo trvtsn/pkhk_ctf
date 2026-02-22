@@ -1286,32 +1286,60 @@ cfg_if! {
                 vm_ids: &Option<String>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
-                    "
-                    UPDATE challenges
-                    SET
-                    event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?, visible_to_groups = ?, vm_ids = ?
-                    WHERE id = ?
-                    ", 
-                    event_id,
-                    name,
-                    description,
-                    category,
-                    difficulty,
-                    points,
-                    flag_hash,
-                    visible_to_groups,
-                    vm_ids,
-                    id
-                )
-                    .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
+                if flag_hash.is_empty() {
+                    match sqlx::query!(
+                        "
+                        UPDATE challenges
+                        SET
+                        event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, visible_to_groups = ?, vm_ids = ?
+                        WHERE id = ?
+                        ", 
+                        event_id,
+                        name,
+                        description,
+                        category,
+                        difficulty,
+                        points,
+                        visible_to_groups,
+                        vm_ids,
+                        id
+                    )
+                        .execute(executor)
+                        .await {
+                            Ok(_) => Ok(()),
+                            Err(e) => {
+                                //log::error!("Failed to get user (ID: {id}): {e}");
+                                Err(e)?
+                            }
                         }
-                    }
+                } else {
+                    match sqlx::query!(
+                        "
+                        UPDATE challenges
+                        SET
+                        event_id = ?, name = ?, description = ?, category = ?, difficulty = ?, points = ?, flag_hash = ?, visible_to_groups = ?, vm_ids = ?
+                        WHERE id = ?
+                        ", 
+                        event_id,
+                        name,
+                        description,
+                        category,
+                        difficulty,
+                        points,
+                        flag_hash,
+                        visible_to_groups,
+                        vm_ids,
+                        id
+                    )
+                        .execute(executor)
+                        .await {
+                            Ok(_) => Ok(()),
+                            Err(e) => {
+                                //log::error!("Failed to get user (ID: {id}): {e}");
+                                Err(e)?
+                            }
+                        }
+                }
             }
 
             pub async fn get(id: &String, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {

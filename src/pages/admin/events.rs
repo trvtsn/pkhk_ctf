@@ -96,115 +96,129 @@ pub fn Events() -> impl IntoView {
 
                     <div class=r#"flex flex-col gap-4"#>
                         <Show when=move || section.get() == Actions::Create>
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
-                            <input
-                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="name"
-                                bind:value=name_signal
-                            />
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
+                                <input
+                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="name"
+                                    bind:value=name_signal
+                                />
+                            </div>
 
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Description"</label>
-                            <input
-                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="description"
-                                bind:value=description_signal
-                            />
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Description"</label>
+                                <input
+                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="description"
+                                    bind:value=description_signal
+                                />
+                            </div>
 
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Start Date"</label>
-                            <input
-                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                type="datetime-local"
-                                name="start_at"
-                                bind:value=start_at_signal
-                            />
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Start Date"</label>
+                                <input
+                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    type="datetime-local"
+                                    name="start_at"
+                                    bind:value=start_at_signal
+                                />
+                            </div>
 
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"End Date"</label>
-                            <input
-                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                type="datetime-local"
-                                name="end_at"
-                                bind:value=end_at_signal
-                            />
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"End Date"</label>
+                                <input
+                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    type="datetime-local"
+                                    name="end_at"
+                                    bind:value=end_at_signal
+                                />
+                            </div>
 
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
-                            <select
-                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="visible_to_groups"
-                                multiple=true
-                                on:change=move |ev: Event| {
-                                    let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                                    let selected = sel.selected_options();
-                                    let mut picked: Vec<String> = Vec::new();
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Visible To Groups"</label>
+                                <select
+                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="visible_to_groups"
+                                    multiple=true
+                                    on:change=move |ev: Event| {
+                                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                        let selected = sel.selected_options();
+                                        let mut picked: Vec<String> = Vec::new();
 
-                                    for i in 0..selected.length() {
-                                        if let Some(item) = selected.item(i) {
-                                            if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                                picked.push(opt.value());
+                                        for i in 0..selected.length() {
+                                            if let Some(item) = selected.item(i) {
+                                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                                    picked.push(opt.value());
+                                                }
                                             }
                                         }
-                                    }
 
-                                    visible_to_groups_signal.set(picked);
-                                }
-                            >
-                                <option value="all">"All"</option>
-                                <Suspense fallback=move || {
-                                    view! { <div>"Loading..."</div> }
-                                }>
-                                    {move || {
-                                        let groups = groups_resource.get().unwrap_or_default();
-                                        groups_signal.set(groups.clone());
-                                        view! {
-                                            <For
-                                                each=move || groups.clone()
-                                                key=|group: &String| group.clone()
-                                                let(group)
-                                            >
-                                                <option value={group.clone()}>{group.clone()}</option>
-                                            </For>
+                                        visible_to_groups_signal.set(picked);
+                                    }
+                                >
+                                    <option value="all">"All"</option>
+                                    <Suspense fallback=move || {
+                                        view! { <div>"Loading..."</div> }
+                                    }>
+                                        {move || {
+                                            let groups = groups_resource.get().unwrap_or_default();
+                                            groups_signal.set(groups.clone());
+                                            view! {
+                                                <For
+                                                    each=move || groups.clone()
+                                                    key=|group: &String| group.clone()
+                                                    let(group)
+                                                >
+                                                    <option value={group.clone()}>{group.clone()}</option>
+                                                </For>
+                                            }
+                                        }}
+                                    </Suspense>
+                                </select>
+                            </div>
+
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Attachment"</label>
+                                <input
+                                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                    type="file"
+                                    name="attachment"
+                                    on:change=move |ev: Event| {
+                                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                        if let Some(files) = input.files() && files.length() > 0 {
+                                            let file = files.get(0).unwrap();
+                                            let fd = FormData::new().unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            file_upload_action.dispatch_local(fd);
                                         }
-                                    }}
-                                </Suspense>
-                            </select>
-
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Attachment"</label>
-                            <input
-                                class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                                type="file"
-                                name="attachment"
-                                on:change=move |ev: Event| {
-                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                    if let Some(files) = input.files() && files.length() > 0 {
-                                        let file = files.get(0).unwrap();
-                                        let fd = FormData::new().unwrap();
-                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                        file_upload_action.dispatch_local(fd);
                                     }
-                                }
-                            />
-                            <p>{uploading_file_text.get()}</p>
+                                />
+                                <p>{uploading_file_text.get()}</p>
+                            </div>
 
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Illustration"</label>
-                            <input
-                                class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                                type="file"
-                                name="illustration"
-                                on:change=move |ev: Event| {
-                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                    if let Some(files) = input.files() && files.length() > 0 {
-                                        let file = files.get(0).unwrap();
-                                        let fd = FormData::new().unwrap();
-                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                        illustration_upload_action.dispatch_local(fd);
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Illustration"</label>
+                                <input
+                                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                    type="file"
+                                    name="illustration"
+                                    on:change=move |ev: Event| {
+                                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                        if let Some(files) = input.files() && files.length() > 0 {
+                                            let file = files.get(0).unwrap();
+                                            let fd = FormData::new().unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            illustration_upload_action.dispatch_local(fd);
+                                        }
                                     }
-                                }
-                            />
-                            <p>{uploading_illustration_text.get()}</p>
+                                />
+                                <p>{uploading_illustration_text.get()}</p>
+                            </div>
 
                             <div class=r#"flex gap-3 mt-2"#>
                                 <button
@@ -252,7 +266,7 @@ pub fn Events() -> impl IntoView {
                     </div>
 
                     <div class=r#"events pt-4"#>
-                        <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
+                        <div class=r#"grid grid-cols-4 content-stretch"#>
                             <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Big /> }>
                                 <For
                                     each=move || ewa_resource.get().unwrap_or_default()

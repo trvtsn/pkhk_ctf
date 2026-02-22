@@ -79,57 +79,67 @@ pub fn Proxmox() -> impl IntoView {
                             </svg>
                         </div>
 
-                        <div class="grid gap-2 pt-2">
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base URL"</label>
-                            <input
-                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="base_url"
-                                value=move || base_url.get()
-                                bind:value=base_url
-                            />
-
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Path"</label>
-                            <input
-                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="api_path"
-                                placeholder="Optional (Default: /api2/json)"
-                                value=move || api_path.get()
-                                bind:value=api_path
-                            />
-
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"VM Templates Pool ID"</label>
-                            <input
-                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="api_path"
-                                placeholder="Optional (Default: templates)"
-                                value=move || templates_pool_id.get()
-                                bind:value=templates_pool_id
-                            />
-
-                            <label class=r#"block mb-1 text-sm font-medium text-text"#>"Node"</label>
-                            <input
-                                class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                name="node"
-                                value=move || node.get()
-                                bind:value=node
-                            />
-
-                            <Show when=move || auth_type.get() == ProxmoxAuthType::ApiToken>
-                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Token"</label>
+                        <div class="grid gap-3 pt-2">
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Base URL"</label>
                                 <input
                                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                    name="api_token"
-                                    value=move || api_token.get().unwrap_or_default()
-                                    on:change=move |ev| {
-                                        let value = event_target_value(&ev);
-                                        api_token.set(Some(value));
-                                    }
+                                    name="base_url"
+                                    value=move || base_url.get()
+                                    bind:value=base_url
                                 />
+                            </div>
+
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Path"</label>
+                                <input
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="api_path"
+                                    placeholder="Optional (Default: /api2/json)"
+                                    value=move || api_path.get()
+                                    bind:value=api_path
+                                />
+                            </div>
+
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"VM Templates Pool ID"</label>
+                                <input
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="api_path"
+                                    placeholder="Optional (Default: templates)"
+                                    value=move || templates_pool_id.get()
+                                    bind:value=templates_pool_id
+                                />
+                            </div>
+
+                            <div class="grid">
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Node"</label>
+                                <input
+                                    class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                    name="node"
+                                    value=move || node.get()
+                                    bind:value=node
+                                />
+                            </div>
+
+                            <Show when=move || auth_type.get() == ProxmoxAuthType::ApiToken>
+                                <div class="grid">
+                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Token"</label>
+                                    <input
+                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                        name="api_token"
+                                        value=move || api_token.get().unwrap_or_default()
+                                        on:change=move |ev| {
+                                            let value = event_target_value(&ev);
+                                            api_token.set(Some(value));
+                                        }
+                                    />
+                                </div>
                             </Show>
 
                             <div class="flex gap-3 mt-2 pt-2">

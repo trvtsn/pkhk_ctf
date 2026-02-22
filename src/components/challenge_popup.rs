@@ -242,20 +242,23 @@ pub fn ChallengePopup(
                         </button>
                     </div>
 
-                    <For
-                        each=move || cwa_popup.get().attachments.clone()
-                        key=|a: &AttachmentWithoutBlob| a.id.clone()
-                        let(a)
-                    >
-                        {move || a.file_name.clone()}
-                        <a
-                            download
-                            href=move || format!("/file/{}", a.id)
-                            // class=r#"text-blue-600 underline"#
-                        >
-                            <Icon icon=i::LuDownload />
-                        </a>
-                    </For>
+                    <div class="grid gap-2 pt-4">
+                        <div class="flex gap-2 items-center">
+                            <For
+                                each=move || cwa_popup.get().attachments.clone()
+                                key=|a: &AttachmentWithoutBlob| a.id.clone()
+                                let(a)
+                            >
+                                {move || a.file_name.clone()}
+                                <a
+                                    download
+                                    href=move || format!("/file/{}", a.id)
+                                >
+                                    <Icon icon=i::LuDownload />
+                                </a>
+                            </For>
+                        </div>
+                    </div>
 
                     <Transition>
                         {move || {

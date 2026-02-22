@@ -21,7 +21,9 @@ pub fn File(
 
     let file_name_signal = RwSignal::new(file_name.clone());
     let new_file_name = RwSignal::new(file_name);
-    let file_url_path = RwSignal::<String>::new("".to_string());
+    let file_url_path = Memo::new(
+        { let id = id.clone(); move |_| { format!("/file/{}", id) } }
+    );
     let deleting = RwSignal::new(false);
     let renaming = RwSignal::new(false);
     let rename_submit_btn_text = Memo::new(move |_| {
@@ -32,7 +34,7 @@ pub fn File(
     });
 
     view! {
-        <div class=r#"grid content-center p-4 m-4 rounded-lg bg-card hover:bg-card-hover"#>
+        <div class=r#"grid content-center p-4 m-4 rounded-lg bg-card hover:bg-card-hover break-all"#>
             <h3 class=r#"font-bold text-3xl/8"#>{move || file_name_signal.get()}</h3>
             <p class=r#"text-lg/8"#>
                 <b>"ID: "</b>
@@ -51,20 +53,23 @@ pub fn File(
                 {(file_size.unwrap_or_default() as f64) / 1000000_f64}
                 " MB"
             </p>
-            {file_url_path.set(format!("/file/{}", id))}
-            <a download href=move || file_url_path.get() class=r#""#>
-                <Icon icon=i::LuDownload />
-            </a>
+            <div class="flex gap-2 mt-2">
+                <a download href=move || file_url_path.get() class=r#""#>
+                    <Icon icon=i::LuDownload />
+                </a>
+            </div>
 
             <Show when=move || renaming.get()>
-                <label class=r#"block mb-1 text-sm font-medium"#>"New File Name"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="name"
-                    value=move || new_file_name.get()
-                    bind:value=new_file_name
-                />
+                <div class="mt-2">
+                    <label class=r#"block mb-1 text-sm font-medium"#>"New File Name"</label>
+                    <input
+                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        name="name"
+                        value=move || new_file_name.get()
+                        bind:value=new_file_name
+                    />
+                </div>
             </Show>
             
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>

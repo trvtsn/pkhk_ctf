@@ -84,7 +84,7 @@ pub fn Challenge(
 
     view! {
         <div
-            class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover"#
+            class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover break-all"#
         >
             <Transition fallback=move || {
                 view! { <div>"Loading..."</div> }
@@ -162,8 +162,8 @@ pub fn Challenge(
                 </button>
             </div>
 
-            <div class="grid auto-rows-auto grid-cols-3 gap-2">
-                <div class="col-start-1 col-end-1">
+            <div class="grid gap-2 pt-4">
+                <div class="flex gap-2 items-center">
                     <For
                         each=move || attachments.clone()
                         key=|a: &AttachmentWithoutBlob| a.id.clone()
@@ -173,7 +173,6 @@ pub fn Challenge(
                         <a
                             download
                             href=move || format!("/file/{}", a.id)
-                            // class=r#"text-blue-600 underline"#
                         >
                             <Icon icon=i::LuDownload />
                         </a>

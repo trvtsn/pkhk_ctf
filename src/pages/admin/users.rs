@@ -74,165 +74,179 @@ pub fn Users() -> impl IntoView {
 
         <div class=r#"flex flex-col gap-4"#>
             <Show when=move || section.get() == Actions::Create>
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="username"
-                    value=move || username_signal.get()
-                    bind:value=username_signal
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"E-mail"</label>
-                <input
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring--500"#
-                    name="email"
-                    value=move || email_signal.get()
-                    bind:value=email_signal
-                />
-
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Password"</label>
-                <div class="flex gap-2">
+                <div class="grid">
+                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Name"</label>
                     <input
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                        type=move || if password_hidden.get() { "password" } else { "text" }
-                        name="password"
-                        value=move || password_signal.get()
-                        bind:value=password_signal
+                        name="username"
+                        value=move || username_signal.get()
+                        bind:value=username_signal
                     />
-                    <HidePasswordButton hidden=password_hidden />
                 </div>
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>
-                    "Confirm Password"
-                </label>
-                <div class="flex gap-2">
+                <div class="grid">
+                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"E-mail"</label>
                     <input
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                        type=move || if confirm_password_hidden.get() { "password" } else { "text" }
-                        name="confirm_password"
-                        value=move || confirm_password_signal.get()
-                        bind:value=confirm_password_signal
+                        focus:ring-2 focus:outline-none focus:ring--500"#
+                        name="email"
+                        value=move || email_signal.get()
+                        bind:value=email_signal
                     />
-                    <HidePasswordButton hidden=confirm_password_hidden />
                 </div>
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Role"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="event_id"
-                    bind:value=role_signal
-                >
-                    <option value="">"-- Select Role --"</option>
-                    <For
-                        each=move || roles_signal.get()
-                        key=|r: &UserRole| r.to_string()
-                        let(role: UserRole)
+                <div class="grid">
+                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Password"</label>
+                    <div class="flex gap-2">
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            type=move || if password_hidden.get() { "password" } else { "text" }
+                            name="password"
+                            value=move || password_signal.get()
+                            bind:value=password_signal
+                        />
+                        <HidePasswordButton hidden=password_hidden />
+                    </div>
+                </div>
+
+                <div class="grid">
+                    <label class=r#"block mb-1 text-sm font-medium text-text"#>
+                        "Confirm Password"
+                    </label>
+                    <div class="flex gap-2">
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            type=move || if confirm_password_hidden.get() { "password" } else { "text" }
+                            name="confirm_password"
+                            value=move || confirm_password_signal.get()
+                            bind:value=confirm_password_signal
+                        />
+                        <HidePasswordButton hidden=confirm_password_hidden />
+                    </div>
+                </div>
+
+                <div class="grid">
+                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Role"</label>
+                    <select
+                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        name="event_id"
+                        bind:value=role_signal
                     >
-                        <option value=role.to_string()>{role.to_string()}</option>
-                    </For>
-                </select>
-                <Transition fallback=|| {
-                    view! { "..." }
-                }>
-                    {move || {
-                        if password_signal.get() != confirm_password_signal.get() {
-                            "Confirmation must match"
-                        } else {
-                            ""
-                        }
-                    }}
-                </Transition>
-
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Group"</label>
-                <select
-                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    name="group"
-                    multiple=true
-                    on:change=move |ev: Event| {
-                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                        let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                        let new_input = doc
-                            .get_element_by_id("action_create_group_input")
-                            .unwrap()
-                            .unchecked_into::<HtmlInputElement>();
-                        if sel.value() == "__new__" {
-                            let _ = sel.remove_attribute("name");
-                            let _ = new_input.set_attribute("name", "group");
-                            group_add_new_selected.set(true);
-                        } else {
-                            let _ = sel.set_attribute("name", "group");
-                            let _ = new_input.remove_attribute("name");
-                            group_add_new_selected.set(false);
-                        }
-
-                        let selected = sel.selected_options();
-                        let mut picked: Vec<String> = Vec::new();
-
-                        for i in 0..selected.length() {
-                            if let Some(item) = selected.item(i) {
-                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                    picked.push(opt.value());
-                                }
-                            }
-                        }
-
-                        group_signal.set(picked.join(","));
-                    }
-                >
-                    <option value="">"-- Select Group --"</option>
-                    <Suspense fallback=move || {
-                        view! { <div>"Loading..."</div> }
+                        <option value="">"-- Select Role --"</option>
+                        <For
+                            each=move || roles_signal.get()
+                            key=|r: &UserRole| r.to_string()
+                            let(role: UserRole)
+                        >
+                            <option value=role.to_string()>{role.to_string()}</option>
+                        </For>
+                    </select>
+                    <Transition fallback=|| {
+                        view! { "..." }
                     }>
                         {move || {
-                            let groups = groups_resource.get().unwrap_or_default();
-                            view! {
-                                <For
-                                    each=move || groups.clone()
-                                    key=|group: &String| group.clone()
-                                    let(group)
-                                >
-                                    <option value={group.clone()}>{group.clone()}</option>
-                                </For>
+                            if password_signal.get() != confirm_password_signal.get() {
+                                "Confirmation must match"
+                            } else {
+                                ""
                             }
                         }}
-                    </Suspense>
-                    <option value="__new__">"-- Add New --"</option>
-                </select>
-                <input
-                    class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-input-border 
-                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    hidden=move || !group_add_new_selected.get()
-                    type="text"
-                    id="action_create_group_input"
-                    value=""
-                    on:change=move |ev: Event| {
-                        let value = event_target_value(&ev);
-                        group_signal.set(value);
-                    }
-                />
+                    </Transition>
+                </div>
 
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Avatar"</label>
-                <input
-                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                    type="file"
-                    name="illustration"
-                    on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() && files.length() > 0 {
-                            let file = files.get(0).unwrap();
-                            let fd = FormData::new().unwrap();
-                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            avatar_upload_action.dispatch_local(fd);
+                <div class="grid">
+                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Group"</label>
+                    <select
+                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        name="group"
+                        multiple=true
+                        on:change=move |ev: Event| {
+                            let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                            let doc = leptos::web_sys::window().unwrap().document().unwrap();
+                            let new_input = doc
+                                .get_element_by_id("action_create_group_input")
+                                .unwrap()
+                                .unchecked_into::<HtmlInputElement>();
+                            if sel.value() == "__new__" {
+                                let _ = sel.remove_attribute("name");
+                                let _ = new_input.set_attribute("name", "group");
+                                group_add_new_selected.set(true);
+                            } else {
+                                let _ = sel.set_attribute("name", "group");
+                                let _ = new_input.remove_attribute("name");
+                                group_add_new_selected.set(false);
+                            }
+
+                            let selected = sel.selected_options();
+                            let mut picked: Vec<String> = Vec::new();
+
+                            for i in 0..selected.length() {
+                                if let Some(item) = selected.item(i) {
+                                    if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                                        picked.push(opt.value());
+                                    }
+                                }
+                            }
+
+                            group_signal.set(picked.join(","));
                         }
-                    }
-                />
-                <p>{uploading_avatar_text.get()}</p>
+                    >
+                        <option value="">"-- Select Group --"</option>
+                        <Suspense fallback=move || {
+                            view! { <div>"Loading..."</div> }
+                        }>
+                            {move || {
+                                let groups = groups_resource.get().unwrap_or_default();
+                                view! {
+                                    <For
+                                        each=move || groups.clone()
+                                        key=|group: &String| group.clone()
+                                        let(group)
+                                    >
+                                        <option value={group.clone()}>{group.clone()}</option>
+                                    </For>
+                                }
+                            }}
+                        </Suspense>
+                        <option value="__new__">"-- Add New --"</option>
+                    </select>
+                    <input
+                        class=r#"py-2 px-3 mt-2 w-full text-sm rounded-md border border-input-border 
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        hidden=move || !group_add_new_selected.get()
+                        type="text"
+                        id="action_create_group_input"
+                        value=""
+                        on:change=move |ev: Event| {
+                            let value = event_target_value(&ev);
+                            group_signal.set(value);
+                        }
+                    />
+                </div>
+
+                <div class="grid">
+                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Avatar"</label>
+                    <input
+                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                        type="file"
+                        name="illustration"
+                        on:change=move |ev: Event| {
+                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                            if let Some(files) = input.files() && files.length() > 0 {
+                                let file = files.get(0).unwrap();
+                                let fd = FormData::new().unwrap();
+                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                avatar_upload_action.dispatch_local(fd);
+                            }
+                        }
+                    />
+                    <p>{uploading_avatar_text.get()}</p>
+                </div>
 
                 <div class=r#"flex gap-3 mt-2"#>
                     <button
@@ -287,7 +301,7 @@ pub fn Users() -> impl IntoView {
                 let avatars = avatars_resource.get().unwrap_or_default();
                 avatars_signal.set(avatars);
                 view! {
-                    <div class=r#"grid grid-cols-4 gap-4 p-4 m-4 pt-4"#>
+                    <div class=r#"grid grid-cols-4 gap-4 pt-4 items-start"#>
                         <For
                             each=move || users_resource.get().unwrap_or_default()
                             key=|user: &DbUser| user.id.clone()
