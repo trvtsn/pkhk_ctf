@@ -1,4 +1,4 @@
-use crate::{components::{admin::user::User, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{AttachmentWithoutBlob, DbUser}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
+use crate::{components::{admin::user::User, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 
 /// Default Home Page
@@ -17,7 +17,7 @@ pub fn Users() -> impl IntoView {
     let confirm_password_signal = RwSignal::new("".to_string());
     let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
     let role_signal = RwSignal::new("".to_string());
-    let avatar_signal = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
+    let avatar_signal = RwSignal::<Option<UserAvatar>>::new(None);
     let group_signal = RwSignal::<String>::new("".to_string());
 
     let avatars_signal = RwSignal::new(vec![]);

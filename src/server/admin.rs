@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, UserIdentifier}, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, HintsUsed, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -181,20 +181,17 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     };
                     
-                    match attachments.clone() {
-                        Some(attachments) => {
-                            for attachment in attachments.iter() {
-                                match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        tx.rollback().await?;
-                                        tracing::error!(error = ?e);
-                                        return Err(AppError::InternalError(e.to_string()));
-                                    }
+                    if let Some(attachments) = attachments.clone() {
+                        for attachment in attachments.iter() {
+                            match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
+                                Ok(_) => {},
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
                                 }
                             }
-                        },
-                        None => {}
+                        }
                     }
 
                     let new_attachment_ids = attachments.clone().unwrap_or_default().clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
@@ -426,7 +423,16 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                         }
                     }
 
-                    if let Some(attachments) = attachments {
+                    let all_event_attachment_ids = match AttachmentWithoutBlob::get_all(&Some(db::enums::AttachmentIdentifier::EventId(id.clone())), &mut *tx).await {
+                        Ok(all_attachments) => all_attachments.iter().map(|a| a.id.clone()).collect::<Vec<String>>(),
+                        Err(e) => {
+                            tx.rollback().await?;
+                            tracing::error!(error = ?e);
+                            return Err(AppError::InternalError(e.to_string()));
+                        }
+                    };
+
+                    if let Some(attachments) = attachments.clone() {
                         for attachment in attachments {
                             match db::structs::Attachment::edit_event(&attachment.id, &id, &mut *tx).await {
                                 Ok(_) => {},
@@ -439,6 +445,19 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                         }
                     }
 
+                    let new_attachment_ids = attachments.clone().unwrap_or_default().clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                    for existing_attachment_id in all_event_attachment_ids {
+                        if !new_attachment_ids.contains(&existing_attachment_id) {
+                            match AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
+                                Ok(_) => {},
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
+                                }
+                            }
+                        }
+                    }
                     match illustration {
                         Some(illustration) => {
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::EventId(id), &mut *tx).await {
@@ -455,6 +474,32 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                                 }
                         }
                         None => {
+                            let existing_illustration_id = match AttachmentWithoutBlob::get_illustration_id(
+                                &db::enums::AttachmentIdentifier::EventId(id), &mut *tx
+                            ).await {
+                                Ok(id) => id,
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
+                                }
+                            };
+                            
+                            if let Some(id) = existing_illustration_id {
+                                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::EventId(id), &mut *tx).await {
+                                    Ok(_) => {
+                                        tx.commit().await?;
+                                        _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                        return Ok(ApiResult { result: ResultStatus::Success, details: Some("edited challenge".to_string()) });
+                                    },
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
+                                }
+                            }
+
                             tx.commit().await?;
                             _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
                             Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string() )})
@@ -522,6 +567,35 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
                     Err(AppError::InternalError("internal error".to_string()))
                 }
             }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AdminEventsGetAllWithAttachments, prefix="/api/admin", endpoint="ewa")]
+#[instrument]
+pub async fn get_all_events_with_attachments() -> Result<Vec<EventWithAttachments>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let events = match db::structs::Event::get_all(&pool).await {
+                Ok(events) => events,
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError("internal error".to_string()));
+                }
+            };
+
+            let mut ewa = Vec::<EventWithAttachments>::new();
+            for event in events {
+                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::EventId(event.id.clone())), &pool).await?
+                    .into_iter().filter(|a| a.file_type == FileType::Attachment).collect::<Vec<AttachmentWithoutBlob>>();
+                let illustration = AttachmentWithoutBlob::get_illustration(&AttachmentIdentifier::EventId(event.id.clone()), &pool).await?;
+                ewa.push(EventWithAttachments { event, attachments, illustration });
+            }
+            Ok(ewa)
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -666,12 +740,12 @@ pub async fn upload_illustration(file: MultipartData) -> Result<ApiResult<Attach
 
 #[server(input=MultipartFormData, name=AdminUploadAvatar, prefix="/api/admin/avatar", endpoint="upload")]
 #[instrument(skip(file))]
-pub async fn upload_avatar(file: MultipartData) -> Result<ApiResult<AttachmentWithoutBlob>, AppError> {
+pub async fn upload_avatar(file: MultipartData) -> Result<ApiResult<UserAvatar>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
 
-            let mut attachment = AttachmentWithoutBlob::default();
+            let mut avatar = UserAvatar::default();
 
             let mut data = file.into_inner().unwrap();
             while let Ok(Some(mut field)) = data.next_field().await {
@@ -695,17 +769,16 @@ pub async fn upload_avatar(file: MultipartData) -> Result<ApiResult<AttachmentWi
                     }
                 };
 
-                match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id.clone()), &pool).await {
-                    Ok(Some(attachment_result)) => attachment = attachment_result,
-                    Ok(None) => tracing::error!("file upload with insert id {} but could not fetch it from db", insert_id),
-                    Err(e) => {
-                        tracing::error!(error = ?e, "failed to fetch upload file from db");
-                        return Err(AppError::InternalError("internal error".to_string()));
-                    }
-                }
+                let result = UserAvatar {
+                    attachment_id: insert_id,
+                    user_id: None,
+                    file_name
+                };
+
+                avatar = result;
             }
 
-            Ok(ApiResult { result: ResultStatus::Success, details: attachment })
+            Ok(ApiResult { result: ResultStatus::Success, details: avatar })
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -761,7 +834,7 @@ pub enum UserAction {
         password: String, 
         confirm_password: String,
         role: UserRole,
-        avatar: Option<AttachmentWithoutBlob>,
+        avatar: Option<UserAvatar>,
         group: String
     },
     Delete {
@@ -775,7 +848,7 @@ pub enum UserAction {
         confirm_password: String,
         points: u32,
         role: UserRole,
-        avatar: Option<AttachmentWithoutBlob>,
+        avatar: Option<UserAvatar>,
         group: String
     },
     EditPassword {
@@ -825,8 +898,8 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     };
 
-                    if avatar.is_some() {
-                        match AttachmentWithoutBlob::edit_avatar(&avatar.unwrap_or_default().id, &new_user_id, &mut *tx).await {
+                    if let Some(avatar) = avatar {
+                        match AttachmentWithoutBlob::edit_avatar(&avatar.attachment_id, &new_user_id, &mut *tx).await {
                             Ok(_) => {
                                 tx.commit().await?;
                                 Ok(ApiResult { result: ResultStatus::Success, details: Some("created user".to_string()) })
@@ -938,22 +1011,39 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         }
                     }
 
-                    if avatar.is_some() {
-                        match AttachmentWithoutBlob::edit_avatar(&avatar.unwrap_or_default().id, &id, &mut *tx).await {
-                            Ok(_) => {
-                                tx.commit().await?;
-                                Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) })
-                            },
+                    if let Some(avatar) = avatar {
+                        match AttachmentWithoutBlob::edit_avatar(&avatar.attachment_id, &id, &mut *tx).await {
+                            Ok(_) => {},
                             Err(e) => {
                                 tracing::error!(error = ?e);
                                 tx.rollback().await?;
-                                Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                                return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
                             }
                         }
                     } else {
-                        tx.commit().await?;
-                        Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) })
+                        let existing_avatar = match DbUser::get_avatar(&UserIdentifier::Id(id.clone()), &mut *tx).await {
+                            Ok(avatar) => avatar,
+                            Err(e) => {
+                                tracing::error!(error = ?e);
+                                tx.rollback().await?;
+                                return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                            }
+                        };
+
+                        if let Some(existing_avatar) = existing_avatar {
+                            match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_avatar.id), &mut *tx).await {
+                                Ok(_) => {},
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
+                                }
+                            }
+                        }
                     }
+
+                    tx.commit().await?;
+                    return Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) });
                 }
                 UserAction::EditPassword { id, password, confirm_password } => {
                     let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &pool).await {
@@ -1002,6 +1092,26 @@ pub async fn delete_file(id: String) -> Result<ApiResult<Option<String>>, AppErr
 
             match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(id.clone()), &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted file".to_string()) }),
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    Err(AppError::InternalError("internal error".to_string()))
+                }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AdminRenameFile, prefix="/api/admin/file", endpoint="rename")]
+#[instrument]
+pub async fn rename_file(id: String, file_name: String) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            match db::structs::Attachment::edit_file_name(&id, &file_name, &pool).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("renamed file".to_string()) }),
                 Err(e) => {
                     tracing::error!(error = ?e);
                     Err(AppError::InternalError("internal error".to_string()))

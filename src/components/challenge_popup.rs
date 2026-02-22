@@ -247,12 +247,13 @@ pub fn ChallengePopup(
                         key=|a: &AttachmentWithoutBlob| a.id.clone()
                         let(a)
                     >
+                        {move || a.file_name.clone()}
                         <a
                             download
                             href=move || format!("/file/{}", a.id)
-                            class=r#"text-blue-600 underline"#
+                            // class=r#"text-blue-600 underline"#
                         >
-                            {a.file_name}
+                            <Icon icon=i::LuDownload />
                         </a>
                     </For>
 

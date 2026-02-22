@@ -94,7 +94,15 @@ pub fn AdminNavBar() -> impl IntoView {
     view! {
         <nav class=r#"flex flex-col col-start-1 col-end-1 gap-2 p-4 bg-background-secondary text-text rounded-lg shadow-sm"#>
             <ul class=r#"flex flex-col gap-1"# role="menu" aria-label="Admin navigation">
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::SiteSettings { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium  
                         rounded-md focus:ring-2 focus:outline-none 
@@ -105,7 +113,15 @@ pub fn AdminNavBar() -> impl IntoView {
                         "Site Settings"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Events { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md focus:ring-2 focus:outline-none 
@@ -116,7 +132,15 @@ pub fn AdminNavBar() -> impl IntoView {
                         "Events"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Challenges { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md focus:ring-2 focus:outline-none 
@@ -127,7 +151,15 @@ pub fn AdminNavBar() -> impl IntoView {
                         "Challenges"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Files { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md focus:ring-2 focus:outline-none 
@@ -138,7 +170,15 @@ pub fn AdminNavBar() -> impl IntoView {
                         "Files"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Users { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md focus:ring-2 focus:outline-none 
@@ -149,7 +189,15 @@ pub fn AdminNavBar() -> impl IntoView {
                         "Users"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Ldap { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md focus:ring-2 focus:outline-none 
@@ -160,7 +208,15 @@ pub fn AdminNavBar() -> impl IntoView {
                         "LDAP"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Proxmox { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md focus:ring-2 focus:outline-none 
@@ -171,7 +227,15 @@ pub fn AdminNavBar() -> impl IntoView {
                         "Proxmox"
                     </p>
                 </li>
-                <li class="bg-background hover:bg-background-hover">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Log { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
                     <p
                         class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
                         rounded-md focus:ring-2 focus:outline-none 

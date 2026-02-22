@@ -568,7 +568,7 @@ pub fn Challenge(
                         let points = points_edit.get();
                         let flag = flag_edit.get();
                         let visible_to_groups = visible_to_groups_edit.get();
-                        let attachments = attachments_edit.get();
+                        let attachments = if attachments_edit.get().is_empty() { None } else { Some(attachments_edit.get()) };
                         let illustration = illustration_edit.get();
                         let vm_ids = proxmox_vm_id_edit.get();
                         let hints = hints_edit.get().into_iter().map(|h| {
@@ -588,7 +588,7 @@ pub fn Challenge(
                                         points,
                                         flag: flag.clone(),
                                         visible_to_groups,
-                                        attachments: Some(attachments.clone()),
+                                        attachments: attachments.clone(),
                                         illustration: illustration.clone(),
                                         vm_ids,
                                         hints: hints.into()
@@ -603,7 +603,7 @@ pub fn Challenge(
                                     category_signal.set(category);
                                     difficulty_signal.set(difficulty);
                                     points_signal.set(points);
-                                    attachments_signal.set(attachments);
+                                    attachments_signal.set(attachments.unwrap_or_default());
                                 }
                             });
                         } else {

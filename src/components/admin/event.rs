@@ -1,34 +1,40 @@
 use crate::{server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use chrono::DateTime;
+use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
+use leptos_icons::Icon;
 
 #[component]
 pub fn Event(
-    event: db::structs::Event,
+    ewa: db::structs::EventWithAttachments,
     user_groups: RwSignal<Vec<String>>, 
     illustrations: RwSignal<Vec<AttachmentWithoutBlob>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
-    let id_signal = RwSignal::new(event.id.clone());
-    let name_signal = RwSignal::new(event.name.clone());
-    let description_signal = RwSignal::new(event.description.clone());
-    let start_at_signal = RwSignal::new(event.start_at);
-    let end_at_signal = RwSignal::new(event.end_at);
-    let visible_to_groups_signal = RwSignal::new(event.visible_to_groups.clone());
+    let id_signal = RwSignal::new(ewa.event.id.clone());
+    let name_signal = RwSignal::new(ewa.event.name.clone());
+    let description_signal = RwSignal::new(ewa.event.description.clone());
+    let start_at_signal = RwSignal::new(ewa.event.start_at);
+    let end_at_signal = RwSignal::new(ewa.event.end_at);
+    let visible_to_groups_signal = RwSignal::new(ewa.event.visible_to_groups.clone());
 
-    let name_edit = RwSignal::new(event.name.clone());
-    let description_edit = RwSignal::new(event.description.clone());
-    let start_at_edit = RwSignal::new(event.start_at);
-    let end_at_edit = RwSignal::new(event.end_at);
-    let visible_to_groups_edit = RwSignal::new(event.visible_to_groups);
-    let attachments_edit = RwSignal::new(None);
-    let illustration_edit = RwSignal::new(None);
+    let name_edit = RwSignal::new(ewa.event.name.clone());
+    let description_edit = RwSignal::new(ewa.event.description.clone());
+    let start_at_edit = RwSignal::new(ewa.event.start_at);
+    let end_at_edit = RwSignal::new(ewa.event.end_at);
+    let visible_to_groups_edit = RwSignal::new(ewa.event.visible_to_groups);
+    let attachments_edit = RwSignal::new(ewa.attachments);
+    let illustration_edit = RwSignal::new(ewa.illustration);
 
     let file_upload_action = Action::new_local(move |data: &FormData| {
         let data = data.clone();
         async move {
             if let Ok(api_result) = upload_files(data.clone().into()).await {
-                attachments_edit.set(Some(api_result.details.clone()))
+                attachments_edit.update(|a| {
+                    for result in api_result.details {
+                        a.push(result)
+                    }
+                });
             }
         }
     });
@@ -83,7 +89,9 @@ pub fn Event(
                     {move || {
                         let event_id = id_signal.get();
                         let illustrations = illustrations.get();
-                        if let Some(illustration) = illustrations.into_iter().find(|i| i.event_id == Some(event_id.clone())) {
+                        let illustration = illustrations.into_iter().find(|i| i.event_id == Some(event_id.clone()));
+                        illustration_edit.set(illustration.clone());
+                        if let Some(illustration) = illustration {
                             view! {
                                 <div class="h-48 w-48 flex justify-center m-auto">
                                     <img 
@@ -221,38 +229,103 @@ pub fn Event(
                     </Suspense>
                 </select>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Attachment"</label>
-                <input
-                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                    type="file"
-                    name="attachment"
-                    multiple
-                    on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() && files.length() > 0 {
-                            let file = files.get(0).unwrap();
-                            let fd = FormData::new().unwrap();
-                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            file_upload_action.dispatch_local(fd);
-                        }
-                    }
-                /><p>{move || uploading_file_text.get()}</p>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Attachments"</label>
+                <div class="grid gap-2">
+                    <ForEnumerate
+                        each=move || attachments_edit.get()
+                        key=|a: &AttachmentWithoutBlob| a.id.clone()
+                        children={move |index, a| {
+                            view! {  
+                                <div class="flex gap-2 items-center">
+                                    {a.file_name.clone()}
+                                    <a
+                                        download
+                                        href=move || format!("/file/{}", a.id.clone())
+                                        //class=r#"text-blue-600 underline"#
+                                    >
+                                        <Icon icon=i::LuDownload />
+                                    </a>
+                                    <button 
+                                        class="cursor-pointer"
+                                        on:click=move |_| {
+                                            let remove_at = index.get();
+
+                                            attachments_edit.update(|a| {
+                                                a.remove(remove_at);
+                                            });
+                                        } 
+                                    >
+                                        <Icon icon=i::LuX />
+                                    </button>
+                                </div>
+                            }
+                        }}
+                    />
+                    <div class="flex gap-2">
+                        <input
+                            class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                            type="file"
+                            name="attachment"
+                            multiple
+                            on:change=move |ev: Event| {
+                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                if let Some(files) = input.files() && files.length() > 0 {
+                                    let file = files.get(0).unwrap();
+                                    let fd = FormData::new().unwrap();
+                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                    file_upload_action.dispatch_local(fd);
+                                }
+                            }
+                        /><p>{move || uploading_file_text.get()}</p>
+                    </div>
+                </div>
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
-                <input
-                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                    type="file"
-                    name="illustration"
-                    on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() && files.length() > 0 {
-                            let file = files.get(0).unwrap();
-                            let fd = FormData::new().unwrap();
-                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            illustration_upload_action.dispatch_local(fd);
+                <div class="grid gap-2">
+                    <Transition>
+                        {move || {
+                            let illustration = illustration_edit.get();
+                            if let Some(illustration) = illustration {
+                                view! {
+                                    <div class="flex gap-2 items-center">
+                                        {move || illustration.file_name.clone()}
+                                        <a
+                                            download
+                                            href=move || format!("/file/{}", illustration.id.clone())
+                                            // class=r#"text-blue-600 underline"#
+                                        >
+                                            <Icon icon=i::LuDownload />
+                                        </a>
+                                        <button 
+                                            class="cursor-pointer"
+                                            on:click=move |_| {
+                                                illustration_edit.set(None);
+                                            } 
+                                        >
+                                            <Icon icon=i::LuX />
+                                        </button>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                "".into_any()
+                            }
+                        }}
+                    </Transition>
+                    <input
+                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                        type="file"
+                        name="illustration"
+                        on:change=move |ev: Event| {
+                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                            if let Some(files) = input.files() && files.length() > 0 {
+                                let file = files.get(0).unwrap();
+                                let fd = FormData::new().unwrap();
+                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                illustration_upload_action.dispatch_local(fd);
+                            }
                         }
-                    }
-                /><p>{move || uploading_illustration_text.get()}</p>
+                    /><p>{move || uploading_illustration_text.get()}</p>
+                </div>
             </Show>
 
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
@@ -280,7 +353,7 @@ pub fn Event(
                         let start_at = start_at_edit.get();
                         let end_at = end_at_edit.get();
                         let visible_to_groups = visible_to_groups_edit.get();
-                        let attachments = attachments_edit.get();
+                        let attachments = if attachments_edit.get().is_empty() { None } else { Some(attachments_edit.get()) };
                         let illustration = illustration_edit.get();
                         if editing.get() {
                             spawn_local(async move {
@@ -320,7 +393,7 @@ pub fn Event(
                     focus:ring-yale-blue-500"#
                     on:click=move |_| {
                         if deleting.get() {
-                            let event_id = event.id.clone();
+                            let event_id = ewa.event.id.clone();
                             spawn_local(async move {
                                 tracing::debug!("deleting event: {event_id}");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Delete {

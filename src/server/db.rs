@@ -189,6 +189,13 @@ pub mod structs {
         pub visible_to_groups: String // comma separated string
     }
 
+    #[derive(Clone, PartialEq, Serialize, Deserialize, Eq)]
+    pub struct EventWithAttachments {
+        pub event: Event,
+        pub attachments: Vec<AttachmentWithoutBlob>,
+        pub illustration: Option<AttachmentWithoutBlob>
+    }
+
     #[derive(Clone, PartialEq, Serialize, Deserialize)]
     pub struct Submission {
         pub id: String,
@@ -303,7 +310,8 @@ pub mod structs {
     #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
     pub struct UserAvatar {
         pub user_id: Option<String>,
-        pub attachment_id: String
+        pub attachment_id: String,
+        pub file_name: String
     }
 }
 
@@ -770,20 +778,21 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_avatar(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<u8>, sqlx::Error> {
+            pub async fn get_avatar(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<AttachmentWithoutBlob>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        match sqlx::query_as!(
+                            AttachmentWithoutBlob,
                             "
-                            SELECT file_blob
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
                             FROM attachments
                             WHERE user_id = ? AND file_type = \"avatar\"
                             ",
                             id
                         )
-                            .fetch_one(executor)
+                            .fetch_optional(executor)
                             .await {
-                                Ok(row) => Ok(row.file_blob),
+                                Ok(avatar) => Ok(avatar),
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
                                     Err(e)?
@@ -791,17 +800,18 @@ cfg_if! {
                             }
                     }
                     UserIdentifier::Email(email) => {
-                        match sqlx::query!(
+                        match sqlx::query_as!(
+                            AttachmentWithoutBlob,
                             "
-                            SELECT file_blob
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
                             FROM attachments
                             WHERE user_id = (SELECT id FROM users WHERE email = ?) AND file_type = \"avatar\"
                             ",
                             email
                         )
-                            .fetch_one(executor)
+                            .fetch_optional(executor)
                             .await {
-                                Ok(row) => Ok(row.file_blob),
+                                Ok(avatar) => Ok(avatar),
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
                                     Err(e)?
@@ -809,17 +819,18 @@ cfg_if! {
                             }
                     }
                     UserIdentifier::Username(username) => {
-                        match sqlx::query!(
+                        match sqlx::query_as!(
+                            AttachmentWithoutBlob,
                             "
-                            SELECT file_blob
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
                             FROM attachments
                             WHERE user_id = (SELECT id FROM users WHERE username = ?) AND file_type = \"avatar\"
                             ",
                             username
                         )
-                            .fetch_one(executor)
+                            .fetch_optional(executor)
                             .await {
-                                Ok(row) => Ok(row.file_blob),
+                                Ok(avatar) => Ok(avatar),
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
                                     Err(e)?
@@ -907,7 +918,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     UserAvatar,
                     "
-                    SELECT id AS attachment_id, user_id
+                    SELECT id AS attachment_id, user_id, file_name
                     FROM attachments
                     WHERE file_type = \"avatar\"
                     "
@@ -916,8 +927,11 @@ cfg_if! {
                     .await {
                         Ok(rows) => {
                             let all_avatar_ids = rows.iter().map(|a| UserAvatar { 
-                                user_id: a.user_id.clone(), attachment_id: a.attachment_id.clone() }
-                            ).collect::<Vec<UserAvatar>>();
+                                user_id: a.user_id.clone(), 
+                                attachment_id: a.attachment_id.clone(),
+                                file_name: a.file_name.clone()
+                            }).collect::<Vec<UserAvatar>>();
+
                             Ok(all_avatar_ids)
                         },
                         Err(e) => {
@@ -1586,6 +1600,30 @@ cfg_if! {
                     }
             }
 
+            pub async fn edit_file_name(
+                id: &String,
+                file_name: &String, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE attachments
+                    SET file_name = ?
+                    WHERE id = ?
+                    ", 
+                    file_name,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn edit_illustration(
                 id: &String, 
                 target_identifier: &AttachmentIdentifier, 
@@ -2195,6 +2233,30 @@ cfg_if! {
                         }
                     }
             }
+            
+            pub async fn edit_challenge(
+                id: &String,
+                challenge_id: &String, 
+                executor: impl MySqlExecutor<'_>
+            ) -> Result<(), sqlx::Error> {
+                match sqlx::query!(
+                    "
+                    UPDATE attachments
+                    SET challenge_id = ?
+                    WHERE id = ?
+                    ", 
+                    challenge_id,
+                    id
+                )
+                    .execute(executor)
+                    .await {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
 
             pub async fn edit_event(
                 id: &String,
@@ -2220,18 +2282,18 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_challenge(
+            pub async fn edit_file_name(
                 id: &String,
-                challenge_id: &String, 
+                file_name: &String, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE attachments
-                    SET challenge_id = ?
+                    SET file_name = ?
                     WHERE id = ?
                     ", 
-                    challenge_id,
+                    file_name,
                     id
                 )
                     .execute(executor)

@@ -1,4 +1,4 @@
-use crate::{components::{admin::event::Event, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, get_all_illustrations, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::{admin::event::Event, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, get_all_illustrations, structs::ApiResult}, utils::html_local_to_datetime};
 use leptos::{prelude::*, task:: spawn_local};
 use leptos::{web_sys::{FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
 
@@ -18,8 +18,8 @@ pub fn Events() -> impl IntoView {
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     
-    let events_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_events().await.unwrap_or_default()
+    let ewa_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_all_events_with_attachments().await.unwrap_or_default()
     });
     let groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
@@ -255,13 +255,13 @@ pub fn Events() -> impl IntoView {
                         <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
                             <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Big /> }>
                                 <For
-                                    each=move || events_resource.get().unwrap_or_default()
-                                    key=|event: &db::structs::Event| event.id.clone()
-                                    let(event)
+                                    each=move || ewa_resource.get().unwrap_or_default()
+                                    key=|ewa: &db::structs::EventWithAttachments| ewa.event.id.clone()
+                                    let(ewa)
                                 >
                                     <div class=r#"p-2 event"#>
                                         <Event 
-                                            event 
+                                            ewa
                                             user_groups=groups_signal
                                             illustrations=illustrations_signal
                                             refresh 

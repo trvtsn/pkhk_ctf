@@ -1,5 +1,7 @@
 use crate::{components::utils::HidePasswordButton, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
+use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
+use leptos_icons::Icon;
 
 #[component]
 pub fn User(
@@ -46,16 +48,10 @@ pub fn User(
     let new_password_hidden = RwSignal::new(true);
     let confirm_new_password_hidden = RwSignal::new(true);
 
-    let user_avatar_id = Memo::new(move |_| {
+    let user_avatar = Memo::new(move |_| {
         let user_id = id_signal.get();
         let user_avatars = user_avatars.get();
-        let mut user_avatar_id = "".to_string();
-        for avatar in user_avatars {
-            if avatar.user_id.unwrap_or_default() == user_id {
-                user_avatar_id = avatar.attachment_id
-            }
-        }
-        user_avatar_id
+        user_avatars.into_iter().find(|u| u.clone().user_id.unwrap_or_default() == user_id)
     });
     let delete_submit_btn_text = Memo::new(move |_| {
         if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
@@ -73,19 +69,20 @@ pub fn User(
                 view! { <div>"Loading..."</div> }
             }>
                 {move || {
-                    let user_avatar_id = user_avatar_id.get();
-                    if user_avatar_id.is_empty() {
-                        "".into_any()
-                    } else {
+                    let user_avatar = user_avatar.get();
+                    if let Some(user_avatar) = user_avatar {
+                        avatar_edit.set(Some(user_avatar.clone()));
                         view! {
                             <div class="h-48 w-48 flex justify-center m-auto">
                                 <img 
-                                    src=move || format!("/avatar/{}", user_avatar_id) 
+                                    src=move || format!("/avatar/{}", user_avatar.attachment_id) 
                                     class=r#"text-blue-600 underline rounded-[50%] 
                                     object-cover shadow-sm"#
                                 />
                             </div>
                         }.into_any()
+                    } else {
+                        "".into_any()
                     }
                 }}
             </Transition>
@@ -239,20 +236,50 @@ pub fn User(
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Avatar"</label>
-                <input
-                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                    type="file"
-                    name="avatar"
-                    on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() && files.length() > 0 {
-                            let file = files.get(0).unwrap();
-                            let fd = FormData::new().unwrap();
-                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            avatar_upload_action.dispatch_local(fd);
+                <div class="grid gap-2">
+                    <Transition>
+                        {move || {
+                            let user_avatar = avatar_edit.get();
+                            if let Some(user_avatar) = user_avatar {
+                                view! {
+                                    <div class="flex gap-2 items-center">
+                                        {move || user_avatar.file_name.clone()}
+                                        <a
+                                            download
+                                            href=move || format!("/file/{}", user_avatar.attachment_id.clone())
+                                        >
+                                            <Icon icon=i::LuDownload />
+                                        </a>
+                                        <button 
+                                            class="cursor-pointer"
+                                            on:click=move |_| {
+                                                avatar_edit.set(None);
+                                            } 
+                                        >
+                                            <Icon icon=i::LuX />
+                                        </button>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                "".into_any()
+                            }
+                        }}
+                    </Transition>
+                    <input
+                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                        type="file"
+                        name="avatar"
+                        on:change=move |ev: Event| {
+                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                            if let Some(files) = input.files() && files.length() > 0 {
+                                let file = files.get(0).unwrap();
+                                let fd = FormData::new().unwrap();
+                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                avatar_upload_action.dispatch_local(fd);
+                            }
                         }
-                    }
-                />
+                    />
+                </div>
             </Show>
 
             <Show when=move || editing_password.get()>
