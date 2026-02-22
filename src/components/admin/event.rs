@@ -1,4 +1,4 @@
-use crate::{server::{admin::{upload_files, upload_illustration}, db::{self, enums::AttachmentIdentifier}, enums::ResultStatus, get_illustration_id, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use chrono::DateTime;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
 
@@ -6,6 +6,7 @@ use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Even
 pub fn Event(
     event: db::structs::Event,
     user_groups: RwSignal<Vec<String>>, 
+    illustrations: RwSignal<Vec<AttachmentWithoutBlob>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
     let id_signal = RwSignal::new(event.id.clone());
@@ -22,11 +23,6 @@ pub fn Event(
     let visible_to_groups_edit = RwSignal::new(event.visible_to_groups);
     let attachments_edit = RwSignal::new(None);
     let illustration_edit = RwSignal::new(None);
-
-    let illustration = Resource::new(move || refresh.get(), move |_| {
-        let event_id = id_signal.get();
-        async move { get_illustration_id(AttachmentIdentifier::EventId(event_id)).await.unwrap_or_default() }
-    });
 
     let file_upload_action = Action::new_local(move |data: &FormData| {
         let data = data.clone();
@@ -85,11 +81,13 @@ pub fn Event(
                     view! { <div>"Loading..."</div> }
                 }>
                     {move || {
-                        if let Some(id) = illustration.get().unwrap_or_default() { 
+                        let event_id = id_signal.get();
+                        let illustrations = illustrations.get();
+                        if let Some(illustration) = illustrations.into_iter().find(|i| i.event_id == Some(event_id.clone())) {
                             view! {
                                 <div class="h-48 w-48 flex justify-center m-auto">
                                     <img 
-                                        src=move || format!("/image/{}", id) 
+                                        src=move || format!("/image/{}", illustration.id) 
                                         class=r#"text-blue-600 underline object-cover shadow-sm"#
                                     />
                                 </div>

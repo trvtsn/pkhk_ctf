@@ -37,9 +37,9 @@ pub fn Challenge(
     let category_edit = RwSignal::new(category.clone());
     let difficulty_edit = RwSignal::new(difficulty);
     let points_edit = RwSignal::new(points);
-    let attachments_edit = RwSignal::new(Some(attachments.clone()));
+    let attachments_edit = RwSignal::new(attachments.clone());
     let flag_edit = RwSignal::new("".to_string());
-    let illustration_edit = RwSignal::new(None);
+    let illustration_edit = RwSignal::new(illustration);
     let visible_to_groups_edit = RwSignal::new(visible_to_groups);
     let proxmox_vm_id_edit = RwSignal::new(vm_ids);
     let hints_edit = RwSignal::new(vec![Hint::new("1".to_string(), "")]);
@@ -58,7 +58,11 @@ pub fn Challenge(
         let data = data.clone();
         async move {
             if let Ok(api_result) = upload_files(data.clone().into()).await {
-                attachments_edit.set(Some(api_result.details.clone()))
+                attachments_edit.update(|a| {
+                    for result in api_result.details {
+                        a.push(result)
+                    }
+                });
             }
         }
     });
@@ -67,7 +71,7 @@ pub fn Challenge(
         let data = data.clone();
         async move {
             if let Ok(api_result) = upload_illustration(data.into()).await {
-                illustration_edit.set(Some(api_result.details.clone()));
+                illustration_edit.set(Some(api_result.details.clone()))
             }
         }
     });
@@ -108,11 +112,11 @@ pub fn Challenge(
                     view! { <div>"Loading..."</div> }
                 }>
                     {move || {
-                        if let Some(illustration_id) = illustration_signal.get() { 
+                        if let Some(illustration) = illustration_signal.get() { 
                             view! {
                                 <div class="h-48 w-48 flex justify-center m-auto">
                                     <img 
-                                        src=move || format!("/image/{}", illustration_id) 
+                                        src=move || format!("/image/{}", illustration.id) 
                                         class=r#"text-blue-600 underline object-cover shadow-sm"#
                                     />
                                 </div>
@@ -144,20 +148,6 @@ pub fn Challenge(
                     {visible_to_groups_signal.get().replace(",", ", ")}
                 </p>
                 <br />
-
-                <For
-                    each=move || attachments_signal.get().clone()
-                    key=|a: &AttachmentWithoutBlob| a.id.clone()
-                    let(a)
-                >
-                    <a
-                        download
-                        href=move || format!("/file/{}", a.id.clone())
-                        class=r#"text-blue-600 underline"#
-                    >
-                        {a.file_name.clone()}
-                    </a>
-                </For>
             </Show>
 
             <Show when=move || editing.get()>
@@ -449,38 +439,103 @@ pub fn Challenge(
                     }}
                 </Transition>
 
-                <label class=r#"block mb-1 text-sm font-medium"#>"Attachment"</label>
-                <input
-                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                    type="file"
-                    name="attachment"
-                    multiple
-                    on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() && files.length() > 0 {
-                            let file = files.get(0).unwrap();
-                            let fd = FormData::new().unwrap();
-                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            file_upload_action.dispatch_local(fd);
-                        }
-                    }
-                /><p>{move || uploading_file_text.get()}</p>
+                <label class=r#"block mb-1 text-sm font-medium"#>"Attachments"</label>
+                <div class="grid gap-2">
+                    <ForEnumerate
+                        each=move || attachments_edit.get().clone()
+                        key=|a: &AttachmentWithoutBlob| a.id.clone()
+                        children={move |index, a| {
+                            view! {  
+                                <div class="flex gap-2 items-center">
+                                    {a.file_name.clone()}
+                                    <a
+                                        download
+                                        href=move || format!("/file/{}", a.id.clone())
+                                        //class=r#"text-blue-600 underline"#
+                                    >
+                                        <Icon icon=i::LuDownload />
+                                    </a>
+                                    <button 
+                                        class="cursor-pointer"
+                                        on:click=move |_| {
+                                            let remove_at = index.get();
+
+                                            attachments_edit.update(|a| {
+                                                a.remove(remove_at);
+                                            });
+                                        } 
+                                    >
+                                        <Icon icon=i::LuX />
+                                    </button>
+                                </div>
+                            }
+                        }}
+                    />
+                    <div class="flex gap-2">
+                        <input
+                            class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                            type="file"
+                            name="attachment"
+                            multiple
+                            on:change=move |ev: Event| {
+                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                if let Some(files) = input.files() && files.length() > 0 {
+                                    let file = files.get(0).unwrap();
+                                    let fd = FormData::new().unwrap();
+                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                    file_upload_action.dispatch_local(fd);
+                                }
+                            }
+                        /><p>{move || uploading_file_text.get()}</p>
+                    </div>
+                </div>
 
                 <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
-                <input
-                    class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                    type="file"
-                    name="illustration"
-                    on:change=move |ev: Event| {
-                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                        if let Some(files) = input.files() && files.length() > 0 {
-                            let file = files.get(0).unwrap();
-                            let fd = FormData::new().unwrap();
-                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                            illustration_upload_action.dispatch_local(fd);
+                <div class="grid gap-2">
+                    <Transition>
+                        {move || {
+                            let illustration = illustration_edit.get();
+                            if let Some(illustration) = illustration {
+                                view! {
+                                    <div class="flex gap-2 items-center">
+                                        {move || illustration.file_name.clone()}
+                                        <a
+                                            download
+                                            href=move || format!("/file/{}", illustration.id.clone())
+                                            //class=r#"text-blue-600 underline"#
+                                        >
+                                            <Icon icon=i::LuDownload />
+                                        </a>
+                                        <button 
+                                            class="cursor-pointer"
+                                            on:click=move |_| {
+                                                illustration_edit.set(None);
+                                            } 
+                                        >
+                                            <Icon icon=i::LuX />
+                                        </button>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                "".into_any()
+                            }
+                        }}
+                    </Transition>
+                    <input
+                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                        type="file"
+                        name="illustration"
+                        on:change=move |ev: Event| {
+                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                            if let Some(files) = input.files() && files.length() > 0 {
+                                let file = files.get(0).unwrap();
+                                let fd = FormData::new().unwrap();
+                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                illustration_upload_action.dispatch_local(fd);
+                            }
                         }
-                    }
-                /><p>{move || uploading_illustration_text.get()}</p>
+                    /><p>{move || uploading_illustration_text.get()}</p>
+                </div>
             </Show>
 
             <div class=r#"flex flex-row-reverse gap-3 mt-2"#>
@@ -533,7 +588,7 @@ pub fn Challenge(
                                         points,
                                         flag: flag.clone(),
                                         visible_to_groups,
-                                        attachments: attachments.clone(),
+                                        attachments: Some(attachments.clone()),
                                         illustration: illustration.clone(),
                                         vm_ids,
                                         hints: hints.into()
@@ -548,7 +603,7 @@ pub fn Challenge(
                                     category_signal.set(category);
                                     difficulty_signal.set(difficulty);
                                     points_signal.set(points);
-                                    attachments_signal.set(attachments.unwrap_or_default());
+                                    attachments_signal.set(attachments);
                                 }
                             });
                         } else {

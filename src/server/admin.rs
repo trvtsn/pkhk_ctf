@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::UserIdentifier, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, HintsUsed, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, UserIdentifier}, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, HintsUsed, LdapArgs, ProxmoxArgs}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -172,9 +172,35 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
 
-                    if let Some(attachments) = attachments {
-                        for attachment in attachments {
-                            match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
+                    let all_challenge_attachment_ids = match AttachmentWithoutBlob::get_all(&Some(db::enums::AttachmentIdentifier::ChallengeId(id.clone())), &mut *tx).await {
+                        Ok(all_attachments) => all_attachments.iter().map(|a| a.id.clone()).collect::<Vec<String>>(),
+                        Err(e) => {
+                            tx.rollback().await?;
+                            tracing::error!(error = ?e);
+                            return Err(AppError::InternalError(e.to_string()));
+                        }
+                    };
+                    
+                    match attachments.clone() {
+                        Some(attachments) => {
+                            for attachment in attachments.iter() {
+                                match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        tx.rollback().await?;
+                                        tracing::error!(error = ?e);
+                                        return Err(AppError::InternalError(e.to_string()));
+                                    }
+                                }
+                            }
+                        },
+                        None => {}
+                    }
+
+                    let new_attachment_ids = attachments.clone().unwrap_or_default().clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                    for existing_attachment_id in all_challenge_attachment_ids {
+                        if !new_attachment_ids.contains(&existing_attachment_id) {
+                            match AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
                                 Ok(_) => {},
                                 Err(e) => {
                                     tx.rollback().await?;
@@ -184,7 +210,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             }
                         }
                     }
-                    
+
                     if let Some(hints) = hints {
                         let all_challenge_hint_ids = match DbHint::get_all_from_challenge(&id, &mut *tx).await {
                             Ok(all_hints) => all_hints.iter().map(|h| h.id.clone()).collect::<Vec<String>>(),
@@ -243,11 +269,37 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
 
                     match illustration {
                         Some(illustration) => {
-                                match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
+                            match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
+                                Ok(_) => {
+                                    tx.commit().await?;
+                                    _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                    Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
+                                },
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
+                                }
+                            }
+                        }
+                        None => {
+                            let existing_illustration_id = match AttachmentWithoutBlob::get_illustration_id(
+                                &db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx
+                            ).await {
+                                Ok(id) => id,
+                                Err(e) => {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
+                                }
+                            };
+                            
+                            if let Some(id) = existing_illustration_id {
+                                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
                                         _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
-                                        Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
+                                        return Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() });
                                     },
                                     Err(e) => {
                                         tx.rollback().await?;
@@ -255,8 +307,8 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                                         return Err(AppError::InternalError(e.to_string()));
                                     }
                                 }
-                        }
-                        None => {
+                            }
+
                             tx.commit().await?;
                             _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
                             Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })

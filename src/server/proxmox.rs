@@ -295,6 +295,7 @@ async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Resul
     }
 }
 
+// return Ok only when vm status shows running again
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<(), AppError> {
@@ -326,6 +327,7 @@ pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<(), AppError> 
     }
 }
 
+// return Ok only when vm with template id doesn't exist in user pool anymore
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<(), AppError> {

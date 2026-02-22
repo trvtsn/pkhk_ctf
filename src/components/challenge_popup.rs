@@ -109,11 +109,11 @@ pub fn ChallengePopup(
                         {move || {
                             let illustration = cwa_popup.get().illustration;
 
-                            if let Some(illustration_id) = illustration { 
+                            if let Some(illustration) = illustration { 
                                 view! {
                                     <div class="h-48 w-48 flex justify-center m-auto">
                                         <img 
-                                            src=move || format!("/image/{}", illustration_id) 
+                                            src=move || format!("/image/{}", illustration.id) 
                                             class=r#"text-blue-600 underline object-cover shadow-sm"#
                                         />
                                     </div>

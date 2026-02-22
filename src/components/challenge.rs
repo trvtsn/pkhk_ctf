@@ -90,11 +90,11 @@ pub fn Challenge(
                 view! { <div>"Loading..."</div> }
             }>
                 {move || {
-                    if let Some(illustration_id) = illustration_signal.get() { 
+                    if let Some(illustration) = illustration_signal.get() { 
                         view! {
                             <div class="h-48 w-48 flex justify-center m-auto">
                                 <img 
-                                    src=move || format!("/image/{}", illustration_id) 
+                                    src=move || format!("/image/{}", illustration.id) 
                                     class=r#"text-blue-600 underline object-cover shadow-sm"#
                                 />
                             </div>

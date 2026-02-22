@@ -176,7 +176,7 @@ pub mod structs {
     pub struct ChallengeWithAttachments {
         pub challenge: Challenge,
         pub attachments: Vec<AttachmentWithoutBlob>,
-        pub illustration: Option<String>
+        pub illustration: Option<AttachmentWithoutBlob>
     }
 
      #[derive(Eq, Clone, PartialEq, Serialize, Deserialize)]
@@ -2385,6 +2385,25 @@ cfg_if! {
                     }
             }
 
+            pub async fn get_all_illustrations(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                    FROM attachments
+                    WHERE file_type = \"illustration\"
+                    "
+                )
+                    .fetch_all(executor)
+                    .await {
+                        Ok(illustrations) => Ok(illustrations),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get_filenames(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
@@ -2733,6 +2752,107 @@ cfg_if! {
                 }
             }
 
+            pub async fn get_illustration(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match identifier {
+                    AttachmentIdentifier::Id(id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE id = ? AND file_type = \"illustration\"
+                            ",
+                            id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(illustration) => Ok(illustration),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::ChallengeId(challenge_id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE challenge_id = ? AND file_type = \"illustration\"
+                            ", 
+                            challenge_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(illustration) => Ok(illustration),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::EventId(event_id) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE event_id = ? AND file_type = \"illustration\"
+                            ", 
+                            event_id
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(illustration) => Ok(illustration),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::FileName(file_name) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE file_name = ? AND file_type = \"illustration\"
+                            ", 
+                            file_name
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(illustration) => Ok(illustration),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    AttachmentIdentifier::IdFileName((id, file_name)) => {
+                        match sqlx::query_as!(
+                            Self,
+                            "
+                            SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                            FROM attachments 
+                            WHERE id = ? AND file_name = ? AND file_type = \"illustration\"
+                            ", 
+                            id,
+                            file_name
+                        )
+                            .fetch_optional(executor)
+                            .await {
+                                Ok(illustration) => Ok(illustration),
+                                Err(e) => {
+                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
+            }
+
             pub async fn get_illustration_id(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<String>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
@@ -2977,7 +3097,7 @@ cfg_if! {
                         }
                     }
             }
-
+            
             pub async fn get_metadata(id: &String, executor: impl MySqlExecutor<'_>) -> Result<EventMetadata, sqlx::Error> {
                 match sqlx::query_as!(
                     EventMetadata,

@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
@@ -172,8 +172,8 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
 
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
-                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &pool).await?;
-                let illustration = AttachmentWithoutBlob::get_illustration_id(&AttachmentIdentifier::ChallengeId(challenge.id.clone()), &pool).await?;
+                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &pool).await?.into_iter().filter(|a| a.file_type == FileType::Attachment).collect::<Vec<AttachmentWithoutBlob>>();
+                let illustration = AttachmentWithoutBlob::get_illustration(&AttachmentIdentifier::ChallengeId(challenge.id.clone()), &pool).await?;
                 let visible_to_groups_vec = challenge.visible_to_groups.split(",").map(|v| v.to_string()).collect::<Vec<String>>();
                 if visible_to_groups_vec.contains(&db_user.group) || db_user.role == UserRole::Admin || visible_to_groups_vec.contains(&"all".to_string()) {
                     cwa.push(ChallengeWithAttachments { challenge, attachments, illustration });
@@ -659,6 +659,23 @@ pub async fn get_attachment_id(identifier: AttachmentIdentifier) -> Result<Optio
 
             match AttachmentWithoutBlob::get_id(&identifier, &pool).await {
                 Ok(id) => Ok(id),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetAllIllustrations, prefix="/api", endpoint="get_all_illustrations")]
+#[instrument]
+pub async fn get_all_illustrations() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            match AttachmentWithoutBlob::get_all_illustrations(&pool).await {
+                Ok(illustrations) => Ok(illustrations),
                 Err(e) => Err(e.into())
             }
         } else {
