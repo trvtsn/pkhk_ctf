@@ -168,6 +168,7 @@ pub fn ChallengePopup(
                                                 });
 
                                                 let hint_id = hint.id.clone();
+                                                let hint_points_penalty = hint.points_penalty;
                                                 if used_hint_ids.contains(&hint.id) {
                                                     view! {
                                                         <div class="flex gap-2 items-center">
@@ -193,7 +194,11 @@ pub fn ChallengePopup(
                                                                     if get_hint_action.pending().get() {
                                                                         view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
                                                                     } else {
-                                                                        view! { { format!("Get (-{}p)", hint.points_penalty) } }.into_any()
+                                                                        if hint_points_penalty != 0 {
+                                                                            view! { { format!("Get (-{}p)", hint.points_penalty) } }.into_any()
+                                                                        } else {
+                                                                            view! { "Get (FREE)" }.into_any()
+                                                                        }
                                                                     }
                                                                 }}
                                                             </button>

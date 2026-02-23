@@ -224,10 +224,23 @@ pub fn User(
                                         <For
                                             each=move || groups.clone()
                                             key=|group: &String| group.clone()
-                                            let(group)
-                                        >
-                                            <option value={group.clone()}>{group.clone()}</option>
-                                        </For>
+                                            children=move |group| {
+                                                let selected = group_edit.get()
+                                                    .split(",")
+                                                    .map(|g| g.to_string())
+                                                    .collect::<Vec<String>>()
+                                                    .contains(&group);
+                                                
+                                                view! {
+                                                    <option 
+                                                        value=group.clone()
+                                                        selected=selected
+                                                    >
+                                                        {group.clone()}
+                                                    </option>
+                                                }
+                                            }
+                                        />
                                     }
                                 }}
                             </Suspense>

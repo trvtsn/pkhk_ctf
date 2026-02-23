@@ -170,7 +170,7 @@ pub fn Event(
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             type="datetime-local"
                             name="start_at"
-                            value=move || start_at_signal.get().to_string()
+                            value=move || start_at_signal.get().format("%Y-%m-%d %H:%M:%S").to_string()
                             on:change=move |ev: Event| {
                                 let value_string = event_target_value(&ev);
                                 let value = DateTime::from_event(&ev)
@@ -187,7 +187,7 @@ pub fn Event(
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             type="datetime-local"
                             name="end_at"
-                            value=move || end_at_signal.get().to_string()
+                            value=move || end_at_signal.get().format("%Y-%m-%d %H:%M:%S").to_string()
                             on:change=move |ev: Event| {
                                 let value_string = event_target_value(&ev);
                                 let value = DateTime::from_event(&ev)
@@ -220,7 +220,18 @@ pub fn Event(
                                 visible_to_groups_edit.set(picked.join(","));
                             }
                         >
-                            <option value="all">"All"</option>
+                            <option 
+                                value="all"
+                                selected=move || {
+                                    visible_to_groups_edit
+                                        .get().split(",")
+                                        .map(|g| g.to_string())
+                                        .collect::<Vec<String>>()
+                                        .contains(&"all".to_string())
+                                }
+                            >
+                                "All"
+                            </option>
                             <Suspense fallback=move || {
                                 view! { <div>"Loading..."</div> }
                             }>
@@ -230,10 +241,23 @@ pub fn Event(
                                         <For
                                             each=move || user_groups.clone()
                                             key=|group: &String| group.clone()
-                                            let(group)
-                                        >
-                                            <option value={group.clone()}>{group.clone()}</option>
-                                        </For>
+                                            children=move |group| {
+                                                let selected = visible_to_groups_edit
+                                                    .get().split(",")
+                                                    .map(|g| g.to_string())
+                                                    .collect::<Vec<String>>()
+                                                    .contains(&group);
+
+                                                view! {
+                                                    <option 
+                                                        value=group.clone()
+                                                        selected=selected
+                                                    >
+                                                        {group.clone()}
+                                                    </option>
+                                                }
+                                            }
+                                        />
                                     }
                                 }}
                             </Suspense>

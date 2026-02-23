@@ -615,9 +615,13 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
             let mut attachments: Vec<AttachmentWithoutBlob> = Vec::new();
 
             let mut data = files.into_inner().unwrap();
+            let mut found_file = false;
             while let Ok(Some(mut field)) = data.next_field().await {
                 let file_name = match field.file_name() {
-                    Some(n) => n.to_string(),
+                    Some(n) => {
+                        found_file = true;
+                        n.to_string()
+                    },
                     None => continue,
                 };
 
@@ -626,6 +630,13 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
                 let mut file_blob = Vec::<u8>::new();
                 while let Ok(Some(chunk)) = field.chunk().await {
                     file_blob.extend_from_slice(&chunk);
+                }
+
+                if file_blob.is_empty() {
+                    return Err(AppError::BadRequest(format!(
+                        "uploaded file \"{}\" is empty",
+                        file_name
+                    )));
                 }
 
                 let insert_id = match db::structs::Attachment::add(&None, &None, &None, &file_name, &file_blob, &db::enums::FileType::Attachment, &Some(mime_type), &pool).await {
@@ -646,7 +657,11 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
                 }
             }
 
-            Ok(ApiResult { result: ResultStatus::Success, details: attachments })
+            if !found_file {
+                Err(AppError::BadRequest("no files uploaded".to_string()))
+            } else {
+                Ok(ApiResult { result: ResultStatus::Success, details: attachments })
+            }
         } else {
             Err(AppError::NoServerConnection)
         }

@@ -598,12 +598,11 @@ pub fn Challenges() -> impl IntoView {
                     let mut groups = map
                         .into_iter()
                         .collect::<Vec<(Option<String>, Vec<ChallengeWithAttachments>)>>();
+                    // alphabetical sort, there's probably a better way to do this
                     groups
                         .sort_by(|(a, _), (b, _)| {
                             a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or(""))
                         });
-
-                    // alphabetical sort, there's probably a better way to do this
 
                     view! {
                         <For

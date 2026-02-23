@@ -142,14 +142,21 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`hints_used` (
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_hints_used_challenges1`
     FOREIGN KEY (`challenge_id`)
-    REFERENCES `ctfpkhk`.`challenges` (`id`),
+    REFERENCES `ctfpkhk`.`challenges` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_hints_used_hints1`
     FOREIGN KEY (`hint_id`)
-    REFERENCES `ctfpkhk`.`hints` (`id`),
+    REFERENCES `ctfpkhk`.`hints` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_hints_used_users1`
     FOREIGN KEY (`user_id`)
-    REFERENCES `ctfpkhk`.`users` (`id`))
+    REFERENCES `ctfpkhk`.`users` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE)
 ENGINE = InnoDB
+AUTO_INCREMENT = 87
 DEFAULT CHARACTER SET = utf8mb3;
 
 CREATE INDEX `fk_hints_used_challenges1_idx` ON `ctfpkhk`.`hints_used` (`challenge_id` ASC) VISIBLE;

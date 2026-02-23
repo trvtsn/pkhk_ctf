@@ -754,21 +754,14 @@ cfg_if! {
             pub async fn get_all_groups(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 match sqlx::query!(
                     "
-                    SELECT `group`
+                    SELECT DISTINCT `group`
                     FROM users 
                     "
                 )
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => {
-                            let mut groups = Vec::<String>::new();
-                            for row in rows.iter() {
-                                let group = &row.group;
-                                if !group.is_empty() {
-                                    groups.push(group.clone());
-                                }
-                            }
-                            groups.dedup();
+                            let groups = rows.into_iter().filter(|row| !row.group.is_empty()).map(|row| row.group.clone()).collect::<Vec<String>>();
                             Ok(groups)
                         },
                         Err(e) => {
@@ -2487,6 +2480,25 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(illustrations) => Ok(illustrations),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
+            pub async fn get_certificate(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
+                    FROM attachments
+                    WHERE file_type = \"certificate\"
+                    "
+                )
+                    .fetch_optional(executor)
+                    .await {
+                        Ok(certificate) => Ok(certificate),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

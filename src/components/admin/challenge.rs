@@ -76,13 +76,6 @@ pub fn Challenge(
         }
     });
 
-    let delete_submit_btn_text = Memo::new(move |_| {
-        if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
-    });
-    let edit_submit_btn_text = Memo::new(move |_| {
-        if editing.get() { "Confirm Edit".to_string() } else { "Edit".to_string() }
-    });
-
     let uploading_file_text = Memo::new(move |_| {
         if file_upload_action.pending().get() {
             "Uploading...".to_string()
@@ -236,24 +229,33 @@ pub fn Challenge(
                             <For
                                 each=move || categories.get()
                                 key=|category: &String| category.clone()
-                                let(category)
-                            >
-                                <option value=category.clone()>{category.clone()}</option>
-                            </For>
+                                children=move |category| {
+                                    let selected = category_edit.get().map(|c| c == category).unwrap_or(false);
+                                    view! {
+                                        <option 
+                                            value=category.clone()
+                                            selected=selected
+                                        >
+                                            {category.clone()}
+                                        </option>
+                                    }
+                                }
+                            />
                             <option value="__new__">"-- Add New --"</option>
                         </select>
-                        <input
-                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                            hidden=move || !category_add_new_selected.get()
-                            type="text"
-                            id="action_create_category_input"
-                            value=""
-                            on:change=move |ev: Event| {
-                                let value = event_target_value(&ev);
-                                category_edit.set(Some(value));
-                            }
-                        />
+                        <Show when=move || category_add_new_selected.get()>
+                            <input
+                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                type="text"
+                                id="action_create_category_input"
+                                value=""
+                                on:change=move |ev: Event| {
+                                    let value = event_target_value(&ev);
+                                    category_edit.set(Some(value));
+                                }
+                            />
+                        </Show>
                     </div>
 
                     <div class="grid">
@@ -321,7 +323,18 @@ pub fn Challenge(
                                 visible_to_groups_edit.set(picked.join(","));
                             }
                         >
-                            <option value="all">"All"</option>
+                            <option 
+                                value="all"
+                                selected=move || {
+                                    visible_to_groups_edit
+                                        .get().split(",")
+                                        .map(|g| g.to_string())
+                                        .collect::<Vec<String>>()
+                                        .contains(&"all".to_string())
+                                }
+                            >
+                                "All"
+                            </option>
                             <Suspense fallback=move || {
                                 view! { <div>"Loading..."</div> }
                             }>
@@ -331,10 +344,23 @@ pub fn Challenge(
                                         <For
                                             each=move || groups.clone()
                                             key=|group: &String| group.clone()
-                                            let(group)
-                                        >
-                                            <option value={group.clone()}>{group.clone()}</option>
-                                        </For>
+                                            children=move |group| {
+                                                let selected = visible_to_groups_edit
+                                                    .get().split(",")
+                                                    .map(|g| g.to_string())
+                                                    .collect::<Vec<String>>()
+                                                    .contains(&group);
+
+                                                view! {
+                                                    <option 
+                                                        value=group.clone()
+                                                        selected=selected
+                                                    >
+                                                        {group.clone()}
+                                                    </option>
+                                                }
+                                            }
+                                        />
                                     }
                                 }}
                             </Suspense>
@@ -373,10 +399,25 @@ pub fn Challenge(
                                         <For
                                             each=move || templates.clone()
                                             key=|template: &ProxmoxVMTemplate| template.id
-                                            let(template)
-                                        >
-                                            <option value={template.id}>{format!("{} (VM ID: {})", template.name, template.id)}</option>
-                                        </For>
+                                            children=move |template| {
+                                                let selected = proxmox_vm_id_edit
+                                                    .get()
+                                                    .unwrap_or_default()
+                                                    .split(",")
+                                                    .map(|id| id.to_string())
+                                                    .collect::<Vec<String>>()
+                                                    .contains(&template.id.to_string());
+
+                                                view! {
+                                                    <option 
+                                                        value={template.id}
+                                                        selected=selected
+                                                    >
+                                                        {format!("{} (VM ID: {})", template.name, template.id)}
+                                                    </option>
+                                                }
+                                            }
+                                        />
                                     }
                                 }}
                             </Suspense>
@@ -585,94 +626,127 @@ pub fn Challenge(
                         "Cancel"
                     </button>
                 </Show>
-                <button
-                    type="button"
-                    hidden=move || deleting.get()
-                    class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                    on:click=move |_| {
-                        let challenge_id = id_signal.get();
-                        let event_id = event_id_edit.get();
-                        let name = name_edit.get();
-                        let description = description_edit.get();
-                        let category = category_edit.get();
-                        let difficulty = difficulty_edit.get();
-                        let points = points_edit.get();
-                        let flag = flag_edit.get();
-                        let visible_to_groups = visible_to_groups_edit.get();
-                        let attachments = if attachments_edit.get().is_empty() { None } else { Some(attachments_edit.get()) };
-                        let illustration = illustration_edit.get();
-                        let vm_ids = proxmox_vm_id_edit.get();
-                        let hints = hints_edit.get().into_iter().map(|h| {
-                            let mut hint = Into::<DbHint>::into(h); 
-                            hint.challenge_id = challenge_id.clone(); 
-                            hint
-                        }).collect::<Vec<DbHint>>();
-                        if editing.get() {
-                            spawn_local(async move {
-                                if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
-                                        id: challenge_id.clone(),
-                                        event_id: event_id.clone(),
-                                        name: name.clone(),
-                                        description: description.clone().unwrap_or_default(),
-                                        category: category.clone().unwrap_or_default(),
-                                        difficulty,
-                                        points,
-                                        flag: flag.clone(),
-                                        visible_to_groups,
-                                        attachments: attachments.clone(),
-                                        illustration: illustration.clone(),
-                                        vm_ids,
-                                        hints: hints.into()
-                                    })
-                                    .await && result == ResultStatus::Success
-                                {
-                                    refresh.update(|n| *n += 1);
-                                    editing.set(false);
-                                    event_id_signal.set(event_id);
-                                    name_signal.set(name);
-                                    description_signal.set(description);
-                                    category_signal.set(category);
-                                    difficulty_signal.set(difficulty);
-                                    points_signal.set(points);
-                                    attachments_signal.set(attachments.unwrap_or_default());
-                                }
-                            });
-                        } else {
-                            editing.set(true)
+                <Show when=move || editing.get()>
+                    <button
+                        type="button"
+                        hidden=move || deleting.get()
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                        on:click=move |_| {
+                            let challenge_id = id_signal.get();
+                            let event_id = event_id_edit.get();
+                            let name = name_edit.get();
+                            let description = description_edit.get();
+                            let category = category_edit.get();
+                            let difficulty = difficulty_edit.get();
+                            let points = points_edit.get();
+                            let flag = flag_edit.get();
+                            let visible_to_groups = visible_to_groups_edit.get();
+                            let attachments = if attachments_edit.get().is_empty() { None } else { Some(attachments_edit.get()) };
+                            let illustration = illustration_edit.get();
+                            let vm_ids = proxmox_vm_id_edit.get();
+                            let hints = hints_edit.get().into_iter().map(|h| {
+                                let mut hint = Into::<DbHint>::into(h); 
+                                hint.challenge_id = challenge_id.clone(); 
+                                hint
+                            }).collect::<Vec<DbHint>>();
+                            if editing.get() {
+                                spawn_local(async move {
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
+                                            id: challenge_id.clone(),
+                                            event_id: event_id.clone(),
+                                            name: name.clone(),
+                                            description: description.clone().unwrap_or_default(),
+                                            category: category.clone().unwrap_or_default(),
+                                            difficulty,
+                                            points,
+                                            flag: flag.clone(),
+                                            visible_to_groups,
+                                            attachments: attachments.clone(),
+                                            illustration: illustration.clone(),
+                                            vm_ids,
+                                            hints: hints.into()
+                                        })
+                                        .await && result == ResultStatus::Success
+                                    {
+                                        refresh.update(|n| *n += 1);
+                                        editing.set(false);
+                                        event_id_signal.set(event_id);
+                                        name_signal.set(name);
+                                        description_signal.set(description);
+                                        category_signal.set(category);
+                                        difficulty_signal.set(difficulty);
+                                        points_signal.set(points);
+                                        attachments_signal.set(attachments.unwrap_or_default());
+                                    }
+                                });
+                            } else {
+                                editing.set(true)
+                            }
                         }
-                    }
-                >
-                    {move || edit_submit_btn_text.get()}
-                </button>
-                <button
-                    hidden=move || editing.get()
-                    class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
-                    bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
-                    focus:ring-yale-blue-500"#
-                    on:click=move |_| {
-                        if deleting.get() {
-                            let challenge_id = id_signal.get().clone();
-                            spawn_local(async move {
-                                tracing::debug!("deleting challenge ID: {challenge_id}");
-                                if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Delete {
-                                        id: challenge_id.clone(),
-                                    })
-                                    .await && result == ResultStatus::Success
-                                {
-                                    deleting.set(false);
-                                    deleted.set(true);
-                                    refresh.update(|n| *n += 1);
-                                }
-                            });
-                        } else {
-                            deleting.set(true);
+                    >
+                        "Confirm Edit"
+                    </button>
+                </Show>
+                <Show when=move || deleting.get()>
+                    <button
+                        hidden=move || editing.get()
+                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                        bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
+                        on:click=move |_| {
+                            if deleting.get() {
+                                let challenge_id = id_signal.get().clone();
+                                spawn_local(async move {
+                                    tracing::debug!("deleting challenge ID: {challenge_id}");
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Delete {
+                                            id: challenge_id.clone(),
+                                        })
+                                        .await && result == ResultStatus::Success
+                                    {
+                                        deleting.set(false);
+                                        deleted.set(true);
+                                        refresh.update(|n| *n += 1);
+                                    }
+                                });
+                            } else {
+                                deleting.set(true);
+                            }
                         }
-                    }
-                >
-                    {move || delete_submit_btn_text.get()}
-                </button>
+                    >
+                        "Confirm Delete"
+                    </button>
+                </Show>
+                <Show when=move || !editing.get() && !deleting.get()>
+                    <button
+                        type="button"
+                        hidden=move || deleting.get()
+                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                        on:click=move |_| {
+                            if !editing.get() {
+                                editing.set(true)
+                            }
+                        }
+                    >
+                        "Edit"
+                    </button>
+                    <button
+                        hidden=move || editing.get()
+                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
+                        bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500"#
+                        on:click=move |_| {
+                            if !deleting.get() {
+                                deleting.set(true);
+                            }
+                        }
+                    >
+                        "Delete"
+                    </button>
+                </Show>
             </div>
         </div>
     }

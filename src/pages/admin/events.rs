@@ -73,6 +73,9 @@ pub fn Events() -> impl IntoView {
     view! {
         <Transition>
             {move || {
+                let groups = groups_resource.get().unwrap_or_default();
+                groups_signal.set(groups);
+                
                 let illustrations = illustrations_resource.get().unwrap_or_default();
                 illustrations_signal.set(illustrations);
 
@@ -266,8 +269,8 @@ pub fn Events() -> impl IntoView {
                     </div>
 
                     <div class=r#"events pt-4"#>
-                        <div class=r#"grid grid-cols-4 content-stretch"#>
-                            <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Big /> }>
+                        <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Big /> }>
+                            <div class=r#"grid grid-cols-4 content-stretch"#>
                                 <For
                                     each=move || ewa_resource.get().unwrap_or_default()
                                     key=|ewa: &db::structs::EventWithAttachments| ewa.event.id.clone()
@@ -282,8 +285,8 @@ pub fn Events() -> impl IntoView {
                                         />
                                     </div>
                                 </For>
-                            </Transition>
-                        </div>
+                            </div>
+                        </Transition>
                     </div>
                 }
             }}

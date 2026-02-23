@@ -68,6 +68,7 @@ pub fn Proxmox() -> impl IntoView {
                     api_path.set(proxmox_args.api_path.clone());
                     api_token.set(proxmox_args.api_token);
                     auth_type.set(proxmox_args.auth_type);
+                    node.set(proxmox_args.node);
                 }
 
                 view! {
