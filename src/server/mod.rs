@@ -12,6 +12,8 @@ use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{
 use leptos_axum::ResponseOptions;
 use tracing::instrument;
 use std::collections::{BTreeSet, HashMap};
+use std::net::{TcpStream, ToSocketAddrs};
+use std::time::{Duration, Instant};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
 #[cfg(feature = "ssr")]
@@ -541,7 +543,7 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
             if username == db_user.username {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "username already exists".to_string() });
             } else if username.is_empty() || !username.is_ascii() {
-                return Err(AppError::InternalError("internal error".to_string()));
+                return Err(AppError::InternalError("invalid username".to_string()));
             } else {
                 match DbUser::edit_username(&user.id, &username, &pool).await {
                     Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed username".to_string() }),
@@ -1266,4 +1268,35 @@ async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
             return Err(AppError::Forbidden);
         }
     }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+pub async fn is_host_reachable(url: String) -> Result<bool, AppError> {
+    let url = url::Url::parse(&url)?;
+    let host = url.host_str().unwrap_or_default();
+    let timeout = Duration::from_millis(1000);
+    let addrs = (host, 8006).to_socket_addrs()?;
+    let start = Instant::now();
+
+    for addr in addrs {
+        let elapsed = start.elapsed();
+        if elapsed >= timeout {
+            return Ok(false);
+        }
+        let remaining = timeout - elapsed;
+
+        match TcpStream::connect_timeout(&addr, remaining) {
+            Ok(stream) => {
+                let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+                let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+                return Ok(true);
+            }
+            Err(_e) => {
+                continue;
+            }
+        }
+    }
+
+    Ok(false)
 }

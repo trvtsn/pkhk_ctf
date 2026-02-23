@@ -175,7 +175,6 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`ldap` (
   `bind_dn` VARCHAR(100) NOT NULL,
   `bind_pw` VARCHAR(64) NOT NULL,
   `base_dn` VARCHAR(100) NOT NULL,
-  `certificate_blob` BLOB NULL DEFAULT NULL,
   `enabled` TINYINT NOT NULL,
   PRIMARY KEY (`restriction`))
 ENGINE = InnoDB

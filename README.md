@@ -2,7 +2,7 @@
 
 # PKHK CTF Platform
 
-Early prototype of the CTF platform for [Pärnumaa Kutsehariduskeskus](https://hariduskeskus.ee/).
+Prototype of the CTF platform for [Pärnumaa Kutsehariduskeskus](https://hariduskeskus.ee/).
 Full-stack project using Leptos SSR, Axum and Tailwind v4.
 
 ## Running the project

@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
-use crate::server::{AuthSession, hash_string, build_and_broadcast};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
+use crate::server::{AuthSession, hash_string, build_and_broadcast, is_host_reachable};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -670,35 +670,78 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
 
 #[server(input=MultipartFormData, name=AdminUploadCertificate, prefix="/api/admin/certificate", endpoint="upload")]
 #[instrument(skip(file))]
-pub async fn upload_certificate(file: MultipartData) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn upload_certificate(file: MultipartData) -> Result<ApiResult<AttachmentWithoutBlob>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
 
-            let mut data = file.into_inner().unwrap();
-            while let Ok(Some(mut field)) = data.next_field().await {
-                // let file_name = match field.file_name() {
-                //     Some(n) => n.to_string(),
-                //     None => continue,
-                // };
+            let existing_certificate = match AttachmentWithoutBlob::get_certificate(&pool).await {
+                Ok(cert) => cert,
+                Err(e) => return Err(e.into())
+            };
+            if let Some(existing_certificate) = existing_certificate {
+                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_certificate.id), &pool).await {
+                    Ok(_) => {},
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        return Err(AppError::InternalError(e.to_string()));
+                    }
+                }
+            }
 
-                // let mime_type = field.content_type().map(|ct| ct.to_string()).unwrap_or_default(); // if mime type isn't a certificate, return AppError
+            let mut attachment = AttachmentWithoutBlob::default();
+
+            let mut data = file.into_inner().unwrap();
+            let mut found_file = false;
+            while let Ok(Some(mut field)) = data.next_field().await {
+                let file_name = match field.file_name() {
+                    Some(n) => {
+                        found_file = true;
+                        n.to_string()
+                    },
+                    None => continue,
+                };
+
+                let mime_type = field.content_type().map(|ct| ct.to_string()).unwrap_or_default();
 
                 let mut file_blob = Vec::<u8>::new();
                 while let Ok(Some(chunk)) = field.chunk().await {
                     file_blob.extend_from_slice(&chunk);
                 }
 
-                match LdapArgs::update_certificate(&Some(file_blob), &pool).await {
-                    Ok(_) => {},
+                if file_blob.is_empty() {
+                    return Err(AppError::BadRequest(format!(
+                        "uploaded file \"{}\" is empty",
+                        file_name
+                    )));
+                }
+
+                let insert_id = match db::structs::Attachment::add(&None, &None, &None, &file_name, &file_blob, &db::enums::FileType::Certificate, &Some(mime_type), &pool).await {
+                    Ok(id) => id,
                     Err(e) => {
                         tracing::error!(error = ?e);
-                        return Err(e.into());
+                        return Err(AppError::InternalError("internal error".to_string()));
+                    }
+                };
+
+                match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id.clone()), &pool).await {
+                    Ok(Some(attachment_result)) => attachment = attachment_result,
+                    Ok(None) => {
+                        tracing::error!("file upload with insert id {} but could not fetch it from db", insert_id);
+                        return Err(AppError::InternalError("internal error".to_string()));
+                    },
+                    Err(e) => {
+                        tracing::error!(error = ?e, "failed to fetch upload file from db");
+                        return Err(AppError::InternalError("internal error".to_string()));
                     }
                 }
             }
 
-            Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully uploaded certificate".to_string()) })
+            if !found_file {
+                Err(AppError::BadRequest("no files uploaded".to_string()))
+            } else {
+                Ok(ApiResult { result: ResultStatus::Success, details: attachment })
+            }
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -1176,16 +1219,26 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
 pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let (_, _) = authenticated_check().await?;
+            let (_, pool) = authenticated_check().await?;
             
+            match is_host_reachable(args.url.clone()).await {
+                Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
+                Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
+            }
+
             if !args.enabled.0 {
                 return Err(AppError::InternalError("LDAP is disabled".to_string()));
             }
 
+            let existing_certificate = match Attachment::get_certificate(&pool).await {
+                Ok(cert) => cert,
+                Err(e) => return Err(e.into())
+            };
+
             #[allow(unused)]
             let mut settings = LdapConnSettings::default();
-            if let Some(cert) = args.certificate_blob {
-                let cert = native_tls::Certificate::from_pem(&cert)?;
+            if let Some(cert) = existing_certificate {
+                let cert = native_tls::Certificate::from_pem(&cert.file_blob)?;
                 let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
                 settings = LdapConnSettings::new().set_connector(connector);
             } else {
@@ -1239,42 +1292,66 @@ pub async fn get_ldap() -> Result<Option<LdapArgs>, AppError> {
     }
 }
 
-#[server(name=UpdateLdap, prefix="/api/admin", endpoint="ldap")]
+#[server(name=GetLdapCertificate, prefix="/api/admin/ldap", endpoint="get_certificate")]
 #[instrument]
-pub async fn update_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn get_certificate() -> Result<Option<Attachment>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
             
-            #[allow(unused)]
-            let mut settings = LdapConnSettings::default();
-            if let Some(cert) = args.certificate_blob {
-                let cert = native_tls::Certificate::from_pem(&cert)?;
-                let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
-                settings = LdapConnSettings::new().set_connector(connector);
-            } else {
-                settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
+            match Attachment::get_certificate(&pool).await {
+                Ok(cert) => Ok(cert),
+                Err(e) => Err(e.into())
             }
-            
-            let (conn, mut ldap) = match LdapConnAsync::with_settings(settings, &args.url.as_str()).await {
-                Ok(conn) => conn,
-                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
-            };
-            ldap3::drive!(conn);
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
 
-            match ldap.simple_bind(args.bind_dn.as_str(), args.bind_pw.as_str()).await {
-                Ok(res) => {
-                    match res.success() {
-                        Ok(_) => ldap.unbind().await?,
-                        Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+#[server(name=GetLdapCertificateWithoutBlob, prefix="/api/admin/ldap", endpoint="get_certificate_metadata")]
+#[instrument]
+pub async fn get_certificate_without_blob() -> Result<Option<AttachmentWithoutBlob>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+            
+            match AttachmentWithoutBlob::get_certificate(&pool).await {
+                Ok(cert) => Ok(cert),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=UpdateLdap, prefix="/api/admin", endpoint="ldap")]
+#[instrument]
+pub async fn update_ldap(args: LdapArgs, new_certificate: Option<AttachmentWithoutBlob>) -> Result<ApiResult<Option<String>>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let existing_certificate = match Attachment::get_certificate(&pool).await {
+                Ok(cert) => cert,
+                Err(e) => return Err(e.into())
+            };
+            if let Some(existing_certificate) = existing_certificate.clone() && new_certificate.is_none() {
+                match AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_certificate.id.clone()), &pool).await {
+                    Ok(_) => {},
+                    Err(e) => {
+                        tracing::error!(error = ?e);
+                        return Err(AppError::InternalError(e.to_string()));
                     }
-                },
-                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                }
             }
 
             // bind_pw should be hashed, but how to connect with a hashed password?
             match LdapArgs::update(&args.url, &args.bind_dn, &args.bind_pw, &args.base_dn, &args.enabled.0, &pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated LDAP configuration".to_string()) }),
+                Ok(_) => {
+                    Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated LDAP configuration".to_string()) })
+                },
                 Err(e) => {
                     Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("bind succeeded but failed to update DB row: {e}")) })
                 }

@@ -14,7 +14,9 @@ use tracing::instrument;
 
 #[cfg(feature = "ssr")]
 use crate::server::backend::enums::AuthType;
-use crate::server::db::structs::LdapArgs;
+#[cfg(feature = "ssr")]
+use crate::server::is_host_reachable;
+use crate::server::db::structs::{Attachment, LdapArgs};
 
 #[cfg(feature = "ssr")]
 pub type AuthSession = axum_login::AuthSession<Backend>;
@@ -171,10 +173,20 @@ cfg_if! {
                             Err(e) => return Err(e.into())
                         };
 
+                        match is_host_reachable(ldap_args.url.clone()).await {
+                            Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
+                            Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
+                        }
+
+                        let certificate = match Attachment::get_certificate(&self.pool).await {
+                            Ok(cert) => cert,
+                            Err(e) => return Err(e.into())
+                        };
+
                         #[allow(unused)]
                         let mut settings = LdapConnSettings::default();
-                        if let Some(cert) = ldap_args.certificate_blob {
-                            let cert = native_tls::Certificate::from_pem(&cert)?;
+                        if let Some(cert) = certificate {
+                            let cert = native_tls::Certificate::from_pem(&cert.file_blob)?;
                             let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
                             settings = LdapConnSettings::new().set_connector(connector);
                         } else {

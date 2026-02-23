@@ -63,7 +63,7 @@ cfg_if! {
                 Err(e) => return Err(e.into())
             }
 
-            match LdapArgs::insert(&"".to_string(), &"".to_string(), &"".to_string(), &"".to_string(), &None, get_db_ref()).await {
+            match LdapArgs::insert(&"".to_string(), &"".to_string(), &"".to_string(), &"".to_string(), get_db_ref()).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e.into())
             }
@@ -134,7 +134,7 @@ pub mod structs {
         pub group: String
     }
 
-    #[derive(Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default, Eq)]
     pub struct Attachment {
         pub id: String,
         pub challenge_id: Option<String>,
@@ -221,7 +221,6 @@ pub mod structs {
         pub bind_dn: String,
         pub bind_pw: String,
         pub base_dn: String,
-        pub certificate_blob: Option<Vec<u8>>,
         pub enabled: SqlBool
     }
 
@@ -380,7 +379,8 @@ pub mod enums {
         #[default]
         Attachment,
         Illustration,
-        Avatar
+        Avatar,
+        Certificate
     }
 
     impl From<String> for FileType {
@@ -389,6 +389,7 @@ pub mod enums {
                 "attachment" => FileType::Attachment,
                 "illustration" => FileType::Illustration,
                 "avatar" => FileType::Avatar,
+                "certificate" => FileType::Certificate,
                 _ => FileType::Attachment
             }
         }
@@ -400,6 +401,7 @@ pub mod enums {
                 FileType::Attachment => "attachment",
                 FileType::Illustration => "illustration",
                 FileType::Avatar => "avatar",
+                FileType::Certificate => "certificate",
             };
             write!(f, "{s}")
         }
@@ -2000,6 +2002,25 @@ cfg_if! {
                 }
             }
 
+            pub async fn get_certificate(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
+                match sqlx::query_as!(
+                    Self,
+                    "
+                    SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
+                    FROM attachments 
+                    WHERE file_type = \"certificate\"
+                    "
+                )
+                    .fetch_optional(executor)
+                    .await {
+                        Ok(certificate) => Ok(certificate),
+                        Err(e) => {
+                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            Err(e)?
+                        }
+                    }
+            }
+
             pub async fn get(identifier: AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
@@ -3412,19 +3433,17 @@ cfg_if! {
                 bind_dn: &String, 
                 bind_pw: &String, 
                 base_dn: &String, 
-                certificate_blob: &Option<Vec<u8>>,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
-                    INSERT INTO ldap (url, bind_dn, bind_pw, base_dn, certificate_blob, enabled)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO ldap (url, bind_dn, bind_pw, base_dn, enabled)
+                    VALUES (?, ?, ?, ?, ?)
                     ",
                     url,
                     bind_dn,
                     bind_pw,
                     base_dn,
-                    certificate_blob,
                     0
                 )
                     .execute(executor)
@@ -3467,15 +3486,20 @@ cfg_if! {
             }
 
             pub async fn update_certificate(
-                certificate_blob: &Option<Vec<u8>>, 
+                file_blob: &Option<Vec<u8>>,
+                file_name: &Option<String>,
+                mime_type: &Option<String>,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
-                    UPDATE ldap
-                    SET certificate_blob = ?
+                    UPDATE attachments
+                    SET file_blob = ?, file_name = ?, mime_type = ?
+                    WHERE file_type = \"certificate\"
                     ",
-                    certificate_blob
+                    file_blob,
+                    file_name,
+                    mime_type
                 )
                     .execute(executor)
                     .await {
@@ -3541,7 +3565,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT url, bind_dn, bind_pw, base_dn, certificate_blob, enabled
+                    SELECT url, bind_dn, bind_pw, base_dn, enabled
                     FROM ldap
                     "
                 )
@@ -3559,30 +3583,13 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT url, bind_dn, bind_pw, base_dn, certificate_blob, enabled
+                    SELECT url, bind_dn, bind_pw, base_dn, enabled
                     FROM ldap
                     "
                 )
                     .fetch_optional(executor)
                     .await {
                         Ok(ldap_args) => Ok(ldap_args),
-                        Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
-                        }
-                    }
-            }
-
-            pub async fn get_certificate(executor: impl MySqlExecutor<'_>) -> Result<Option<Vec<u8>>, sqlx::Error> {
-                match sqlx::query!(
-                    "
-                    SELECT certificate_blob
-                    FROM ldap
-                    "
-                )
-                    .fetch_one(executor)
-                    .await {
-                        Ok(row) => Ok(row.certificate_blob),
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?

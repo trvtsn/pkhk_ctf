@@ -1,9 +1,12 @@
-use crate::{components::utils::{ComponentSize, HidePasswordButton, Spinner}, server::{admin::{disable_ldap, enable_ldap, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::utils::{ComponentSize, HidePasswordButton, Spinner}, server::{admin::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
+use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
+use leptos_icons::Icon;
 
 /// Default Home Page
 #[component]
 pub fn Ldap() -> impl IntoView {
+    let refresh = RwSignal::new(0);
     let connect_status_ui = RwSignal::new("".to_string());
     let connect_success = RwSignal::new(false);
     let password_hidden = RwSignal::new(true);
@@ -12,10 +15,13 @@ pub fn Ldap() -> impl IntoView {
     let bind_dn = RwSignal::new("".to_string());
     let bind_pw = RwSignal::new("".to_string());
     let base_dn = RwSignal::new("".to_string());
-    let certificate_blob = RwSignal::new(None);
+    let certificate = RwSignal::new(None);
     let enabled = RwSignal::new(SqlBool(true));
 
-    let ldap_resource = Resource::new(move || (), move |_| async move {
+    let certificate_resource = Resource::new(move || refresh.get(), move |_| async move {
+        get_certificate_without_blob().await.unwrap_or_default()
+    });
+    let ldap_resource = Resource::new(move || refresh.get(), move |_| async move {
         let ldap_args = get_ldap().await.unwrap_or_default().unwrap_or_default();
         let test_args = ldap_args.clone();
         if ldap_args.enabled.0 {
@@ -23,7 +29,6 @@ pub fn Ldap() -> impl IntoView {
             let bind_dn = test_args.bind_dn;
             let bind_pw = test_args.bind_pw;
             let base_dn = test_args.base_dn;
-            let certificate_blob = test_args.certificate_blob;
             let enabled = test_args.enabled;
             spawn_local(async move {
                 if let Ok(ApiResult { result, .. }) = test_ldap(LdapArgs {
@@ -31,7 +36,6 @@ pub fn Ldap() -> impl IntoView {
                         bind_dn,
                         bind_pw,
                         base_dn,
-                        certificate_blob,
                         enabled,
                     })
                     .await
@@ -48,15 +52,12 @@ pub fn Ldap() -> impl IntoView {
         ldap_args
     });
 
-    let cert_upload_action = Action::new_local(|data: &FormData| {
-        upload_certificate(data.clone().into())
-    });
-
-    let uploading_cert_text = Memo::new(move |_| {
-        if cert_upload_action.pending().get() {
-            "Uploading...".to_string()
-        } else {
-            "".to_string()
+    let cert_upload_action = Action::new_local(move |data: &FormData| {
+        let data = data.clone();
+        async move {
+            if let Ok(api_result) = upload_certificate(data.into()).await {
+                certificate.set(Some(api_result.details.clone()));
+            }
         }
     });
 
@@ -80,6 +81,10 @@ pub fn Ldap() -> impl IntoView {
                     bind_pw.set(ldap_args.bind_pw.clone());
                     base_dn.set(ldap_args.base_dn.clone());
                     enabled.set(ldap_args.enabled);
+                }
+
+                if let Some(Some(cert)) = certificate_resource.get() {
+                    certificate.set(Some(cert));
                 }
 
                 view! {
@@ -167,20 +172,53 @@ pub fn Ldap() -> impl IntoView {
 
                                 <div class="grid">
                                     <label class=r#"block mb-1 text-sm font-medium"#>"Certificate (Optional)"</label>
-                                    <input
-                                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                                        type="file"
-                                        name="certificate"
-                                        on:change=move |ev: Event| {
-                                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                            if let Some(files) = input.files() && files.length() > 0 {
-                                                let file = files.get(0).unwrap();
-                                                let fd = FormData::new().unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                                cert_upload_action.dispatch_local(fd);
+                                    <div class="grid gap-2">
+                                        {move || {
+                                            if let Some(cert) = certificate.get() {
+                                                view! {
+                                                    <div class="flex gap-2 items-center">
+                                                        {cert.file_name.clone()}
+                                                        <a
+                                                            download
+                                                            href=move || format!("/file/{}", cert.id.clone())
+                                                        >
+                                                            <Icon icon=i::LuDownload />
+                                                        </a>
+                                                        <button 
+                                                            class="cursor-pointer"
+                                                            on:click=move |_| {
+                                                                certificate.set(None);
+                                                            } 
+                                                        >
+                                                            <Icon icon=i::LuX />
+                                                        </button>
+                                                    </div>
+                                                }.into_any()
+                                            } else {
+                                                "".into_any()
                                             }
-                                        }
-                                    /><p>{move || uploading_cert_text.get()}</p>
+                                        }}
+                                        <input
+                                            class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                            type="file"
+                                            name="certificate"
+                                            on:change=move |ev: Event| {
+                                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                                if let Some(files) = input.files() && files.length() > 0 {
+                                                    let file = files.get(0).unwrap();
+                                                    let fd = FormData::new().unwrap();
+                                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                    cert_upload_action.dispatch_local(fd);
+                                                }
+                                            }
+                                        /><p>{move || {
+                                            if cert_upload_action.pending().get() {
+                                                "Uploading..."
+                                            } else {
+                                                ""
+                                            }
+                                        }}</p>
+                                    </div>
                                 </div>
 
                                 <div class=r#"flex gap-3 mt-2 pt-2"#>
@@ -192,7 +230,6 @@ pub fn Ldap() -> impl IntoView {
                                             let bind_dn = bind_dn.get();
                                             let bind_pw = bind_pw.get();
                                             let base_dn = base_dn.get();
-                                            let certificate_blob = certificate_blob.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
                                                 if let Ok(ApiResult { result, details }) = test_ldap(LdapArgs {
@@ -200,7 +237,6 @@ pub fn Ldap() -> impl IntoView {
                                                         bind_dn,
                                                         bind_pw,
                                                         base_dn,
-                                                        certificate_blob,
                                                         enabled
                                                     })
                                                     .await
@@ -228,7 +264,7 @@ pub fn Ldap() -> impl IntoView {
                                             let bind_dn = bind_dn.get();
                                             let bind_pw = bind_pw.get();
                                             let base_dn = base_dn.get();
-                                            let certificate_blob = certificate_blob.get();
+                                            let certificate = certificate.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
                                                 if let Ok(ApiResult { result, details }) = update_ldap(LdapArgs {
@@ -236,15 +272,12 @@ pub fn Ldap() -> impl IntoView {
                                                         bind_dn,
                                                         bind_pw,
                                                         base_dn,
-                                                        certificate_blob,
                                                         enabled
-                                                    })
+                                                    }, certificate)
                                                     .await
                                                 {
                                                     if result == ResultStatus::Success {
-                                                        connect_success.set(true);
-                                                    } else {
-                                                        connect_success.set(false);
+                                                        refresh.update(|n| *n += 1);
                                                     }
                                                     
                                                     connect_status_ui.set(details.unwrap_or_default());

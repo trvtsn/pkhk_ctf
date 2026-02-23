@@ -26,8 +26,8 @@ pub fn Settings() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-4 h-full bg-background text-text min-h-screen"#>
-            <div class="h-1/2 grid gap-2">
+        <div class=r#"p-4 bg-background text-text min-h-screen"#>
+            <div class="grid gap-2 justify-center">
                 <div class="flex gap-2 items-center">
                     <label>"Dark Mode"</label>
                     <input
@@ -56,21 +56,23 @@ pub fn Settings() -> impl IntoView {
                         class=r#"items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
                         rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
                         hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
-
+                        disabled=move || new_username.get().is_empty()
                         on:click=move |_| {
                             let new_username = new_username.get();
-                            spawn_local(async move {
-                                if edit_username(new_username).await.is_ok() {
-                                    refresh_user.update(|r| r.iteration += 1);
-                                }
-                            });
+                            if !new_username.is_empty() {
+                                spawn_local(async move {
+                                    if edit_username(new_username).await.is_ok() {
+                                        refresh_user.update(|r| r.iteration += 1);
+                                    }
+                                });
+                            }
                         }
                     >
                         "Change Username"
                     </button>
                 </div>
 
-                <div class="grid gap-2 items-center">
+                <div class="grid gap-2 items-center justify-start">
                     <button
                         class=r#"py-2 px-4 ml-auto text-sm font-semibold text-white
                         rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
@@ -149,7 +151,7 @@ pub fn Settings() -> impl IntoView {
                         <b>"Change Avatar (Max 16 MiB)"</b>
                     </label>
                     <input
-                        class=r#"p-2 rounded-lg shadow-sm"#
+                        class=r#"p-2 rounded-lg shadow-sm bg-background-secondary"#
                         type="file"
                         name="file"
                         on:change=move |ev: Event| {
