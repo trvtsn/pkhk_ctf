@@ -27,7 +27,7 @@ pub fn Settings() -> impl IntoView {
     view! {
         <NavBar />
         <div class=r#"p-4 bg-background text-text min-h-screen"#>
-            <div class="grid gap-2 justify-center">
+            <div class="grid gap-4 justify-center">
                 <div class="flex gap-2 items-center">
                     <label>"Dark Mode"</label>
                     <input

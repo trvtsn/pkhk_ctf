@@ -54,7 +54,7 @@ cargo leptos watch
 ### Styling
 - [x] Create fitting style for dark mode
 - [x] Remove flag input box on challenge solve
-- [ ] Fix tooltip color on leaderboard hover
+- [x] Fix tooltip color on leaderboard hover
 - [x] Fix select option color
 - [x] Add spinner for indicating pending tasks
 
