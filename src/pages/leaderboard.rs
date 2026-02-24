@@ -33,7 +33,7 @@ pub fn Leaderboard() -> impl IntoView {
 
     view! {
         <NavBar />
-        <div class=r#"grid justify-center p-4 bg-background text-text min-h-screen"#>
+        <div class=r#"p-4 bg-background text-text min-h-screen"#>
             <h3 class=r#"m-2 text-4xl text-center"#>"Leaderboard"</h3>
             <Transition fallback=move || {
                 view! { <Spinner component_size=ComponentSize::Small /> }
@@ -59,7 +59,9 @@ pub fn Leaderboard() -> impl IntoView {
                         );
 
                     view! {
-                        <LeaderboardChart series=RwSignal::new(series) data=RwSignal::new(data) />
+                        <div class="grid justify-center mt-8">
+                            <LeaderboardChart series=RwSignal::new(series) data=RwSignal::new(data) />
+                        </div>
                     }
                 }}
             </Transition>

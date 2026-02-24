@@ -86,7 +86,7 @@ pub fn Challenges() -> impl IntoView {
     let challenges_view = move || { view! {
         <DimmingOverlay overlay_triggered />
         <div 
-            class=r#"challenges"# 
+            class=r#"grid challenges justify-center mt-8"# 
         >
             <Transition fallback=move || {
                 view! { <Spinner component_size=ComponentSize::Big /> }
@@ -186,7 +186,7 @@ pub fn Challenges() -> impl IntoView {
     view! {
         <NavBar />
         <div 
-            class=r#"grid justify-center p-4 bg-background text-text min-h-screen"#
+            class=r#"p-4 bg-background text-text min-h-screen"#
         >
             <h1 class=r#"text-4xl text-center"#>"Challenges"</h1>
             <Transition fallback=move || {
