@@ -76,7 +76,7 @@ cfg_if! {
                 Err(e) => return Err(e.into())
             }
 
-            match ProxmoxArgs::insert(&"".to_string(), &"/api2/json".to_string(), &"templates".to_string(), &None, &None, &None, &ProxmoxAuthType::ApiToken, get_db_ref()).await {
+            match ProxmoxArgs::insert(&"".to_string(), &"/api2/json".to_string(), &"templates".to_string(), &"".to_string(), &None, &None, &None, &ProxmoxAuthType::ApiToken, get_db_ref()).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e.into())
             }
@@ -3626,6 +3626,7 @@ cfg_if! {
                 base_url: &String, 
                 api_path: &String, 
                 templates_pool_id: &String, 
+                node: &String, 
                 username: &Option<String>, 
                 password: &Option<String>, 
                 api_token: &Option<String>, 
@@ -3635,13 +3636,14 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     INSERT INTO proxmox 
-                    (base_url, api_path, templates_pool_id, username, password, api_token, auth_type)
+                    (base_url, api_path, templates_pool_id, node, username, password, api_token, auth_type)
                     VALUES 
-                    (?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?)
                     ",
                     base_url,
                     api_path,
                     templates_pool_id,
+                    node,
                     username,
                     password,
                     api_token,
