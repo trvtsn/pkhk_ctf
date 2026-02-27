@@ -64,11 +64,12 @@ pub fn Proxmox() -> impl IntoView {
             {move || {
                 let proxmox_args = proxmox_resource.get();
                 if let Some(proxmox_args) = proxmox_args {
-                    base_url.set(proxmox_args.base_url.clone());
                     api_path.set(proxmox_args.api_path.clone());
                     api_token.set(proxmox_args.api_token);
                     auth_type.set(proxmox_args.auth_type);
+                    base_url.set(proxmox_args.base_url.clone());
                     node.set(proxmox_args.node);
+                    templates_pool_id.set(proxmox_args.templates_pool_id);
                 }
 
                 view! {
@@ -134,6 +135,7 @@ pub fn Proxmox() -> impl IntoView {
                                         class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                         name="api_token"
+                                        placeholder="user@realm!token_id=uuid_secret"
                                         value=move || api_token.get().unwrap_or_default()
                                         on:change=move |ev| {
                                             let value = event_target_value(&ev);
@@ -154,6 +156,7 @@ pub fn Proxmox() -> impl IntoView {
                                         let api_token = api_token.get();
                                         let auth_type = auth_type.get();
                                         spawn_local(async move {
+                                            let api_path = if api_path.is_empty() { "/api2/json".to_string() } else { api_path };
                                             if let Ok(ApiResult { result, details }) = test_proxmox(ProxmoxArgs {
                                                     base_url,
                                                     api_path,
@@ -166,7 +169,7 @@ pub fn Proxmox() -> impl IntoView {
                                                 })
                                                 .await
                                             {
-                                                auth_status_ui.set(details.unwrap_or_default());
+                                                auth_status_ui.set(details);
                                                 if result == ResultStatus::Success {
                                                     auth_success.set(true);
                                                 } else {
@@ -192,6 +195,7 @@ pub fn Proxmox() -> impl IntoView {
                                         let api_token = api_token.get();
                                         let auth_type = auth_type.get();
                                         spawn_local(async move {
+                                            let api_path = if api_path.is_empty() { "/api2/json".to_string() } else { api_path };
                                             if let Ok(ApiResult { result, details }) = update_proxmox(ProxmoxArgs {
                                                     base_url,
                                                     api_path,
@@ -210,7 +214,7 @@ pub fn Proxmox() -> impl IntoView {
                                                     auth_success.set(false);
                                                 }
                                                 
-                                                auth_status_ui.set(details.unwrap_or_default());
+                                                auth_status_ui.set(details);
                                             }
                                         });
                                     }

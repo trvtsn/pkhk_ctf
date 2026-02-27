@@ -1,6 +1,6 @@
 use crate::components::utils::TruncatedDesc;
 use crate::pages::admin::challenges::Hint;
-use crate::server::admin::{get_all_user_groups, upload_illustration};
+use crate::server::admin::upload_illustration;
 use crate::server::db::structs::DbHint;
 use crate::server::proxmox::ProxmoxVMTemplate;
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
@@ -15,7 +15,8 @@ pub fn Challenge(
     categories: RwSignal<Vec<String>>,
     events: RwSignal<Vec<db::structs::Event>>,
     templates: RwSignal<Vec<ProxmoxVMTemplate>>,
-    hints: RwSignal<Vec<DbHint>>
+    hints: RwSignal<Vec<DbHint>>,
+    user_groups: RwSignal<Vec<String>>
 ) -> impl IntoView {
     let ChallengeWithAttachments { challenge, attachments, illustration } = cwa;
     let Challenge { id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids } = challenge;
@@ -49,10 +50,6 @@ pub fn Challenge(
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
-
-    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_user_groups().await.unwrap_or_default()
-    });
 
     let file_upload_action = Action::new_local(move |data: &FormData| {
         let data = data.clone();
@@ -339,7 +336,7 @@ pub fn Challenge(
                                 view! { <div>"Loading..."</div> }
                             }>
                                 {move || {
-                                    let groups = groups_resource.get().unwrap_or_default();
+                                    let groups = user_groups.get();
                                     view! {
                                         <For
                                             each=move || groups.clone()
@@ -557,7 +554,8 @@ pub fn Challenge(
                                             file_upload_action.dispatch_local(fd);
                                         }
                                     }
-                                /><p>{move || uploading_file_text.get()}</p>
+                                />
+                                <p>{move || uploading_file_text.get()}</p>
                             </div>
                         </div>
                     </div>

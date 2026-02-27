@@ -30,6 +30,8 @@ pub enum AppError {
     BadRequest(String),
     #[error("Forbidden")]
     Forbidden,
+    #[error("Network Error: {0}")]
+    NetworkError(String),
 }
 
 impl AppError {
@@ -46,7 +48,8 @@ impl AppError {
             AppError::ServerFnError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::NoServerConnection => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
-            AppError::Forbidden => StatusCode::FORBIDDEN
+            AppError::Forbidden => StatusCode::FORBIDDEN,
+            AppError::NetworkError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

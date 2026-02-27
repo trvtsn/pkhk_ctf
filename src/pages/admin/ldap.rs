@@ -247,7 +247,7 @@ pub fn Ldap() -> impl IntoView {
                                                         connect_success.set(false);
                                                     }
                                                     
-                                                    connect_status_ui.set(details.unwrap_or_default());
+                                                    connect_status_ui.set(details);
                                                 }
                                             });
                                         }
@@ -280,7 +280,7 @@ pub fn Ldap() -> impl IntoView {
                                                         refresh.update(|n| *n += 1);
                                                     }
                                                     
-                                                    connect_status_ui.set(details.unwrap_or_default());
+                                                    connect_status_ui.set(details);
                                                 }
                                             });
                                         }

@@ -160,18 +160,20 @@ cfg_if! {
                         }
                     },
                     AuthType::Ldap => {
+                        crate::server::proxmox::sync_realm().await?;
+                        
+                        let ldap_args = match LdapArgs::get(&self.pool).await {
+                            Ok(Some(args)) => args,
+                            Ok(None) => return Ok(None),
+                            Err(e) => return Err(e.into())
+                        };
+
                         let mut email = "".to_string(); 
                         if let UserIdentifier::Email(ref email_cred) = creds.user_identifier {
                             email = email_cred.to_string();
                         };
                         let mut username = "".to_string();
                         let mut group = "".to_string();
-
-                        let ldap_args = match LdapArgs::get(&self.pool).await {
-                            Ok(Some(args)) => args,
-                            Ok(None) => return Ok(None),
-                            Err(e) => return Err(e.into())
-                        };
 
                         match is_host_reachable(ldap_args.url.clone()).await {
                             Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },

@@ -169,8 +169,7 @@ pub fn Events() -> impl IntoView {
                                         view! { <div>"Loading..."</div> }
                                     }>
                                         {move || {
-                                            let groups = groups_resource.get().unwrap_or_default();
-                                            groups_signal.set(groups.clone());
+                                            let groups = groups_signal.get();
                                             view! {
                                                 <For
                                                     each=move || groups.clone()

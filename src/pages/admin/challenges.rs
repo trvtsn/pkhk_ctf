@@ -80,6 +80,7 @@ pub fn Challenges() -> impl IntoView {
         events_signal.set(all_events.clone());
         all_events
     });
+    let user_groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
     });
@@ -357,7 +358,7 @@ pub fn Challenges() -> impl IntoView {
                             view! { <div>"Loading..."</div> }
                         }>
                             {move || {
-                                let groups = groups_resource.get().unwrap_or_default();
+                                let groups = user_groups_signal.get();
                                 view! {
                                     <For
                                         each=move || groups.clone()
@@ -486,43 +487,106 @@ pub fn Challenges() -> impl IntoView {
                     <label class=r#"block mb-1 text-sm font-medium text-text"#>
                         "Attachment (Max 16 MiB)"
                     </label>
-                    <input
-                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                        type="file"
-                        name="attachment"
-                        multiple
-                        on:change=move |ev: Event| {
-                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                            if let Some(files) = input.files() && files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                file_upload_action.dispatch_local(fd);
-                            }
-                        }
-                    />
-                    <p>{uploading_file_text.get()}</p>
+                    <div class="grid gap-2">
+                        <ForEnumerate
+                            each=move || attachments.get().unwrap_or_default()
+                            key=|a: &AttachmentWithoutBlob| a.id.clone()
+                            children={move |index, a| {
+                                view! {  
+                                    <div class="flex gap-2 items-center">
+                                        {a.file_name.clone()}
+                                        <a
+                                            download
+                                            href=move || format!("/file/{}", a.id.clone())
+                                        >
+                                            <Icon icon=i::LuDownload />
+                                        </a>
+                                        <button 
+                                            class="cursor-pointer"
+                                            on:click=move |_| {
+                                                let remove_at = index.get();
+
+                                                attachments.update(|a| {
+                                                    a.get_or_insert_default().remove(remove_at);
+                                                });
+                                            } 
+                                        >
+                                            <Icon icon=i::LuX />
+                                        </button>
+                                    </div>
+                                }
+                            }}
+                        />
+                        <div class="flex gap-2">
+                            <input
+                                class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                                type="file"
+                                name="attachment"
+                                multiple
+                                on:change=move |ev: Event| {
+                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                    if let Some(files) = input.files() && files.length() > 0 {
+                                        let file = files.get(0).unwrap();
+                                        let fd = FormData::new().unwrap();
+                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                        file_upload_action.dispatch_local(fd);
+                                    }
+                                }
+                            />
+                            <p>{uploading_file_text.get()}</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid">
                     <label class=r#"block mb-1 text-sm font-medium text-text"#>
                         "Illustration (Max 16 MiB)"
                     </label>
-                    <input
-                        class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
-                        type="file"
-                        name="illustration"
-                        on:change=move |ev: Event| {
-                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                            if let Some(files) = input.files() && files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                illustration_upload_action.dispatch_local(fd);
+                    <div class="grid gap-2">
+                        <Transition>
+                            {move || {
+                                let illustration_signal_value = illustration.get();
+                                if let Some(illustr) = illustration_signal_value {
+                                    view! {
+                                        <div class="flex gap-2 items-center">
+                                            {move || illustr.file_name.clone()}
+                                            <a
+                                                download
+                                                href=move || format!("/file/{}", illustr.id.clone())
+                                            >
+                                                <Icon icon=i::LuDownload />
+                                            </a>
+                                            <button 
+                                                class="cursor-pointer"
+                                                on:click=move |_| {
+                                                    illustration.set(None);
+                                                } 
+                                            >
+                                                <Icon icon=i::LuX />
+                                            </button>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    "".into_any()
+                                }
+                            }}
+                        </Transition>
+                        <input
+                            class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
+                            type="file"
+                            name="illustration"
+                            on:change=move |ev: Event| {
+                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                if let Some(files) = input.files() && files.length() > 0 {
+                                    let file = files.get(0).unwrap();
+                                    let fd = FormData::new().unwrap();
+                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                    illustration_upload_action.dispatch_local(fd);
+                                }
                             }
-                        }
-                    />
-                    <p>{uploading_illustration_text.get()}</p>
+                        />
+                        <p>{uploading_illustration_text.get()}</p>
+                    </div>
                 </div>
 
                 <div class=r#"flex gap-3 mt-2"#>
@@ -591,6 +655,9 @@ pub fn Challenges() -> impl IntoView {
                     let hints = hints_resource.get().unwrap_or_default();
                     hints_signal.set(hints);
 
+                    let user_groups = groups_resource.get().unwrap_or_default();
+                    user_groups_signal.set(user_groups);
+
                     let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
                     for ch in cwa_resource.get().unwrap_or_default().into_iter() {
                         map.entry(ch.challenge.category.clone()).or_default().push(ch);
@@ -633,6 +700,7 @@ pub fn Challenges() -> impl IntoView {
                                                 events=events_signal
                                                 templates=templates_signal
                                                 hints=hints_signal.clone()
+                                                user_groups=user_groups_signal
                                             />
                                         </div>
                                     </For>

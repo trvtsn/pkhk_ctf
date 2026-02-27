@@ -118,7 +118,7 @@ pub fn Challenge(
                 </button>
             </div>
 
-            <p class=r#"text-lg/8"#>
+            <p class=r#"text-lg/8 mt-2"#>
                 <TruncatedDesc description=description_signal />
             </p>
 

@@ -156,16 +156,7 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
 
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             let challenges = match db::structs::Challenge::get_all(&pool).await {
                 Ok(challenges) => challenges,
@@ -199,16 +190,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
 
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             // should be active_event_ids in the future
             let active_event_id = match get_active_events().await {
@@ -225,7 +207,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 },
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
+                    return Err(AppError::InternalError("failed to fetch active events".to_string()));
                 }
             };
 
@@ -233,7 +215,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 Ok(meta) => meta,
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
+                    return Err(AppError::InternalError("failed to fetch event metadata".to_string()));
                 }
             };
 
@@ -329,16 +311,7 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
             if let Some(user) = user.as_ref() {
                 match auth.login(user).await {
                     Ok(_) => {
-                        let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
-                            Ok(Some(user)) => user,
-                            Ok(None) => {
-                                return Err(AppError::InternalError("internal error".to_string()));
-                            }
-                            Err(e) => {
-                                tracing::error!(error = ?e);
-                                return Err(AppError::InternalError("internal error".to_string()));
-                            }
-                        };
+                        let db_user = get_db_user(&user, &auth.backend.pool).await?;
                         let last_active_at = chrono::Local::now();
                         _ = DbUser::edit_last_active(&user.id.clone(), &last_active_at, &auth.backend.pool).await;
                         
@@ -352,7 +325,7 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
                     }
                 }
             } else {
-                Ok(ApiResult { result: ResultStatus::Fail, details: None })
+                Err(AppError::BadRequest("invalid credentials".to_string()))
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -427,9 +400,6 @@ pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<
     }
 }
 
-/// Add a user to the database and log them in, because I get annoyed by sites that let me register and then
-/// make me log in separately after that. Give me a break! This function is called from the Register component
-/// which is in pages/register.rs.
 #[server(name=Register, prefix="/api", endpoint="register")]
 #[instrument(skip(password))]
 pub async fn register_user(email: String, password: String, confirm_password: String) -> Result<ApiResult<Option<User>>, AppError> {
@@ -447,16 +417,7 @@ pub async fn register_user(email: String, password: String, confirm_password: St
                 // Tell the AuthSession that we're logged-in now and it should behave accordingly. This will set the
                 // session id and send it to the browser as a side-effect (before now you likely had no session id in the browser).
                 auth_session.login(&user).await?;
-                let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth_session.backend.pool).await {
-                    Ok(Some(user)) => user,
-                    Ok(None) => {
-                        return Err(AppError::InternalError("internal error".to_string()));
-                    }
-                    Err(e) => {
-                        tracing::error!(error = ?e);
-                        return Err(AppError::InternalError("internal error".to_string()));
-                    }
-                };
+                let db_user = get_db_user(&user, &auth_session.backend.pool).await?;
                 _ = crate::server::proxmox::create_user(email, db_user.clone().username, password).await?;
                 _ = crate::server::proxmox::create_user_pool(db_user).await?;
                 Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
@@ -529,16 +490,7 @@ pub async fn edit_username(username: String) -> Result<ApiResult<String>, AppErr
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             if username == db_user.username {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "username already exists".to_string() });
@@ -578,12 +530,9 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
 
             let mut tx = pool.begin().await?;
 
-            match DbUser::delete_avatar(&user.id, &mut *tx).await {
-                Ok(_) => {},
-                Err(e) => {
-                    tx.rollback().await?;
-                    return Err(e.into());
-                }
+            if let Err(e) = DbUser::delete_avatar(&user.id, &mut *tx).await {
+                tx.rollback().await?;
+                return Err(e.into());
             }
 
             match DbUser::edit_avatar(&user.id, &file_name, &file_blob, &mime_type, &mut *tx).await {
@@ -816,23 +765,11 @@ pub async fn edit_password(old_password: String, new_password: String) -> Result
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
 
-            // let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-            //     Ok(Some(user)) => user,
-            //     Ok(None) => {
-            //         return Err(AppError::InternalError("internal error".to_string()));
-            //     }
-            //     Err(e) => {
-            //         tracing::error!(error = ?e);
-            //         return Err(AppError::InternalError("internal error".to_string()));
-            //     }
-            // };
-
             if old_password == new_password {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
             }
 
             let pw_hash = hash_string(new_password.clone())?;
-
             match DbUser::edit_password(&user.id, &pw_hash, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
                 Err(e) => return Err(e.into())
@@ -894,17 +831,7 @@ pub async fn start_vm(template_id: u32, challenge: Challenge) -> Result<ApiResul
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             match crate::server::proxmox::start_vm(template_id, challenge, db_user.clone()).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm(s) have started".to_string() }),
@@ -922,17 +849,7 @@ pub async fn restart_vm(template_id: u32) -> Result<ApiResult<String>, AppError>
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             match crate::server::proxmox::restart_vm(db_user, template_id).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been restarted".to_string() }),
@@ -950,17 +867,7 @@ pub async fn destroy_vm(template_id: u32) -> Result<ApiResult<String>, AppError>
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             match crate::server::proxmox::destroy_vm(db_user, template_id).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: format!("vm has been destroyed") }),
@@ -978,17 +885,7 @@ pub async fn add_vm_time(template_id: u32) -> Result<ApiResult<String>, AppError
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
             
             match crate::server::proxmox::add_vm_time(db_user, template_id).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "added time to vm".to_string() }),
@@ -1006,16 +903,7 @@ pub async fn get_user_active_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             let vms = match crate::server::proxmox::get_user_vms(db_user).await {
                 Ok(vms) => vms,
@@ -1039,16 +927,7 @@ pub async fn get_user_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             match crate::server::proxmox::get_user_vms(db_user).await {
                 Ok(vms) => Ok(vms),
@@ -1066,17 +945,7 @@ pub async fn get_used_hints() -> Result<Vec<HintsUsed>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             match HintsUsed::get(&db_user, &pool).await {
                 Ok(hints_used) => Ok(hints_used),
@@ -1094,17 +963,7 @@ pub async fn get_hint(challenge_id: String, hint_id: String) -> Result<crate::se
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
-
-            let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
-                }
-            };
+            let db_user = get_db_user(&user, &pool).await?;
 
             let used_hints = HintsUsed::get(&db_user, &pool).await?;
             let used_hint_ids = used_hints.into_iter().map(|h| h.hint_id).collect::<Vec<String>>();
@@ -1117,12 +976,9 @@ pub async fn get_hint(challenge_id: String, hint_id: String) -> Result<crate::se
                 }
             } else {
                 let mut tx = pool.begin().await?;
-                match HintsUsed::add(&challenge_id, &user.id, &hint_id, &mut *tx).await {
-                    Ok(_) => {},
-                    Err(e) => {
-                        tx.rollback().await?;
-                        return Err(e.into());
-                    }
+                if let Err(e) = HintsUsed::add(&challenge_id, &user.id, &hint_id, &mut *tx).await {
+                    tx.rollback().await?;
+                    return Err(e.into());
                 }
 
                 let hint = match crate::server::db::structs::Hint::get(&hint_id, &mut *tx).await {
@@ -1275,14 +1131,16 @@ async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
 pub async fn is_host_reachable(url: String) -> Result<bool, AppError> {
     let url = url::Url::parse(&url)?;
     let host = url.host_str().unwrap_or_default();
+    let port = url.port().unwrap_or_default();
     let timeout = Duration::from_millis(1000);
-    let addrs = (host, 8006).to_socket_addrs()?;
+    let addrs = (host, port).to_socket_addrs()?;
     let start = Instant::now();
+    let mut reachable = false;
 
     for addr in addrs {
         let elapsed = start.elapsed();
         if elapsed >= timeout {
-            return Ok(false);
+            reachable = false;
         }
         let remaining = timeout - elapsed;
 
@@ -1290,7 +1148,7 @@ pub async fn is_host_reachable(url: String) -> Result<bool, AppError> {
             Ok(stream) => {
                 let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
                 let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
-                return Ok(true);
+                reachable = true;
             }
             Err(_e) => {
                 continue;
@@ -1298,5 +1156,23 @@ pub async fn is_host_reachable(url: String) -> Result<bool, AppError> {
         }
     }
 
-    Ok(false)
+    match reachable {
+        true => Ok(true),
+        false => Err(AppError::NetworkError("host not reachable".to_string()))
+    }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+async fn get_db_user(user: &User, pool: &MySqlPool) -> Result<DbUser, AppError> {
+    match DbUser::get(&UserIdentifier::Id(user.id.clone()), pool).await {
+        Ok(Some(user)) => Ok(user),
+        Ok(None) => {
+            Err(AppError::InternalError("internal error".to_string()))
+        }
+        Err(e) => {
+            tracing::error!(error = ?e);
+            Err(AppError::InternalError("internal error".to_string()))
+        }
+    }
 }

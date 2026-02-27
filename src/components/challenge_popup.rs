@@ -124,18 +124,20 @@ pub fn ChallengePopup(
                         }}
                     </Transition>
                     <h3 class=r#"font-bold text-3xl/8"#>{move || cwa_popup.get().challenge.name.clone()}</h3>
-                    <p class=r#"text-lg/8"#>
-                    <Transition fallback=move || {
-                        view! { <div>"..."</div> }
-                    }>
-                        {move || {
-                            description_signal.set(cwa_popup.get().challenge.description);
-                            view! { <TruncatedDesc description=description_signal /> }
-                        }}
-                    </Transition>
-                        
+
+                    <p class=r#"text-lg/8 mt-2"#>
+                        <Transition fallback=move || {
+                            view! { <div>"..."</div> }
+                        }>
+                            {move || {
+                                description_signal.set(cwa_popup.get().challenge.description);
+                                view! { <TruncatedDesc description=description_signal /> }
+                            }}
+                        </Transition>
                     </p>
+
                     <Difficulty difficulty=cwa_popup />
+                    
                     <p class=r#"text-lg/8"#>
                         <b>"Points: "</b>
                         {move || cwa_popup.get().challenge.points}
@@ -146,71 +148,76 @@ pub fn ChallengePopup(
                         {move || {
                             let challenge_id = cwa_popup.get().challenge.id;
                             let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<HintWithoutHint>>();
-                            if !solved_challenges.get().contains(&cwa_popup.get().challenge.id) && !hints.is_empty() {
-                                let hints_used_value = hints_used.get();
-                                let used_hint_ids = hints_used_value.into_iter().map(|h| h.0).collect::<Vec<String>>();
-                                view! {
-                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
-                                    <div class="grid gap-2">
-                                        <ForEnumerate
-                                            each=move || hints.clone()
-                                            key=|hint: &HintWithoutHint| hint.id.clone()
-                                            children={move |index, hint| {
-                                                let get_hint_action = Action::new_local(move |(challenge_id, hint_id): &(String, String)| {
-                                                    let challenge_id = challenge_id.clone();
-                                                    let hint_id = hint_id.clone();
-                                                    async move {
-                                                        if let Ok(hint) = get_hint(challenge_id, hint_id).await {
-                                                            hints_used.update(|map| {map.insert(hint.id, hint.hint);});
-                                                            refresh_user.update(|r| r.iteration += 1);
-                                                        }
-                                                    }
-                                                });
 
-                                                let hint_id = hint.id.clone();
-                                                let hint_points_penalty = hint.points_penalty;
-                                                if used_hint_ids.contains(&hint.id) {
-                                                    view! {
-                                                        <div class="flex gap-2 items-center">
-                                                            <label>{format!("Hint {}", index.get() + 1)}</label>
-                                                            <p>{move || hints_used.get().get(&hint_id).cloned().unwrap_or_default()}</p>
-                                                        </div>
-                                                    }.into_any()
-                                                } else {
-                                                    view! {
-                                                        <div class="flex gap-2 items-center">
-                                                            <label>{format!("Hint {}", index.get() + 1)}</label>
-                                                            <button
-                                                                class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                                on:click=move |_| {
-                                                                    let hint = hint.clone();
-                                                                    let challenge_id = cwa_popup.get_untracked().challenge.id;
-                                                                    get_hint_action.dispatch((challenge_id, hint.id));
-                                                                }
-                                                            >
-                                                                {move || {
-                                                                    if get_hint_action.pending().get() {
-                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                                    } else {
-                                                                        if hint_points_penalty != 0 {
-                                                                            view! { { format!("Get (-{}p)", hint.points_penalty) } }.into_any()
-                                                                        } else {
-                                                                            view! { "Get (FREE)" }.into_any()
-                                                                        }
-                                                                    }
-                                                                }}
-                                                            </button>
-                                                        </div>
-                                                    }.into_any()
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                }.into_any()
-                            } else {
+                            if hints.is_empty() {
                                 "".into_any()
+                            } else {
+                                if !solved_challenges.get().contains(&cwa_popup.get().challenge.id) && !hints.is_empty() {
+                                    let hints_used_value = hints_used.get();
+                                    let used_hint_ids = hints_used_value.into_iter().map(|h| h.0).collect::<Vec<String>>();
+                                    view! {
+                                        <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
+                                        <div class="grid gap-2">
+                                            <ForEnumerate
+                                                each=move || hints.clone()
+                                                key=|hint: &HintWithoutHint| hint.id.clone()
+                                                children={move |index, hint| {
+                                                    let get_hint_action = Action::new_local(move |(challenge_id, hint_id): &(String, String)| {
+                                                        let challenge_id = challenge_id.clone();
+                                                        let hint_id = hint_id.clone();
+                                                        async move {
+                                                            if let Ok(hint) = get_hint(challenge_id, hint_id).await {
+                                                                hints_used.update(|map| {map.insert(hint.id, hint.hint);});
+                                                                refresh_user.update(|r| r.iteration += 1);
+                                                            }
+                                                        }
+                                                    });
+
+                                                    let hint_id = hint.id.clone();
+                                                    let hint_points_penalty = hint.points_penalty;
+                                                    if used_hint_ids.contains(&hint.id) {
+                                                        view! {
+                                                            <div class="flex gap-2 items-center">
+                                                                <label>{format!("Hint {}", index.get() + 1)}</label>
+                                                                <p>{move || hints_used.get().get(&hint_id).cloned().unwrap_or_default()}</p>
+                                                            </div>
+                                                        }.into_any()
+                                                    } else {
+                                                        view! {
+                                                            <div class="flex gap-2 items-center">
+                                                                <label>{format!("Hint {}", index.get() + 1)}</label>
+                                                                <button
+                                                                    class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                    rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                    bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                    on:click=move |_| {
+                                                                        let hint = hint.clone();
+                                                                        let challenge_id = cwa_popup.get_untracked().challenge.id;
+                                                                        get_hint_action.dispatch((challenge_id, hint.id));
+                                                                    }
+                                                                >
+                                                                    {move || {
+                                                                        if get_hint_action.pending().get() {
+                                                                            view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                        } else {
+                                                                            if hint_points_penalty != 0 {
+                                                                                view! { { format!("Get (-{}p)", hint.points_penalty) } }.into_any()
+                                                                            } else {
+                                                                                view! { "Get (FREE)" }.into_any()
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                </button>
+                                                            </div>
+                                                        }.into_any()
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    "".into_any()
+                                }
                             }
                         }}
                     </Transition>
@@ -328,6 +335,7 @@ pub fn ChallengePopup(
                                                                 class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                                                 rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || start_vm_action.pending().get()
                                                                 on:click=move |_| {
                                                                     let challenge = cwa_popup.get().challenge;
                                                                     start_vm_action.dispatch((template.id, challenge));
@@ -352,6 +360,7 @@ pub fn ChallengePopup(
                                                                 class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                                                 rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || restart_vm_action.pending().get()
                                                                 on:click=move |_| {
                                                                     restart_vm_action.dispatch(template.id);
                                                                 }
@@ -369,6 +378,7 @@ pub fn ChallengePopup(
                                                                 class=r#"col-start-3 col-end-3 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                                                 rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || add_vm_time_action.pending().get()
                                                                 on:click=move |_| {
                                                                     add_vm_time_action.dispatch(template.id);
                                                                 }
@@ -386,6 +396,7 @@ pub fn ChallengePopup(
                                                                 class=r#"col-start-4 col-end-4 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                                                 rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || destroy_vm_action.pending().get()
                                                                 on:click=move |_| {
                                                                     destroy_vm_action.dispatch(template.id);
                                                                 }

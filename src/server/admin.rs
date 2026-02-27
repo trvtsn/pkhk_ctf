@@ -74,22 +74,18 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
 
                     if let Some(attachments) = attachments {
                         for attachment in attachments {
-                            match db::structs::Attachment::edit_challenge(&attachment.id, &new_challenge_id, &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    return Err(AppError::InternalError(e.to_string()));
-                                }
+                            if let Err(e) = db::structs::Attachment::edit_challenge(&attachment.id, &new_challenge_id, &mut *tx).await {
+                                tx.rollback().await?;
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError(e.to_string()));
                             }
                         }
                     }
 
                     if let Some(hints) = hints {
                         for hint in hints {
-                            match DbHint::add(&hint.hint, &new_challenge_id, &hint.points_penalty, &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
+                            if !hint.hint.is_empty() {
+                                if let Err(e) = DbHint::add(&hint.hint, &new_challenge_id, &hint.points_penalty, &mut *tx).await {
                                     tx.rollback().await?;
                                     tracing::error!(error = ?e);
                                     return Err(AppError::InternalError(e.to_string()));
@@ -126,25 +122,25 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     if let Err(e) = db::structs::Submission::delete(&db::enums::SubmissionIdentifier::ChallengeId(id.clone()), &mut *tx).await {
                         tx.rollback().await?;
                         tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
                     if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id.clone()), &mut *tx).await {
                         tx.rollback().await?;
                         tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
                     if let Err(e) = HintsUsed::delete_all_from_challenge(&id, &mut *tx).await {
                         tx.rollback().await?;
                         tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
                     if let Err(e) = DbHint::delete_all_from_challenge(&id, &mut *tx).await {
                         tx.rollback().await?;
                         tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
                     match db::structs::Challenge::delete(&id, &mut *tx).await {
@@ -156,7 +152,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         Err(e) => {
                             tx.rollback().await?;
                             tracing::error!(error = ?e);
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
                     }
                 }
@@ -166,13 +162,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         flag_hash = hash_string(flag.clone())?;
                     }
                     let mut tx = pool.begin().await?;
-                    match db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tx.rollback().await?;
-                            tracing::error!(error = ?e);
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: "internal error".to_string() });
-                        }
+                    if let Err(e) = db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
+                        tx.rollback().await?;
+                        tracing::error!(error = ?e);
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
                     let all_challenge_attachment_ids = match AttachmentWithoutBlob::get_all(&Some(db::enums::AttachmentIdentifier::ChallengeId(id.clone())), &mut *tx).await {
@@ -186,13 +179,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     
                     if let Some(attachments) = attachments.clone() {
                         for attachment in attachments.iter() {
-                            match db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    return Err(AppError::InternalError(e.to_string()));
-                                }
+                            if let Err(e) = db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
+                                tx.rollback().await?;
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError(e.to_string()));
                             }
                         }
                     }
@@ -200,13 +190,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     let new_attachment_ids = attachments.clone().unwrap_or_default().clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
                     for existing_attachment_id in all_challenge_attachment_ids {
                         if !new_attachment_ids.contains(&existing_attachment_id) {
-                            match AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    return Err(AppError::InternalError(e.to_string()));
-                                }
+                            if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
+                                tx.rollback().await?;
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError(e.to_string()));
                             }
                         }
                     }
@@ -224,44 +211,32 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         let new_hints_ids = hints.clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
                         for hint in hints.clone() {
                             if !hint.hint.is_empty() && !all_challenge_hint_ids.contains(&hint.id) {
-                                match DbHint::add(&hint.hint, &id, &hint.points_penalty, &mut *tx).await {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        tx.rollback().await?;
-                                        tracing::error!(error = ?e);
-                                        return Err(AppError::InternalError(e.to_string()));
-                                    }
+                                if let Err(e) = DbHint::add(&hint.hint, &id, &hint.points_penalty, &mut *tx).await {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
                                 }
                             } else if !hint.hint.is_empty() && all_challenge_hint_ids.contains(&hint.id) {
-                                match DbHint::edit(&hint.id, &hint.hint, &id, &hint.points_penalty, &mut *tx).await {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        tx.rollback().await?;
-                                        tracing::error!(error = ?e);
-                                        return Err(AppError::InternalError(e.to_string()));
-                                    }
+                                if let Err(e) = DbHint::edit(&hint.id, &hint.hint, &id, &hint.points_penalty, &mut *tx).await {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
                                 }
                             } else if hint.hint.is_empty() && hint.points_penalty == 0 && all_challenge_hint_ids.contains(&hint.id) {
-                                match DbHint::delete(&hint.id, &mut *tx).await {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        tx.rollback().await?;
-                                        tracing::error!(error = ?e);
-                                        return Err(AppError::InternalError(e.to_string()));
-                                    }
+                                if let Err(e) = DbHint::delete(&hint.id, &mut *tx).await {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
                                 }
                             }
                         }
 
                         for existing_hint_id in all_challenge_hint_ids {
                             if !new_hints_ids.contains(&existing_hint_id) {
-                                match DbHint::delete(&existing_hint_id, &mut *tx).await {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        tx.rollback().await?;
-                                        tracing::error!(error = ?e);
-                                        return Err(AppError::InternalError(e.to_string()));
-                                    }
+                                if let Err(e) = DbHint::delete(&existing_hint_id, &mut *tx).await {
+                                    tx.rollback().await?;
+                                    tracing::error!(error = ?e);
+                                    return Err(AppError::InternalError(e.to_string()));
                                 }
                             }
                         }
@@ -351,7 +326,7 @@ pub enum EventAction {
 
 #[server(name=AdminEventApi, prefix="/api/admin", endpoint="event")]
 #[instrument]
-pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -364,19 +339,16 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                         Err(e) => {
                             tracing::error!(error = ?e);
                             tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
                     };
 
                     if let Some(attachments) = attachments {
                         for attachment in attachments {
-                            match db::structs::Attachment::edit_event(&attachment.id, &new_event_id, &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    return Err(AppError::InternalError(e.to_string()));
-                                }
+                            if let Err(e) = db::structs::Attachment::edit_event(&attachment.id, &new_event_id, &mut *tx).await {
+                                tx.rollback().await?;
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError(e.to_string()));
                             }
                         }
                     }
@@ -387,7 +359,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                                     Ok(_) => {
                                         tx.commit().await?;
                                         _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
-                                        Ok(ApiResult { result: ResultStatus::Success, details: Some("created event".to_string()) })
+                                        Ok(ApiResult { result: ResultStatus::Success, details: "created event".to_string() })
                                     },
                                     Err(e) => {
                                         tx.rollback().await?;
@@ -399,7 +371,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                         None => {
                             tx.commit().await?;
                             _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
-                            Ok(ApiResult { result: ResultStatus::Success, details: Some("created event".to_string()) })
+                            Ok(ApiResult { result: ResultStatus::Success, details: "created event".to_string() })
                         }
                     }
                 }
@@ -407,23 +379,20 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                     match db::structs::Event::delete(&id, &pool).await {
                         Ok(_) => {
                             _ = build_and_broadcast(AdminEventPayloadKind::EventDeleted).await;
-                            Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) })
+                            Ok(ApiResult { result: ResultStatus::Success, details: "deleted event".to_string() })
                         },
                         Err(e) => {
                             tracing::error!(error = ?e);
-                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                            Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                         }
                     }
                 }
                 EventAction::Edit { id, name, description, start_at, end_at, visible_to_groups, attachments, illustration } => {
                     let mut tx = pool.begin().await?;
-                    match db::structs::Event::edit(&id, &name, &description, &start_at, &end_at, &visible_to_groups, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
-                        }
+                    if let Err(e) = db::structs::Event::edit(&id, &name, &description, &start_at, &end_at, &visible_to_groups, &mut *tx).await {
+                        tracing::error!(error = ?e);
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
                     let all_event_attachment_ids = match AttachmentWithoutBlob::get_all(&Some(db::enums::AttachmentIdentifier::EventId(id.clone())), &mut *tx).await {
@@ -437,13 +406,10 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
 
                     if let Some(attachments) = attachments.clone() {
                         for attachment in attachments {
-                            match db::structs::Attachment::edit_event(&attachment.id, &id, &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    return Err(AppError::InternalError(e.to_string()));
-                                }
+                            if let Err(e) = db::structs::Attachment::edit_event(&attachment.id, &id, &mut *tx).await {
+                                tx.rollback().await?;
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError(e.to_string()));
                             }
                         }
                     }
@@ -451,13 +417,10 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                     let new_attachment_ids = attachments.clone().unwrap_or_default().clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
                     for existing_attachment_id in all_event_attachment_ids {
                         if !new_attachment_ids.contains(&existing_attachment_id) {
-                            match AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    tracing::error!(error = ?e);
-                                    return Err(AppError::InternalError(e.to_string()));
-                                }
+                            if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
+                                tx.rollback().await?;
+                                tracing::error!(error = ?e);
+                                return Err(AppError::InternalError(e.to_string()));
                             }
                         }
                     }
@@ -467,7 +430,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                                     Ok(_) => {
                                         tx.commit().await?;
                                         _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
-                                        Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string() )})
+                                        Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() })
                                     },
                                     Err(e) => {
                                         tx.rollback().await?;
@@ -493,7 +456,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
                                     Ok(_) => {
                                         tx.commit().await?;
                                         _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
-                                        return Ok(ApiResult { result: ResultStatus::Success, details: Some("edited challenge".to_string()) });
+                                        return Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() });
                                     },
                                     Err(e) => {
                                         tx.rollback().await?;
@@ -505,7 +468,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<Option<String>>, App
 
                             tx.commit().await?;
                             _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
-                            Ok(ApiResult { result: ResultStatus::Success, details: Some("edited event".to_string() )})
+                            Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() })
                         }
                     }
                 }
@@ -527,7 +490,7 @@ pub async fn get_all_users() -> Result<Vec<DbUser>, AppError> {
                 Ok(users) => Ok(users),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(AppError::InternalError(e.to_string()))
                 }
             }
         } else {
@@ -547,7 +510,7 @@ pub async fn get_all_user_groups() -> Result<Vec<String>, AppError> {
                 Ok(groups) => Ok(groups),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(AppError::InternalError(e.to_string()))
                 }
             }
         } else {
@@ -567,7 +530,7 @@ pub async fn get_all_events() -> Result<Vec<Event>, AppError> {
                 Ok(events) => Ok(events),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(AppError::InternalError(e.to_string()))
                 }
             }
         } else {
@@ -587,7 +550,7 @@ pub async fn get_all_events_with_attachments() -> Result<Vec<EventWithAttachment
                 Ok(events) => events,
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    return Err(AppError::InternalError("internal error".to_string()));
+                    return Err(AppError::InternalError(e.to_string()));
                 }
             };
 
@@ -643,7 +606,7 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
                     Ok(insert_id) => insert_id,
                     Err(e) => {
                         tracing::error!(error = ?e);
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        return Err(AppError::InternalError(e.to_string()));
                     }
                 };
 
@@ -652,7 +615,7 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
                     Ok(None) => tracing::error!("file upload with insert id {} but could not fetch it from db", insert_id),
                     Err(e) => {
                         tracing::error!(error = ?e, "failed to fetch upload file from db");
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        return Err(AppError::InternalError(e.to_string()));
                     }
                 }
             }
@@ -680,12 +643,9 @@ pub async fn upload_certificate(file: MultipartData) -> Result<ApiResult<Attachm
                 Err(e) => return Err(e.into())
             };
             if let Some(existing_certificate) = existing_certificate {
-                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_certificate.id), &pool).await {
-                    Ok(_) => {},
-                    Err(e) => {
-                        tracing::error!(error = ?e);
-                        return Err(AppError::InternalError(e.to_string()));
-                    }
+                if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_certificate.id), &pool).await {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError(e.to_string()));
                 }
             }
 
@@ -720,19 +680,20 @@ pub async fn upload_certificate(file: MultipartData) -> Result<ApiResult<Attachm
                     Ok(id) => id,
                     Err(e) => {
                         tracing::error!(error = ?e);
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        return Err(AppError::InternalError(e.to_string()));
                     }
                 };
 
                 match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id.clone()), &pool).await {
                     Ok(Some(attachment_result)) => attachment = attachment_result,
                     Ok(None) => {
-                        tracing::error!("file upload with insert id {} but could not fetch it from db", insert_id);
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        let error = format!("file uploaded with insert id {} but could not fetch it from db", insert_id);
+                        tracing::error!(error);
+                        return Err(AppError::InternalError(error));
                     },
                     Err(e) => {
-                        tracing::error!(error = ?e, "failed to fetch upload file from db");
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        tracing::error!(error = ?e, "failed to fetch uploaded file from db");
+                        return Err(AppError::InternalError(e.to_string()));
                     }
                 }
             }
@@ -775,19 +736,20 @@ pub async fn upload_illustration(file: MultipartData) -> Result<ApiResult<Attach
                     Ok(insert_id) => insert_id,
                     Err(e) => {
                         tracing::error!(error = ?e);
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        return Err(AppError::InternalError(e.to_string()));
                     }
                 };
 
                 match db::structs::AttachmentWithoutBlob::get(&db::enums::AttachmentIdentifier::Id(insert_id.clone()), &pool).await {
                     Ok(Some(attachment_result)) => attachment = attachment_result,
                     Ok(None) => {
-                        tracing::error!("file upload with insert id {} but could not fetch it from db", insert_id);
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        let error = format!("file uploaded with insert id {} but could not fetch it from db", insert_id);
+                        tracing::error!(error);
+                        return Err(AppError::InternalError(error));
                     },
                     Err(e) => {
                         tracing::error!(error = ?e, "failed to fetch upload file from db");
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        return Err(AppError::InternalError(e.to_string()));
                     }
                 }
             }
@@ -826,7 +788,7 @@ pub async fn upload_avatar(file: MultipartData) -> Result<ApiResult<UserAvatar>,
                     Ok(insert_id) => insert_id,
                     Err(e) => {
                         tracing::error!(error = ?e);
-                        return Err(AppError::InternalError("internal error".to_string()));
+                        return Err(AppError::InternalError(e.to_string()));
                     }
                 };
 
@@ -857,7 +819,7 @@ pub async fn get_all_challenge_categories() -> Result<Vec<String>, AppError> {
                 Ok(categories) => Ok(categories),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(AppError::InternalError(e.to_string()))
                 }
             }
         } else {
@@ -877,7 +839,7 @@ pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
                 Ok(attachments) => Ok(attachments),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(AppError::InternalError(e.to_string()))
                 }
             }
         } else {
@@ -921,7 +883,7 @@ pub enum UserAction {
 
 #[server(name=AdminUserApi, prefix="/api/admin", endpoint="user")]
 #[instrument]
-pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -955,7 +917,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         Err(e) => {
                             tracing::error!(error = ?e);
                             tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
                     };
 
@@ -963,17 +925,17 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                         match AttachmentWithoutBlob::edit_avatar(&avatar.attachment_id, &new_user_id, &mut *tx).await {
                             Ok(_) => {
                                 tx.commit().await?;
-                                Ok(ApiResult { result: ResultStatus::Success, details: Some("created user".to_string()) })
+                                Ok(ApiResult { result: ResultStatus::Success, details: "created user".to_string() })
                             },
                             Err(e) => {
                                 tracing::error!(error = ?e);
                                 tx.rollback().await?;
-                                Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                                Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                             }
                         }
                     } else {
                         tx.commit().await?;
-                        Ok(ApiResult { result: ResultStatus::Success, details: Some("created user".to_string()) })
+                        Ok(ApiResult { result: ResultStatus::Success, details: "created user".to_string() })
                     }
                 }
                 UserAction::Delete { id } => {
@@ -985,19 +947,19 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                             user
                         },
                         Ok(None) => {
-                            return Err(AppError::InternalError("internal error".to_string()));
+                            return Err(AppError::InternalError("failed to fetch user from db".to_string()));
                         }
                         Err(e) => {
                             tracing::error!(error = ?e);
-                            return Err(AppError::InternalError("internal error".to_string()));
+                            return Err(AppError::InternalError(e.to_string()));
                         }
                     };
 
                     match DbUser::delete(&user.id, &pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted event".to_string()) }),
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted event".to_string() }),
                         Err(e) => {
                             tracing::error!(error = ?e);
-                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                            Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                         }
                     }
                 }
@@ -1010,11 +972,11 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                             user
                         },
                         Ok(None) => {
-                            return Err(AppError::InternalError("internal error".to_string()));
+                            return Err(AppError::InternalError("failed to fetch user from db".to_string()));
                         }
                         Err(e) => {
                             tracing::error!(error = ?e);
-                            return Err(AppError::InternalError("internal error".to_string()));
+                            return Err(AppError::InternalError(e.to_string()));
                         }
                     };
 
@@ -1027,59 +989,41 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     }
 
                     let mut tx = pool.begin().await?;
-                    match DbUser::edit_username(&user.id, &username, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
-                        }
+                    if let Err(e) = DbUser::edit_username(&user.id, &username, &mut *tx).await {
+                        tracing::error!(error = ?e);
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
-                    match DbUser::edit_email(&user.id, &email, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
-                        }
+                    if let Err(e) = DbUser::edit_email(&user.id, &email, &mut *tx).await {
+                        tracing::error!(error = ?e);
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
-                    match DbUser::edit_points(&user.id, &points, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
-                        }
+                    if let Err(e) = DbUser::edit_points(&user.id, &points, &mut *tx).await {
+                        tracing::error!(error = ?e);
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
-                    match DbUser::edit_role(&id, &role, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
-                        }
+                    if let Err(e) = DbUser::edit_role(&id, &role, &mut *tx).await {
+                        tracing::error!(error = ?e);
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
-                    match DbUser::edit_group(&id, &group, &mut *tx).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            tx.rollback().await?;
-                            return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
-                        }
+                    if let Err(e) = DbUser::edit_group(&id, &group, &mut *tx).await {
+                        tracing::error!(error = ?e);
+                        tx.rollback().await?;
+                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
                     if let Some(avatar) = avatar {
-                        match AttachmentWithoutBlob::edit_avatar(&avatar.attachment_id, &id, &mut *tx).await {
-                            Ok(_) => {},
-                            Err(e) => {
-                                tracing::error!(error = ?e);
-                                tx.rollback().await?;
-                                return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
-                            }
+                        if let Err(e) = AttachmentWithoutBlob::edit_avatar(&avatar.attachment_id, &id, &mut *tx).await {
+                            tracing::error!(error = ?e);
+                            tx.rollback().await?;
+                            return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
                     } else {
                         let existing_avatar = match DbUser::get_avatar(&UserIdentifier::Id(id.clone()), &mut *tx).await {
@@ -1087,24 +1031,21 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                             Err(e) => {
                                 tracing::error!(error = ?e);
                                 tx.rollback().await?;
-                                return Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) });
+                                return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                             }
                         };
 
                         if let Some(existing_avatar) = existing_avatar {
-                            match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_avatar.id), &mut *tx).await {
-                                Ok(_) => {},
-                                Err(e) => {
+                            if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_avatar.id), &mut *tx).await {
                                     tx.rollback().await?;
                                     tracing::error!(error = ?e);
                                     return Err(AppError::InternalError(e.to_string()));
-                                }
                             }
                         }
                     }
 
                     tx.commit().await?;
-                    return Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) });
+                    return Ok(ApiResult { result: ResultStatus::Success, details: "edited user".to_string() });
                 }
                 UserAction::EditPassword { id, password, confirm_password } => {
                     let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &pool).await {
@@ -1115,11 +1056,11 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                             user
                         },
                         Ok(None) => {
-                            return Err(AppError::InternalError("internal error".to_string()));
+                            return Err(AppError::InternalError("failed to fetch user from db".to_string()));
                         }
                         Err(e) => {
                             tracing::error!(error = ?e);
-                            return Err(AppError::InternalError("internal error".to_string()));
+                            return Err(AppError::InternalError(e.to_string()));
                         }
                     };
 
@@ -1130,10 +1071,10 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
                     let hashed_pw = hash_string(password.clone())?;
 
                     match DbUser::edit_password(&user.id, &hashed_pw, &pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("edited user".to_string()) }),
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "edited user".to_string() }),
                         Err(e) => {
                             tracing::error!(error = ?e);
-                            Ok(ApiResult { result: ResultStatus::Fail, details: Some("internal error".to_string()) })
+                            Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                         }
                     }
                 }
@@ -1146,16 +1087,16 @@ pub async fn user(action: UserAction) -> Result<ApiResult<Option<String>>, AppEr
 
 #[server(name=AdminDeleteFile, prefix="/api/admin/file", endpoint="delete")]
 #[instrument]
-pub async fn delete_file(id: String) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn delete_file(id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
 
             match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(id.clone()), &pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("deleted file".to_string()) }),
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted file".to_string() }),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(AppError::InternalError(e.to_string()))
                 }
             }
         } else {
@@ -1166,16 +1107,16 @@ pub async fn delete_file(id: String) -> Result<ApiResult<Option<String>>, AppErr
 
 #[server(name=AdminRenameFile, prefix="/api/admin/file", endpoint="rename")]
 #[instrument]
-pub async fn rename_file(id: String, file_name: String) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn rename_file(id: String, file_name: String) -> Result<ApiResult<String>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
 
             match db::structs::Attachment::edit_file_name(&id, &file_name, &pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("renamed file".to_string()) }),
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "renamed file".to_string() }),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(AppError::InternalError(e.to_string()))
                 }
             }
         } else {
@@ -1196,7 +1137,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
-                        Err(AppError::InternalError("internal error".to_string()))
+                        Err(AppError::InternalError(e.to_string()))
                     }
                 }    
             } else {
@@ -1204,7 +1145,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
-                        Err(AppError::InternalError("internal error".to_string()))
+                        Err(AppError::InternalError(e.to_string()))
                     }
                 }
             }
@@ -1216,7 +1157,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
 
 #[server(name=TestLdap, prefix="/api/admin", endpoint="test_ldap")]
 #[instrument]
-pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -1247,7 +1188,7 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppE
             
             let (conn, mut ldap) = match LdapConnAsync::with_settings(settings, args.url.as_str()).await {
                 Ok(conn) => conn,
-                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
             };
             ldap3::drive!(conn);
 
@@ -1256,17 +1197,17 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<Option<String>>, AppE
                     match res.success() {
                         Ok(res) => {
                             ldap.unbind().await?;
-                            Ok(ApiResult { result: ResultStatus::Success, details: Some(res.to_string()) })
+                            Ok(ApiResult { result: ResultStatus::Success, details: res.to_string() })
                         },
                         Err(e) => {
                             ldap.unbind().await?;
-                            Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                            Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                         }
                     }
                 },
                 Err(e) => {
                     ldap.unbind().await?;
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(e.to_string()) })
+                    Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
                 }
             }
         } else {
@@ -1328,7 +1269,7 @@ pub async fn get_certificate_without_blob() -> Result<Option<AttachmentWithoutBl
 
 #[server(name=UpdateLdap, prefix="/api/admin", endpoint="ldap")]
 #[instrument]
-pub async fn update_ldap(args: LdapArgs, new_certificate: Option<AttachmentWithoutBlob>) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn update_ldap(args: LdapArgs, new_certificate: Option<AttachmentWithoutBlob>) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -1338,22 +1279,19 @@ pub async fn update_ldap(args: LdapArgs, new_certificate: Option<AttachmentWitho
                 Err(e) => return Err(e.into())
             };
             if let Some(existing_certificate) = existing_certificate.clone() && new_certificate.is_none() {
-                match AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_certificate.id.clone()), &pool).await {
-                    Ok(_) => {},
-                    Err(e) => {
-                        tracing::error!(error = ?e);
-                        return Err(AppError::InternalError(e.to_string()));
-                    }
+                if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_certificate.id.clone()), &pool).await {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError(e.to_string()));
                 }
             }
 
             // bind_pw should be hashed, but how to connect with a hashed password?
             match LdapArgs::update(&args.url, &args.bind_dn, &args.bind_pw, &args.base_dn, &args.enabled.0, &pool).await {
                 Ok(_) => {
-                    Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated LDAP configuration".to_string()) })
+                    Ok(ApiResult { result: ResultStatus::Success, details: "successfully updated LDAP configuration".to_string() })
                 },
                 Err(e) => {
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("bind succeeded but failed to update DB row: {e}")) })
+                    Ok(ApiResult { result: ResultStatus::Fail, details: format!("bind succeeded but failed to update DB row: {e}") })
                 }
             }
         } else {
@@ -1364,15 +1302,15 @@ pub async fn update_ldap(args: LdapArgs, new_certificate: Option<AttachmentWitho
 
 #[server(name=EnableLdap, prefix="/api/admin/ldap", endpoint="enable")]
 #[instrument]
-pub async fn enable_ldap() -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn enable_ldap() -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
 
             match LdapArgs::enable(&pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully enabled LDAP authentication".to_string()) }),
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "successfully enabled LDAP authentication".to_string() }),
                 Err(e) => {
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("Failed to update DB row: {e}")) })
+                    Ok(ApiResult { result: ResultStatus::Fail, details: format!("Failed to update DB row: {e}") })
                 }
             }
         } else {
@@ -1383,15 +1321,15 @@ pub async fn enable_ldap() -> Result<ApiResult<Option<String>>, AppError> {
 
 #[server(name=DisableLdap, prefix="/api/admin/ldap", endpoint="disable")]
 #[instrument]
-pub async fn disable_ldap() -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn disable_ldap() -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
             
             match LdapArgs::disable(&pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully disabled LDAP authentication".to_string()) }),
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "successfully disabled LDAP authentication".to_string() }),
                 Err(e) => {
-                    Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("failed to update DB row: {e}")) })
+                    Ok(ApiResult { result: ResultStatus::Fail, details: format!("failed to update DB row: {e}") })
                 }
             }
         } else {
@@ -1419,25 +1357,27 @@ pub async fn get_proxmox_conf() -> Result<Option<ProxmoxArgs>, AppError> {
 
 #[server(name=UpdateProxmox, prefix="/api/admin/proxmox", endpoint="update")]
 #[instrument]
-pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
             
-            match crate::server::proxmox::test_auth().await {
-                Ok(_) => {},
-                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("token auth failed: {e}")) })
+            if let Err(e) = crate::server::proxmox::test_auth(args.clone()).await {
+                return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
             }
 
-            match ProxmoxArgs::update(&args.base_url, &args.api_path, &args.templates_pool_id, &args.node, &args.username, &args.password, &args.api_token, &args.auth_type, &pool).await {
-                Ok(_) => {},
-                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("connection succeeded but failed to update DB row: {e}")) })
+            if let Err(e) = ProxmoxArgs::update(&args.base_url, &args.api_path, &args.templates_pool_id, &args.node, &args.username, &args.password, &args.api_token, &args.auth_type, &pool).await {
+                return Ok(ApiResult { result: ResultStatus::Fail, details: format!("connection succeeded but failed to update DB row: {e}") });
             }
 
-            match crate::server::proxmox::create_realm().await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("successfully updated Proxmox configuration".to_string()) }),
-                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("failed to create realm for Proxmox: {e}")) })
-            }
+            if let Ok(Some(_)) = LdapArgs::get(&pool).await {
+                crate::server::proxmox::create_realm().await?;
+            };
+
+            _ = crate::server::proxmox::create_user_role().await;
+            _ = crate::server::proxmox::sync_realm().await;
+
+            Ok(ApiResult { result: ResultStatus::Success, details: "successfully updated Proxmox configuration".to_string() })
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -1446,14 +1386,14 @@ pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String
 
 #[server(name=TestProxmox, prefix="/api/admin/proxmox", endpoint="test")]
 #[instrument]
-pub async fn test_proxmox(args: ProxmoxArgs) -> Result<ApiResult<Option<String>>, AppError> {
+pub async fn test_proxmox(args: ProxmoxArgs) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
             
-            match crate::server::proxmox::test_auth().await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: Some("success".to_string()) }),
-                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: Some(format!("token auth failed: {e}")) })
+            match crate::server::proxmox::test_auth(args).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "success".to_string()}),
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -1476,11 +1416,11 @@ pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
     let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
         Ok(Some(user)) => user,
         Ok(None) => {
-            return Err(AppError::InternalError("internal error".to_string()));
+            return Err(AppError::InternalError("failed to fetch user from db".to_string()));
         }
         Err(e) => {
             tracing::error!(error = ?e);
-            return Err(AppError::InternalError("internal error".to_string()));
+            return Err(AppError::InternalError(e.to_string()));
         }
     };
 
@@ -1503,7 +1443,7 @@ pub async fn get_all_challenge_templates() -> Result<Vec<ProxmoxVMTemplate>, App
                 Ok(templates) => Ok(templates),
                 Err(e) => {
                     tracing::error!(error = ?e);
-                    Err(AppError::InternalError("internal error".to_string()))
+                    Err(e)
                 }
             }
         } else {
