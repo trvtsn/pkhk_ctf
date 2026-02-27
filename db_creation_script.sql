@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`users` (
   `last_active_at` TIMESTAMP NOT NULL,
   `role` VARCHAR(14) NOT NULL,
   `points` INT UNSIGNED NOT NULL,
-  `group` VARCHAR(30) NOT NULL,
+  `group` VARCHAR(60) NOT NULL,
   `auth_type` VARCHAR(10) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
@@ -97,13 +97,19 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`attachments` (
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_attachments_challenges1`
     FOREIGN KEY (`challenge_id`)
-    REFERENCES `ctfpkhk`.`challenges` (`id`),
+    REFERENCES `ctfpkhk`.`challenges` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_attachments_events1`
     FOREIGN KEY (`event_id`)
-    REFERENCES `ctfpkhk`.`events` (`id`),
+    REFERENCES `ctfpkhk`.`events` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   CONSTRAINT `fk_attachments_users1`
     FOREIGN KEY (`user_id`)
-    REFERENCES `ctfpkhk`.`users` (`id`))
+    REFERENCES `ctfpkhk`.`users` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
 
@@ -156,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`hints_used` (
     ON DELETE CASCADE
     ON UPDATE CASCADE)
 ENGINE = InnoDB
-AUTO_INCREMENT = 87
+AUTO_INCREMENT = 88
 DEFAULT CHARACTER SET = utf8mb3;
 
 CREATE INDEX `fk_hints_used_challenges1_idx` ON `ctfpkhk`.`hints_used` (`challenge_id` ASC) VISIBLE;
