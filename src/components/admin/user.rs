@@ -65,27 +65,22 @@ pub fn User(
     
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
-            <Transition fallback=move || {
-                view! { <div>"Loading..."</div> }
-            }>
-                {move || {
-                    let user_avatar = user_avatar.get();
-                    if let Some(user_avatar) = user_avatar {
-                        avatar_edit.set(Some(user_avatar.clone()));
-                        view! {
-                            <div class="h-48 w-48 flex justify-center m-auto">
-                                <img 
-                                    src=move || format!("/avatar/{}", user_avatar.attachment_id) 
-                                    class=r#"text-blue-600 underline rounded-[50%] 
-                                    object-cover shadow-sm"#
-                                />
-                            </div>
-                        }.into_any()
-                    } else {
-                        "".into_any()
-                    }
-                }}
-            </Transition>
+            {move || {
+                let user_avatar = user_avatar.get();
+                if let Some(user_avatar) = user_avatar {
+                    avatar_edit.set(Some(user_avatar.clone()));
+                    view! {
+                        <div class="h-48 w-48 flex justify-center m-auto">
+                            <img 
+                                src=move || format!("/avatar/{}", user_avatar.attachment_id) 
+                                class=r#"rounded-[50%] shadow-sm"#
+                            />
+                        </div>
+                    }.into_any()
+                } else {
+                    "".into_any()
+                }
+            }}
             <Show when=move || !editing.get()>
                 <h3 class=r#"font-bold text-3xl/8"#>{move || username_signal.get().clone()}</h3>
                 <p class=r#"text-lg/8"#>
@@ -215,35 +210,31 @@ pub fn User(
                             }
                         >
                             <option value="__new__">"-- Add New --"</option>
-                            <Suspense fallback=move || {
-                                view! { <div>"Loading..."</div> }
-                            }>
-                                {move || {
-                                    let groups = groups.get();
-                                    view! {
-                                        <For
-                                            each=move || groups.clone()
-                                            key=|group: &String| group.clone()
-                                            children=move |group| {
-                                                let selected = group_edit.get()
-                                                    .split(",")
-                                                    .map(|g| g.to_string())
-                                                    .collect::<Vec<String>>()
-                                                    .contains(&group);
-                                                
-                                                view! {
-                                                    <option 
-                                                        value=group.clone()
-                                                        selected=selected
-                                                    >
-                                                        {group.clone()}
-                                                    </option>
-                                                }
+                            {move || {
+                                let groups = groups.get();
+                                view! {
+                                    <For
+                                        each=move || groups.clone()
+                                        key=|group: &String| group.clone()
+                                        children=move |group| {
+                                            let selected = group_edit.get()
+                                                .split(",")
+                                                .map(|g| g.to_string())
+                                                .collect::<Vec<String>>()
+                                                .contains(&group);
+                                            
+                                            view! {
+                                                <option 
+                                                    value=group.clone()
+                                                    selected=selected
+                                                >
+                                                    {group.clone()}
+                                                </option>
                                             }
-                                        />
-                                    }
-                                }}
-                            </Suspense>
+                                        }
+                                    />
+                                }
+                            }}
                         </select>
                         <input
                             class=r#"bg-background py-2 px-3 mt-2 w-full text-sm rounded-md border border-input-border 
@@ -262,34 +253,34 @@ pub fn User(
                     <div class="grid">
                         <label class=r#"block mb-1 text-sm font-medium"#>"Avatar"</label>
                         <div class="grid gap-2">
-                            <Transition>
-                                {move || {
-                                    let user_avatar = avatar_edit.get();
-                                    if let Some(user_avatar) = user_avatar {
-                                        view! {
-                                            <div class="flex gap-2 items-center">
-                                                {move || user_avatar.file_name.clone()}
-                                                <a
-                                                    download
-                                                    href=move || format!("/file/{}", user_avatar.attachment_id.clone())
-                                                >
-                                                    <Icon icon=i::LuDownload />
-                                                </a>
-                                                <button 
-                                                    class="cursor-pointer"
-                                                    on:click=move |_| {
-                                                        avatar_edit.set(None);
-                                                    } 
-                                                >
-                                                    <Icon icon=i::LuX />
-                                                </button>
-                                            </div>
-                                        }.into_any()
-                                    } else {
-                                        "".into_any()
-                                    }
-                                }}
-                            </Transition>
+                            {move || {
+                                let user_avatar = avatar_edit.get();
+                                if let Some(user_avatar) = user_avatar {
+                                    let id = user_avatar.attachment_id.clone();
+                                    view! {
+                                        <div class="flex gap-2 items-center">
+                                            {move || user_avatar.file_name.clone()}
+                                            <a
+                                                download
+                                                href=move || format!("/file/{}", id)
+                                            >
+                                                <Icon icon=i::LuDownload />
+                                            </a>
+                                            <button 
+                                                class="cursor-pointer"
+                                                on:click=move |_| {
+                                                    avatar_edit.set(None);
+                                                } 
+                                            >
+                                                <Icon icon=i::LuX />
+                                            </button>
+                                            <i class="text-xs">{format!("(ID: {})", user_avatar.attachment_id)}</i>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    "".into_any()
+                                }
+                            }}
                             <input
                                 class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                 type="file"
@@ -338,17 +329,13 @@ pub fn User(
                     <HidePasswordButton hidden=confirm_new_password_hidden />
                 </div>
 
-                <Transition fallback=|| {
-                    view! { "..." }
-                }>
-                    {move || {
-                        if new_password_signal.get() != confirm_new_password_signal.get() {
-                            "Confirmation must match"
-                        } else {
-                            ""
-                        }
-                    }}
-                </Transition>
+                {move || {
+                    if new_password_signal.get() != confirm_new_password_signal.get() {
+                        "Confirmation must match"
+                    } else {
+                        ""
+                    }
+                }}
             </Show>
 
             // dont show edit and delete buttons for admin users

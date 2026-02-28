@@ -288,7 +288,7 @@ pub fn Ldap() -> impl IntoView {
                                         "Apply"
                                     </button>
                                 </div>
-                                <Transition fallback=|| view! { "..." }>{move || connect_status_ui.get()}</Transition>
+                                {move || connect_status_ui.get()}
                             </div>
                         </div>
                     </div>

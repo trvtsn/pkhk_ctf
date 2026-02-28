@@ -1,5 +1,7 @@
 use crate::{components::{admin::user::User, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
+use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
+use leptos_icons::Icon;
 
 /// Default Home Page
 #[component]
@@ -145,17 +147,13 @@ pub fn Users() -> impl IntoView {
                             <option value=role.to_string()>{role.to_string()}</option>
                         </For>
                     </select>
-                    <Transition fallback=|| {
-                        view! { "..." }
-                    }>
-                        {move || {
-                            if password_signal.get() != confirm_password_signal.get() {
-                                "Confirmation must match"
-                            } else {
-                                ""
-                            }
-                        }}
-                    </Transition>
+                    {move || {
+                        if password_signal.get() != confirm_password_signal.get() {
+                            "Confirmation must match"
+                        } else {
+                            ""
+                        }
+                    }}
                 </div>
 
                 <div class="grid">
@@ -231,6 +229,35 @@ pub fn Users() -> impl IntoView {
 
                 <div class="grid">
                     <label class=r#"block mb-1 text-sm font-medium text-text"#>"Avatar"</label>
+                    <div class="grid gap-2">
+                        {move || {
+                            let user_avatar = avatar_signal.get();
+                            if let Some(user_avatar) = user_avatar {
+                                view! {
+                                    <div class="flex gap-2 items-center">
+                                        {move || user_avatar.file_name.clone()}
+                                        <a
+                                            download
+                                            href=move || format!("/file/{}", user_avatar.attachment_id.clone())
+                                        >
+                                            <Icon icon=i::LuDownload />
+                                        </a>
+                                        <button 
+                                            class="cursor-pointer"
+                                            on:click=move |_| {
+                                                avatar_signal.set(None);
+                                            } 
+                                        >
+                                            <Icon icon=i::LuX />
+                                        </button>
+                                        
+                                    </div>
+                                }.into_any()
+                            } else {
+                                "".into_any()
+                            }
+                        }}
+                    </div>
                     <input
                         class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                         type="file"

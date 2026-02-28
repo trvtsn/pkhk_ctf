@@ -714,17 +714,17 @@ pub async fn serve_image(
     let bytes = file.file_blob;
     let content_type = file.mime_type;
     let disposition = format!(
-        "image; filename=\"{}\"",
+        "inline; image; filename=\"{}\"",
         // sanitize(&filename)
         file.file_name
     );
 
     (
         [
-            {if content_type.is_some() {
-                (header::CONTENT_TYPE, content_type.unwrap_or_default())
+            {if let Some(content_type) = content_type {
+                (header::CONTENT_TYPE, content_type)
             } else {
-                (header::CONTENT_TYPE, "application/octet-stream".into())
+                (header::CONTENT_TYPE, "application/octet-stream".to_string())
             }},
             (header::CONTENT_DISPOSITION, disposition),
         ],

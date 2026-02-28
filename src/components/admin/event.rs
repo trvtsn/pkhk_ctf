@@ -83,28 +83,24 @@ pub fn Event(
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get()>
-                <Transition fallback=move || {
-                    view! { <div>"Loading..."</div> }
-                }>
-                    {move || {
-                        let event_id = id_signal.get();
-                        let illustrations = illustrations.get();
-                        let illustration = illustrations.into_iter().find(|i| i.event_id == Some(event_id.clone()));
-                        illustration_edit.set(illustration.clone());
-                        if let Some(illustration) = illustration {
-                            view! {
-                                <div class="h-48 w-48 flex justify-center m-auto">
-                                    <img 
-                                        src=move || format!("/image/{}", illustration.id) 
-                                        class=r#"text-blue-600 underline object-cover shadow-sm"#
-                                    />
-                                </div>
-                            }.into_any()
-                        } else {
-                            "".into_any()
-                        }
-                    }}
-                </Transition>
+                {move || {
+                    let event_id = id_signal.get();
+                    let illustrations = illustrations.get();
+                    let illustration = illustrations.into_iter().find(|i| i.event_id == Some(event_id.clone()));
+                    illustration_edit.set(illustration.clone());
+                    if let Some(illustration) = illustration {
+                        view! {
+                            <div class="flex justify-center m-auto">
+                                <img 
+                                    src=move || format!("/image/{}", illustration.id) 
+                                    class=r#"shadow-sm"#
+                                />
+                            </div>
+                        }.into_any()
+                    } else {
+                        "".into_any()
+                    }
+                }}
                 <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
@@ -232,35 +228,31 @@ pub fn Event(
                             >
                                 "All"
                             </option>
-                            <Suspense fallback=move || {
-                                view! { <div>"Loading..."</div> }
-                            }>
-                                {move || {
-                                    let user_groups = user_groups.get();
-                                    view! {
-                                        <For
-                                            each=move || user_groups.clone()
-                                            key=|group: &String| group.clone()
-                                            children=move |group| {
-                                                let selected = visible_to_groups_edit
-                                                    .get().split(",")
-                                                    .map(|g| g.to_string())
-                                                    .collect::<Vec<String>>()
-                                                    .contains(&group);
+                            {move || {
+                                let user_groups = user_groups.get();
+                                view! {
+                                    <For
+                                        each=move || user_groups.clone()
+                                        key=|group: &String| group.clone()
+                                        children=move |group| {
+                                            let selected = visible_to_groups_edit
+                                                .get().split(",")
+                                                .map(|g| g.to_string())
+                                                .collect::<Vec<String>>()
+                                                .contains(&group);
 
-                                                view! {
-                                                    <option 
-                                                        value=group.clone()
-                                                        selected=selected
-                                                    >
-                                                        {group.clone()}
-                                                    </option>
-                                                }
+                                            view! {
+                                                <option 
+                                                    value=group.clone()
+                                                    selected=selected
+                                                >
+                                                    {group.clone()}
+                                                </option>
                                             }
-                                        />
-                                    }
-                                }}
-                            </Suspense>
+                                        }
+                                    />
+                                }
+                            }}
                         </select>
                     </div>
 
@@ -271,12 +263,14 @@ pub fn Event(
                                 each=move || attachments_edit.get()
                                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                                 children={move |index, a| {
+                                    let id = a.id.clone();
+                                    let file_name = a.file_name.clone();
                                     view! {  
                                         <div class="flex gap-2 items-center">
-                                            {a.file_name.clone()}
+                                            {file_name}
                                             <a
                                                 download
-                                                href=move || format!("/file/{}", a.id.clone())
+                                                href=move || format!("/file/{}", id)
                                             >
                                                 <Icon icon=i::LuDownload />
                                             </a>
@@ -292,6 +286,7 @@ pub fn Event(
                                             >
                                                 <Icon icon=i::LuX />
                                             </button>
+                                            <i class="text-xs">{format!("(ID: {})", a.id)}</i>
                                         </div>
                                     }
                                 }}
@@ -319,34 +314,34 @@ pub fn Event(
                     <div class="grid">
                         <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                         <div class="grid gap-2">
-                            <Transition>
-                                {move || {
-                                    let illustration = illustration_edit.get();
-                                    if let Some(illustration) = illustration {
-                                        view! {
-                                            <div class="flex gap-2 items-center">
-                                                {move || illustration.file_name.clone()}
-                                                <a
-                                                    download
-                                                    href=move || format!("/file/{}", illustration.id.clone())
-                                                >
-                                                    <Icon icon=i::LuDownload />
-                                                </a>
-                                                <button 
-                                                    class="cursor-pointer"
-                                                    on:click=move |_| {
-                                                        illustration_edit.set(None);
-                                                    } 
-                                                >
-                                                    <Icon icon=i::LuX />
-                                                </button>
-                                            </div>
-                                        }.into_any()
-                                    } else {
-                                        "".into_any()
-                                    }
-                                }}
-                            </Transition>
+                            {move || {
+                                let illustration = illustration_edit.get();
+                                if let Some(illustration) = illustration {
+                                    let id = illustration.id.clone();
+                                    view! {
+                                        <div class="flex gap-2 items-center">
+                                            {move || illustration.file_name.clone()}
+                                            <a
+                                                download
+                                                href=move || format!("/file/{}", id)
+                                            >
+                                                <Icon icon=i::LuDownload />
+                                            </a>
+                                            <button 
+                                                class="cursor-pointer"
+                                                on:click=move |_| {
+                                                    illustration_edit.set(None);
+                                                } 
+                                            >
+                                                <Icon icon=i::LuX />
+                                            </button>
+                                            <i class="text-xs">{format!("(ID: {})", illustration.id)}</i>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    "".into_any()
+                                }
+                            }}
                             <input
                                 class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                 type="file"

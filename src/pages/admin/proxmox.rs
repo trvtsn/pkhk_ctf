@@ -222,7 +222,7 @@ pub fn Proxmox() -> impl IntoView {
                                     "Apply"
                                 </button>
                             </div>
-                            <Transition fallback=|| view! { "..." }>{move || auth_status_ui.get()}</Transition>
+                            {move || auth_status_ui.get()}
                         </div>
                     </div>
                 }

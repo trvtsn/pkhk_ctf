@@ -354,22 +354,18 @@ pub fn Challenges() -> impl IntoView {
                         }
                     >
                         <option value="all">"All"</option>
-                        <Suspense fallback=move || {
-                            view! { <div>"Loading..."</div> }
-                        }>
-                            {move || {
-                                let groups = user_groups_signal.get();
-                                view! {
-                                    <For
-                                        each=move || groups.clone()
-                                        key=|group: &String| group.clone()
-                                        let(group)
-                                    >
-                                        <option value={group.clone()}>{group.clone()}</option>
-                                    </For>
-                                }
-                            }}
-                        </Suspense>
+                        {move || {
+                            let groups = user_groups_signal.get();
+                            view! {
+                                <For
+                                    each=move || groups.clone()
+                                    key=|group: &String| group.clone()
+                                    let(group)
+                                >
+                                    <option value={group.clone()}>{group.clone()}</option>
+                                </For>
+                            }
+                        }}
                     </select>
                 </div>
 
@@ -485,19 +481,21 @@ pub fn Challenges() -> impl IntoView {
                 
                 <div class="grid">
                     <label class=r#"block mb-1 text-sm font-medium text-text"#>
-                        "Attachment (Max 16 MiB)"
+                        "Attachments (Max 16 MiB)"
                     </label>
                     <div class="grid gap-2">
                         <ForEnumerate
                             each=move || attachments.get().unwrap_or_default()
                             key=|a: &AttachmentWithoutBlob| a.id.clone()
                             children={move |index, a| {
+                                let id = a.id.clone();
+                                let file_name = a.file_name.clone();
                                 view! {  
                                     <div class="flex gap-2 items-center">
-                                        {a.file_name.clone()}
+                                        {file_name}
                                         <a
                                             download
-                                            href=move || format!("/file/{}", a.id.clone())
+                                            href=move || format!("/file/{}", id)
                                         >
                                             <Icon icon=i::LuDownload />
                                         </a>
@@ -513,6 +511,7 @@ pub fn Challenges() -> impl IntoView {
                                         >
                                             <Icon icon=i::LuX />
                                         </button>
+                                        <i class="text-xs">{format!("(ID: {})", a.id)}</i>
                                     </div>
                                 }
                             }}
@@ -543,34 +542,34 @@ pub fn Challenges() -> impl IntoView {
                         "Illustration (Max 16 MiB)"
                     </label>
                     <div class="grid gap-2">
-                        <Transition>
-                            {move || {
-                                let illustration_signal_value = illustration.get();
-                                if let Some(illustr) = illustration_signal_value {
-                                    view! {
-                                        <div class="flex gap-2 items-center">
-                                            {move || illustr.file_name.clone()}
-                                            <a
-                                                download
-                                                href=move || format!("/file/{}", illustr.id.clone())
-                                            >
-                                                <Icon icon=i::LuDownload />
-                                            </a>
-                                            <button 
-                                                class="cursor-pointer"
-                                                on:click=move |_| {
-                                                    illustration.set(None);
-                                                } 
-                                            >
-                                                <Icon icon=i::LuX />
-                                            </button>
-                                        </div>
-                                    }.into_any()
-                                } else {
-                                    "".into_any()
-                                }
-                            }}
-                        </Transition>
+                        {move || {
+                            let illustration_signal_value = illustration.get();
+                            if let Some(illustr) = illustration_signal_value {
+                                let id = illustr.id.clone();
+                                view! {
+                                    <div class="flex gap-2 items-center">
+                                        {move || illustr.file_name.clone()}
+                                        <a
+                                            download
+                                            href=move || format!("/file/{}", id)
+                                        >
+                                            <Icon icon=i::LuDownload />
+                                        </a>
+                                        <button 
+                                            class="cursor-pointer"
+                                            on:click=move |_| {
+                                                illustration.set(None);
+                                            } 
+                                        >
+                                            <Icon icon=i::LuX />
+                                        </button>
+                                        <i class="text-xs">{format!("(ID: {})", illustr.id)}</i>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                "".into_any()
+                            }
+                        }}
                         <input
                             class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                             type="file"

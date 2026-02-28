@@ -98,24 +98,20 @@ pub fn Challenge(
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get() && !deleted.get()>
-                <Transition fallback=move || {
-                    view! { <div>"Loading..."</div> }
-                }>
-                    {move || {
-                        if let Some(illustration) = illustration_signal.get() { 
-                            view! {
-                                <div class="h-48 w-48 flex justify-center m-auto">
-                                    <img 
-                                        src=move || format!("/image/{}", illustration.id) 
-                                        class=r#"text-blue-600 underline object-cover shadow-sm"#
-                                    />
-                                </div>
-                            }.into_any()
-                        } else {
-                            "".into_any()
-                        }
-                    }}
-                </Transition>
+                {move || {
+                    if let Some(illustration) = illustration_signal.get() { 
+                        view! {
+                            <div class="flex justify-center m-auto mb-4">
+                                <img 
+                                    src=move || format!("/image/{}", illustration.id) 
+                                    class=r#"shadow-sm"#
+                                />
+                            </div>
+                        }.into_any()
+                    } else {
+                        "".into_any()
+                    }
+                }}
                 <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
@@ -146,7 +142,6 @@ pub fn Challenge(
                         }
                     }
                 </p>
-                <br />
             </Show>
 
             <Show when=move || editing.get()>
@@ -332,35 +327,31 @@ pub fn Challenge(
                             >
                                 "All"
                             </option>
-                            <Suspense fallback=move || {
-                                view! { <div>"Loading..."</div> }
-                            }>
-                                {move || {
-                                    let groups = user_groups.get();
-                                    view! {
-                                        <For
-                                            each=move || groups.clone()
-                                            key=|group: &String| group.clone()
-                                            children=move |group| {
-                                                let selected = visible_to_groups_edit
-                                                    .get().split(",")
-                                                    .map(|g| g.to_string())
-                                                    .collect::<Vec<String>>()
-                                                    .contains(&group);
+                            {move || {
+                                let groups = user_groups.get();
+                                view! {
+                                    <For
+                                        each=move || groups.clone()
+                                        key=|group: &String| group.clone()
+                                        children=move |group| {
+                                            let selected = visible_to_groups_edit
+                                                .get().split(",")
+                                                .map(|g| g.to_string())
+                                                .collect::<Vec<String>>()
+                                                .contains(&group);
 
-                                                view! {
-                                                    <option 
-                                                        value=group.clone()
-                                                        selected=selected
-                                                    >
-                                                        {group.clone()}
-                                                    </option>
-                                                }
+                                            view! {
+                                                <option 
+                                                    value=group.clone()
+                                                    selected=selected
+                                                >
+                                                    {group.clone()}
+                                                </option>
                                             }
-                                        />
-                                    }
-                                }}
-                            </Suspense>
+                                        }
+                                    />
+                                }
+                            }}
                         </select>
                     </div>
 
@@ -422,89 +413,87 @@ pub fn Challenge(
                     </div>
 
                     <div class="grid">
-                        <Transition>
-                            {move || {
-                                let challenge_id = id_signal.get();
-                                let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<DbHint>>();
-                                if !hints.is_empty() {
-                                    hints_edit.set(
-                                        hints.into_iter()
-                                            .map(|h| crate::pages::admin::challenges::Hint {
-                                                id: h.id,
-                                                value: RwSignal::new(h.hint),
-                                                points_penalty: RwSignal::new(Some(h.points_penalty))
-                                            })
-                                            .collect::<Vec<crate::pages::admin::challenges::Hint>>()
-                                    );
-                                }
+                        {move || {
+                            let challenge_id = id_signal.get();
+                            let hints = hints.get().into_iter().filter(|h| h.challenge_id == challenge_id).collect::<Vec<DbHint>>();
+                            if !hints.is_empty() {
+                                hints_edit.set(
+                                    hints.into_iter()
+                                        .map(|h| crate::pages::admin::challenges::Hint {
+                                            id: h.id,
+                                            value: RwSignal::new(h.hint),
+                                            points_penalty: RwSignal::new(Some(h.points_penalty))
+                                        })
+                                        .collect::<Vec<crate::pages::admin::challenges::Hint>>()
+                                );
+                            }
 
-                                view! {
-                                    <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
-                                    <ForEnumerate
-                                        each=move || hints_edit.get()
-                                        key=|hint: &Hint| hint.id.clone()
-                                        children={move |index, hint| {
-                                            view! {
-                                                <div class="flex gap-2">
-                                                    <input
-                                                        class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                                        name="hint"
-                                                        prop:value=move || hint.value.get()
-                                                        on:input=move |ev| {
-                                                            let value = event_target_value(&ev);
-                                                            hint.value.set(value);
-                                                        }
-                                                    />
-                                                    <input
-                                                        class="w-1/2"
-                                                        type="number"
-                                                        min=0
-                                                        prop:value=move || hint.points_penalty.get()
-                                                        on:input=move |ev| {
-                                                            let value = event_target_value(&ev);
-                                                            hint.points_penalty.set(Some(value.parse::<u32>().unwrap_or_default()));
-                                                        }
-                                                        placeholder="0"
-                                                    />
-                                                    <button 
-                                                        class="cursor-pointer"
-                                                        on:click=move |_| {
-                                                            hints_edit.update(|vec| {
-                                                                next_hint_id.set(next_hint_id.get() + 1);
-                                                                vec.push(Hint::new(next_hint_id.get().to_string(), ""));
-                                                            });
-                                                        }
-                                                    >
-                                                        <Icon icon=i::LuPlus />
-                                                    </button>
-                                                    {
-                                                        if index.get() != 0 {
-                                                            view! {
-                                                                <button 
-                                                                    class="cursor-pointer"
-                                                                    on:click=move |_| {
-                                                                        let remove_at = index.get();
-
-                                                                        hints_edit.update(|vec| {
-                                                                            vec.remove(remove_at);
-                                                                        });
-                                                                    } 
-                                                                >
-                                                                    <Icon icon=i::LuX />
-                                                                </button>
-                                                            }.into_any()
-                                                        } else {
-                                                            "".into_any()
-                                                        }
+                            view! {
+                                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
+                                <ForEnumerate
+                                    each=move || hints_edit.get()
+                                    key=|hint: &Hint| hint.id.clone()
+                                    children={move |index, hint| {
+                                        view! {
+                                            <div class="flex gap-2">
+                                                <input
+                                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                                    focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                                    name="hint"
+                                                    prop:value=move || hint.value.get()
+                                                    on:input=move |ev| {
+                                                        let value = event_target_value(&ev);
+                                                        hint.value.set(value);
                                                     }
-                                                </div>
-                                            }
-                                        }}
-                                    />
-                                }
-                            }}
-                        </Transition>
+                                                />
+                                                <input
+                                                    class="w-1/2"
+                                                    type="number"
+                                                    min=0
+                                                    prop:value=move || hint.points_penalty.get()
+                                                    on:input=move |ev| {
+                                                        let value = event_target_value(&ev);
+                                                        hint.points_penalty.set(Some(value.parse::<u32>().unwrap_or_default()));
+                                                    }
+                                                    placeholder="0"
+                                                />
+                                                <button 
+                                                    class="cursor-pointer"
+                                                    on:click=move |_| {
+                                                        hints_edit.update(|vec| {
+                                                            next_hint_id.set(next_hint_id.get() + 1);
+                                                            vec.push(Hint::new(next_hint_id.get().to_string(), ""));
+                                                        });
+                                                    }
+                                                >
+                                                    <Icon icon=i::LuPlus />
+                                                </button>
+                                                {
+                                                    if index.get() != 0 {
+                                                        view! {
+                                                            <button 
+                                                                class="cursor-pointer"
+                                                                on:click=move |_| {
+                                                                    let remove_at = index.get();
+
+                                                                    hints_edit.update(|vec| {
+                                                                        vec.remove(remove_at);
+                                                                    });
+                                                                } 
+                                                            >
+                                                                <Icon icon=i::LuX />
+                                                            </button>
+                                                        }.into_any()
+                                                    } else {
+                                                        "".into_any()
+                                                    }
+                                                }
+                                            </div>
+                                        }
+                                    }}
+                                />
+                            }
+                        }}
                     </div>
 
                     <div class="grid">
@@ -514,12 +503,14 @@ pub fn Challenge(
                                 each=move || attachments_edit.get().clone()
                                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                                 children={move |index, a| {
+                                    let id = a.id.clone();
+                                    let file_name = a.file_name.clone();
                                     view! {  
                                         <div class="flex gap-2 items-center">
-                                            {a.file_name.clone()}
+                                            {file_name}
                                             <a
                                                 download
-                                                href=move || format!("/file/{}", a.id.clone())
+                                                href=move || format!("/file/{}", id)
                                             >
                                                 <Icon icon=i::LuDownload />
                                             </a>
@@ -535,6 +526,7 @@ pub fn Challenge(
                                             >
                                                 <Icon icon=i::LuX />
                                             </button>
+                                            <i class="text-xs">{format!("(ID: {})", a.id)}</i>
                                         </div>
                                     }
                                 }}
@@ -563,34 +555,34 @@ pub fn Challenge(
                     <div class="grid">
                         <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                         <div class="grid gap-2">
-                            <Transition>
-                                {move || {
-                                    let illustration = illustration_edit.get();
-                                    if let Some(illustration) = illustration {
-                                        view! {
-                                            <div class="flex gap-2 items-center">
-                                                {move || illustration.file_name.clone()}
-                                                <a
-                                                    download
-                                                    href=move || format!("/file/{}", illustration.id.clone())
-                                                >
-                                                    <Icon icon=i::LuDownload />
-                                                </a>
-                                                <button 
-                                                    class="cursor-pointer"
-                                                    on:click=move |_| {
-                                                        illustration_edit.set(None);
-                                                    } 
-                                                >
-                                                    <Icon icon=i::LuX />
-                                                </button>
-                                            </div>
-                                        }.into_any()
-                                    } else {
-                                        "".into_any()
-                                    }
-                                }}
-                            </Transition>
+                            {move || {
+                                let illustration = illustration_edit.get();
+                                if let Some(illustration) = illustration {
+                                    let id = illustration.id.clone();
+                                    view! {
+                                        <div class="flex gap-2 items-center">
+                                            {move || illustration.file_name.clone()}
+                                            <a
+                                                download
+                                                href=move || format!("/file/{}", id)
+                                            >
+                                                <Icon icon=i::LuDownload />
+                                            </a>
+                                            <button 
+                                                class="cursor-pointer"
+                                                on:click=move |_| {
+                                                    illustration_edit.set(None);
+                                                } 
+                                            >
+                                                <Icon icon=i::LuX />
+                                            </button>
+                                            <i class="text-xs">{format!("(ID: {})", illustration.id)}</i>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    "".into_any()
+                                }
+                            }}
                             <input
                                 class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                 type="file"

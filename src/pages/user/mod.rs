@@ -14,7 +14,7 @@ use leptos_router::hooks::use_params_map;
 pub fn User() -> impl IntoView {
     let params = use_params_map();
     
-    let user_res = Resource::new(move || (), move |_| {
+    let user_resource = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
         async move { get_db_user_without_pii(Some(username)).await.unwrap_or_default() }
     });
@@ -33,27 +33,23 @@ pub fn User() -> impl IntoView {
                         view! { <Spinner component_size=ComponentSize::Big /> }
                     }>
                         {move || {
-                            let user = user_res.get().unwrap_or_default();
-                            let avatar_view = {
-                                if let Some(id) = user_avatar.get().unwrap_or_default() {
-                                    view! {
-                                        <div class="h-64 w-64">
-                                            <img 
-                                                src=move || format!("/avatar/{}", id) 
-                                                class=r#"text-blue-600 underline rounded-[50%] 
-                                                object-cover shadow-sm"#
-                                            />
-                                        </div>
-                                    }.into_any()
-                                } else {
-                                    "".into_any()
-                                }
-                            };
+                            let user = user_resource.get().unwrap_or_default();
 
-                            let view = match user {
+                            match user {
                                 Some(user) => {
                                     view! {
-                                        {avatar_view}
+                                        {if let Some(id) = user_avatar.get().unwrap_or_default() {
+                                            view! {
+                                                <div class="flex justify-center mb-4">
+                                                    <img 
+                                                        src=move || format!("/avatar/{}", id) 
+                                                        class="rounded-[50%] object-cover shadow-sm"
+                                                    />
+                                                </div>
+                                            }.into_any()
+                                        } else {
+                                            "".into_any()
+                                        }}
                                         <p>{user.username}</p>
                                         <p>
                                             <b>"Points: "</b>
@@ -82,10 +78,8 @@ pub fn User() -> impl IntoView {
                                         </p>
                                     }.into_any()
                                 }
-                                None => view! { <NotFound /> }.into_any(),
-                            };
-
-                            view! { {view} }
+                                None => view! { <NotFound /> }.into_any()
+                            }
                         }}
                     </Suspense>
                 </div>

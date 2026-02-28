@@ -45,7 +45,7 @@ cargo leptos watch
 - [x] Fix refresh on start VM
 - [x] Fix signals not allowing writing on admin LDAP inputs
 - [x] Add hints to challenges
-- [ ] Find or implement a new and more configurable chart builder for the leaderboard 
+- [ ] Find or implement a new and more configurable chart builder for the leaderboard
 
 ### Security
 - [ ] Sanitize text inputs

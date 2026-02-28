@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_hint, get_used_hints, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_hint, get_used_hints, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 /// Default Home Page
 #[component]
 pub fn Challenges() -> impl IntoView {
-    let cwa_popup = RwSignal::new(ChallengeWithAttachments::default());
+    let cwa_popup = RwSignal::new(None);
     let overlay_triggered = RwSignal::new(false);
     let refresh = RwSignal::new(0);
     let refresh_solved_challenges = RwSignal::new(0);
@@ -144,26 +144,32 @@ pub fn Challenges() -> impl IntoView {
                                 <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
                                     <For
                                         each=move || group.1.clone()
-                                        key=|challenge: &db::structs::ChallengeWithAttachments| {
-                                            challenge.challenge.id.clone()
+                                        key=|cwa: &db::structs::ChallengeWithAttachments| {
+                                            cwa.challenge.id.clone()
                                         }
-                                        children=move |challenge| {
+                                        children=move |cwa| {
+                                            let cwa = RwSignal::new(cwa);
                                             view! {
-                                                <ChallengePopup 
-                                                    cwa=challenge.clone()
-                                                    cwa_popup
-                                                    solved_challenges=solved_challenge_ids 
-                                                    overlay_triggered 
-                                                    all_templates=all_templates_signal
-                                                    hints=hints_signal
-                                                    user_vms=user_vms_signal
-                                                    hints_used=hints_used_signal
-                                                    refresh_solved_challenges
-                                                    refresh_user_vms
-                                                />
+                                                <Show when=move || overlay_triggered.get() && 
+                                                    cwa_popup.get().unwrap_or_default() == cwa.get()
+                                                >
+                                                    <ChallengePopup 
+                                                        cwa
+                                                        cwa_popup
+                                                        solved_challenges=solved_challenge_ids 
+                                                        overlay_triggered 
+                                                        all_templates=all_templates_signal
+                                                        hints=hints_signal
+                                                        user_vms=user_vms_signal
+                                                        hints_used=hints_used_signal
+                                                        refresh_solved_challenges
+                                                        refresh_user_vms
+                                                    />
+                                                </Show>
+
                                                 <div class=r#"p-2 challenge"#>
                                                     <Challenge
-                                                        cwa=challenge
+                                                        cwa
                                                         solved_challenges=solved_challenge_ids
                                                         overlay_triggered
                                                         cwa_popup

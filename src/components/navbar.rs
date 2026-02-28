@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::utils::{ComponentSize, Spinner}, server::{LogoutUser, db::{enums::UserRole, structs::DbUserWithoutPII}}};
+use crate::{app::RefreshUser, server::{LogoutUser, db::{enums::UserRole, structs::DbUserWithoutPII}}};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
@@ -53,50 +53,46 @@ pub fn NavBar() -> impl IntoView {
                             "Leaderboard"
                         </a>
                     </li>
-                    <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Small /> }>
-                        <Show when=move || user.get().is_some() && role.get() == UserRole::Admin>
-                            <a href="/admin" class=r#"inline-flex gap-2 items-center m-1"#>
-                                <Icon icon=i::LuSettings />
-                                "Admin"
-                            </a>
-                        </Show>
-                    </Transition>
+                    <Show when=move || user.get().is_some() && role.get() == UserRole::Admin>
+                        <a href="/admin" class=r#"inline-flex gap-2 items-center m-1"#>
+                            <Icon icon=i::LuSettings />
+                            "Admin"
+                        </a>
+                    </Show>
                 </ul>
             </nav>
 
             <nav class=r#"flex flex-1 gap-2 justify-end items-center p-2"#>
                 <ul class=r#"flex gap-4 items-center p-0 m-0 list-none"#>
-                    <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Small /> }>
-                        <Show when=move || user.get().is_some()>
-                            <li class=r#"flex gap-2 items-center"#>
-                                <a
-                                    class=r#"inline-flex gap-2 items-center m-1 cursor-pointer"#
-                                    on:click=move |_| {
-                                        open.set(!open.get());
-                                    }
-                                >
-                                    <Icon icon=i::LuUser />
-                                    {move || username.get()}
-                                </a>
-                            </li>
-                            <b>"Points: "{move || points.get()}</b>
-                        </Show>
+                    <Show when=move || user.get().is_some()>
+                        <li class=r#"flex gap-2 items-center"#>
+                            <a
+                                class=r#"inline-flex gap-2 items-center m-1 cursor-pointer"#
+                                on:click=move |_| {
+                                    open.set(!open.get());
+                                }
+                            >
+                                <Icon icon=i::LuUser />
+                                {move || username.get()}
+                            </a>
+                        </li>
+                        <b>"Points: "{move || points.get()}</b>
+                    </Show>
 
-                        <Show when=move || user.get().is_none()>
-                            <li class=r#"flex gap-2 items-center"#>
-                                <a href="/login" class=r#"inline-flex gap-2 items-center m-1"#>
-                                    <Icon icon=i::LuLogIn />
-                                    "Login"
-                                </a>
-                            </li>
-                            <li class=r#"flex gap-2 items-center"#>
-                                <a href="/register" class=r#"inline-flex gap-2 items-center m-1"#>
-                                    <Icon icon=i::LuUserPlus />
-                                    "Register"
-                                </a>
-                            </li>
-                        </Show>
-                    </Transition>
+                    <Show when=move || user.get().is_none()>
+                        <li class=r#"flex gap-2 items-center"#>
+                            <a href="/login" class=r#"inline-flex gap-2 items-center m-1"#>
+                                <Icon icon=i::LuLogIn />
+                                "Login"
+                            </a>
+                        </li>
+                        <li class=r#"flex gap-2 items-center"#>
+                            <a href="/register" class=r#"inline-flex gap-2 items-center m-1"#>
+                                <Icon icon=i::LuUserPlus />
+                                "Register"
+                            </a>
+                        </li>
+                    </Show>
 
                     <Show when=move || open.get() fallback=|| ()>
                         <nav

@@ -89,15 +89,11 @@ pub fn Register() -> impl IntoView {
                     <HidePasswordButton hidden=confirm_password_hidden />
                 </div>
 
-                <Transition fallback=|| {
-                    view! { "..." }
-                }>
-                    {move || if password.get() != confirm_password.get() {
-                        "Confirmation must match"
-                    } else {
-                        ""
-                    }}
-                </Transition>
+                {move || if password.get() != confirm_password.get() {
+                    "Confirmation must match"
+                } else {
+                    ""
+                }}
 
                 <input
                     type="submit"

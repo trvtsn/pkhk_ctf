@@ -10,20 +10,14 @@ use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 
 #[component]
 pub fn Challenge(
-    cwa: ChallengeWithAttachments,
+    cwa: RwSignal<ChallengeWithAttachments>,
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
-    cwa_popup: RwSignal<ChallengeWithAttachments>,
+    cwa_popup: RwSignal<Option<ChallengeWithAttachments>>,
     user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
     refresh_solved_challenges: RwSignal<i32>
 ) -> impl IntoView {
-    let ChallengeWithAttachments { challenge, attachments, illustration } = cwa.clone();
-    let challenge_signal = RwSignal::new(challenge.clone());
-    let description_signal = RwSignal::new(challenge.description.clone());
-    let difficulty_signal = RwSignal::new(challenge.difficulty);
     let flag_signal = RwSignal::new("".to_string());
-    let illustration_signal = RwSignal::new(illustration);
-
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
 
@@ -45,7 +39,7 @@ pub fn Challenge(
     });
 
     let submit_btn_text = Memo::new(move |_| {
-        if solved_challenges.get().contains(&challenge_signal.get().id) { 
+        if solved_challenges.get().contains(&cwa.get().challenge.id) { 
             solved.set(true);
             "Solved" 
         } else if incorrect.get() { 
@@ -86,49 +80,50 @@ pub fn Challenge(
         <div
             class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover break-all"#
         >
-            <Transition fallback=move || {
-                view! { <div>"Loading..."</div> }
-            }>
-                {move || {
-                    if let Some(illustration) = illustration_signal.get() { 
-                        view! {
-                            <div class="h-48 w-48 flex justify-center m-auto">
-                                <img 
-                                    src=move || format!("/image/{}", illustration.id) 
-                                    class=r#"text-blue-600 underline object-cover shadow-sm"#
-                                />
-                            </div>
-                        }.into_any()
-                    } else {
-                        "".into_any()
-                    }
-                }}
-            </Transition>
-
-            <div class="flex items-center justify-between">
-                <h3 class=r#"font-bold text-3xl/8"#>{move || challenge_signal.get().name.clone()}</h3>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class=r#"font-bold text-3xl/8"#>{move || cwa.get().challenge.name.clone()}</h3>
                 <button 
                     class="cursor-pointer"
                     on:click=move |_| {
                         overlay_triggered.set(true);
-                        cwa_popup.set(cwa.clone());
+                        cwa_popup.set(Some(cwa.get()));
                     }
                 >
                     <Icon icon=i::LuMaximize2 />
                 </button>
             </div>
 
+            {move || {
+                if let Some(illustration) = cwa.get().illustration { 
+                    view! {
+                        <div class="flex justify-center m-auto mb-4">
+                            <img 
+                                src=move || format!("/image/{}", illustration.id) 
+                                class=r#"shadow-sm"#
+                            />
+                        </div>
+                    }.into_any()
+                } else {
+                    "".into_any()
+                }
+            }}
+
             <p class=r#"text-lg/8 mt-2"#>
-                <TruncatedDesc description=description_signal />
+                {move || {
+                    let description = RwSignal::new(cwa.get().challenge.description);
+                    view! { <TruncatedDesc description /> }
+                }}
             </p>
 
-            <Difficulty difficulty_signal />
+            {move || {
+                let difficulty = cwa.get().challenge.difficulty;
+                view! { <Difficulty difficulty /> }
+            }}
 
             <p class=r#"text-lg/8"#>
                 <b>"Points: "</b>
-                {move || challenge_signal.get().points}
+                {move || cwa.get().challenge.points}
             </p>
-            <br />
 
             <div class="flex gap-2 items-center">
                 <label
@@ -147,7 +142,7 @@ pub fn Challenge(
                     disabled=move || solved.get() || incorrect.get()
                     on:click=move |_| {
                         let flag = flag_signal.get();
-                        let challenge = challenge_signal.get();
+                        let challenge = cwa.get().challenge;
                         let user_vms = user_vms.get();
                         let mut user_vm_id = 0_u32;
                         for user_vm in user_vms {
@@ -165,7 +160,7 @@ pub fn Challenge(
             <div class="grid gap-2 pt-4">
                 <div class="flex gap-2 items-center">
                     <For
-                        each=move || attachments.clone()
+                        each=move || cwa.get().attachments
                         key=|a: &AttachmentWithoutBlob| a.id.clone()
                         let(a)
                     >
@@ -184,25 +179,21 @@ pub fn Challenge(
 }
 
 #[component]
-pub fn Difficulty(difficulty_signal: RwSignal<i8>) -> impl IntoView {
+pub fn Difficulty(difficulty: i8) -> impl IntoView {
     view! {
-        <Transition fallback=move || {
-            view! { <div>"..."</div> }
-        }>
-            {move || {
-                view! {
-                    <div
-                        class=r#"difficulty"#
-                        role="img"
-                        aria-label=format!("Difficulty: {} of 5", difficulty_signal.get())
-                    >
-                        <span class=r#"label"#>
-                            <b class=r#"text-lg/8"#>"Difficulty: "</b>
-                            {"⭐".repeat(difficulty_signal.get() as usize)}
-                        </span>
-                    </div>
-                }
-            }}
-        </Transition>
+        {move || {
+            view! {
+                <div
+                    class=r#"difficulty"#
+                    role="img"
+                    aria-label=format!("Difficulty: {} of 5", difficulty)
+                >
+                    <span class=r#"label"#>
+                        <b class=r#"text-lg/8"#>"Difficulty: "</b>
+                        {"⭐".repeat(difficulty as usize)}
+                    </span>
+                </div>
+            }
+        }}
     }
 }
