@@ -175,9 +175,29 @@ pub fn Ldap() -> impl IntoView {
                                     <div class="grid gap-2">
                                         {move || {
                                             if let Some(cert) = certificate.get() {
+                                                let show_tooltip = RwSignal::new(false);
+                                                let id = cert.id.clone();
                                                 view! {
                                                     <div class="flex gap-2 items-center">
-                                                        {cert.file_name.clone()}
+                                                        <span
+                                                            class="relative inline-block"
+                                                            on:mouseenter=move |_| show_tooltip.set(true)
+                                                            on:mouseleave=move |_| show_tooltip.set(false)
+                                                            on:focus=move |_| show_tooltip.set(true)
+                                                            on:blur=move |_| show_tooltip.set(false)
+                                                            tabindex="0"
+                                                        >
+                                                            {cert.file_name.clone()}
+                                                            <Show when=move || show_tooltip.get()>
+                                                                <div
+                                                                    role="tooltip"
+                                                                    class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
+                                                                        rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                                >
+                                                                    {format!("ID: {}", id)}
+                                                                </div>
+                                                            </Show>
+                                                        </span>
                                                         <a
                                                             download
                                                             href=move || format!("/file/{}", cert.id.clone())

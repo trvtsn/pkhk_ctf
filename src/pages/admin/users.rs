@@ -196,7 +196,7 @@ pub fn Users() -> impl IntoView {
                     >
                         <option value="">"-- Select Group --"</option>
                         <Suspense fallback=move || {
-                            view! { <div>"Loading..."</div> }
+                            view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
                                 let groups = groups_resource.get().unwrap_or_default();
@@ -233,9 +233,29 @@ pub fn Users() -> impl IntoView {
                         {move || {
                             let user_avatar = avatar_signal.get();
                             if let Some(user_avatar) = user_avatar {
+                                let show_tooltip = RwSignal::new(false);
+                                let id = user_avatar.attachment_id.clone();
                                 view! {
                                     <div class="flex gap-2 items-center">
-                                        {move || user_avatar.file_name.clone()}
+                                        <span
+                                            class="relative inline-block"
+                                            on:mouseenter=move |_| show_tooltip.set(true)
+                                            on:mouseleave=move |_| show_tooltip.set(false)
+                                            on:focus=move |_| show_tooltip.set(true)
+                                            on:blur=move |_| show_tooltip.set(false)
+                                            tabindex="0"
+                                        >
+                                            {move || user_avatar.file_name.clone()}
+                                            <Show when=move || show_tooltip.get()>
+                                                <div
+                                                    role="tooltip"
+                                                    class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
+                                                        rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                >
+                                                    {format!("ID: {}", id)}
+                                                </div>
+                                            </Show>
+                                        </span>
                                         <a
                                             download
                                             href=move || format!("/file/{}", user_avatar.attachment_id.clone())
@@ -250,7 +270,6 @@ pub fn Users() -> impl IntoView {
                                         >
                                             <Icon icon=i::LuX />
                                         </button>
-                                        
                                     </div>
                                 }.into_any()
                             } else {

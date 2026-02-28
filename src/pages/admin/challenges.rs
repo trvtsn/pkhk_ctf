@@ -179,7 +179,7 @@ pub fn Challenges() -> impl IntoView {
                     >
                         <option value="">"-- Select Event --"</option>
                         <Suspense fallback=move || {
-                            view! { <div>"Loading..."</div> }
+                            view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
                                 let events = events_resource.get().unwrap_or_default();
@@ -251,7 +251,7 @@ pub fn Challenges() -> impl IntoView {
                     >
                         <option value="">"-- Select Category --"</option>
                         <Suspense fallback=move || {
-                            view! { <div>"Loading..."</div> }
+                            view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
                                 let categories = categories_resource.get().unwrap_or_default();
@@ -393,7 +393,7 @@ pub fn Challenges() -> impl IntoView {
                         }
                     >
                         <Suspense fallback=move || {
-                            view! { <div>"Loading..."</div> }
+                            view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
                                 let templates = challenge_templates_resource.get().unwrap_or_default();
@@ -488,11 +488,31 @@ pub fn Challenges() -> impl IntoView {
                             each=move || attachments.get().unwrap_or_default()
                             key=|a: &AttachmentWithoutBlob| a.id.clone()
                             children={move |index, a| {
+                                let show_tooltip = RwSignal::new(false);
                                 let id = a.id.clone();
                                 let file_name = a.file_name.clone();
                                 view! {  
                                     <div class="flex gap-2 items-center">
-                                        {file_name}
+                                        <span
+                                            class="relative inline-block"
+                                            on:mouseenter=move |_| show_tooltip.set(true)
+                                            on:mouseleave=move |_| show_tooltip.set(false)
+                                            // keyboard focus
+                                            on:focus=move |_| show_tooltip.set(true)
+                                            on:blur=move |_| show_tooltip.set(false)
+                                            tabindex="0"
+                                        >
+                                            {file_name}
+                                            <Show when=move || show_tooltip.get()>
+                                                <div
+                                                    role="tooltip"
+                                                    class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
+                                                        rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                >
+                                                    {format!("ID: {}", a.id)}
+                                                </div>
+                                            </Show>
+                                        </span>
                                         <a
                                             download
                                             href=move || format!("/file/{}", id)
@@ -511,7 +531,6 @@ pub fn Challenges() -> impl IntoView {
                                         >
                                             <Icon icon=i::LuX />
                                         </button>
-                                        <i class="text-xs">{format!("(ID: {})", a.id)}</i>
                                     </div>
                                 }
                             }}
@@ -545,10 +564,30 @@ pub fn Challenges() -> impl IntoView {
                         {move || {
                             let illustration_signal_value = illustration.get();
                             if let Some(illustr) = illustration_signal_value {
+                                let show_tooltip = RwSignal::new(false);
                                 let id = illustr.id.clone();
                                 view! {
                                     <div class="flex gap-2 items-center">
-                                        {move || illustr.file_name.clone()}
+                                        <span
+                                            class="relative inline-block"
+                                            on:mouseenter=move |_| show_tooltip.set(true)
+                                            on:mouseleave=move |_| show_tooltip.set(false)
+                                            on:focus=move |_| show_tooltip.set(true)
+                                            on:blur=move |_| show_tooltip.set(false)
+                                            tabindex="0"
+                                        >
+                                            {move || illustr.file_name.clone()}
+                                            <Show when=move || show_tooltip.get()>
+                                                <div
+                                                    role="tooltip"
+                                                    class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
+                                                        rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                >
+                                                    {format!("ID: {}", illustr.id)}
+                                                </div>
+                                            </Show>
+                                        </span>
+                                        
                                         <a
                                             download
                                             href=move || format!("/file/{}", id)
@@ -563,7 +602,6 @@ pub fn Challenges() -> impl IntoView {
                                         >
                                             <Icon icon=i::LuX />
                                         </button>
-                                        <i class="text-xs">{format!("(ID: {})", illustr.id)}</i>
                                     </div>
                                 }.into_any()
                             } else {

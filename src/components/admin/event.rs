@@ -263,11 +263,32 @@ pub fn Event(
                                 each=move || attachments_edit.get()
                                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                                 children={move |index, a| {
+                                    let show_tooltip = RwSignal::new(false);
                                     let id = a.id.clone();
                                     let file_name = a.file_name.clone();
                                     view! {  
                                         <div class="flex gap-2 items-center">
-                                            {file_name}
+                                            <span
+                                                class="relative inline-block"
+                                                on:mouseenter=move |_| show_tooltip.set(true)
+                                                on:mouseleave=move |_| show_tooltip.set(false)
+                                                // keyboard focus
+                                                on:focus=move |_| show_tooltip.set(true)
+                                                on:blur=move |_| show_tooltip.set(false)
+                                                tabindex="0"
+                                            >
+                                                {file_name}
+                                                <Show when=move || show_tooltip.get()>
+                                                    <div
+                                                        role="tooltip"
+                                                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
+                                                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                    >
+                                                        {format!("ID: {}", a.id)}
+                                                    </div>
+                                                </Show>
+                                            </span>
+                                            
                                             <a
                                                 download
                                                 href=move || format!("/file/{}", id)
@@ -286,7 +307,6 @@ pub fn Event(
                                             >
                                                 <Icon icon=i::LuX />
                                             </button>
-                                            <i class="text-xs">{format!("(ID: {})", a.id)}</i>
                                         </div>
                                     }
                                 }}
@@ -317,10 +337,30 @@ pub fn Event(
                             {move || {
                                 let illustration = illustration_edit.get();
                                 if let Some(illustration) = illustration {
+                                    let show_tooltip = RwSignal::new(false);
                                     let id = illustration.id.clone();
                                     view! {
                                         <div class="flex gap-2 items-center">
-                                            {move || illustration.file_name.clone()}
+                                            <span
+                                                class="relative inline-block"
+                                                on:mouseenter=move |_| show_tooltip.set(true)
+                                                on:mouseleave=move |_| show_tooltip.set(false)
+                                                on:focus=move |_| show_tooltip.set(true)
+                                                on:blur=move |_| show_tooltip.set(false)
+                                                tabindex="0"
+                                            >
+                                                {move || illustration.file_name.clone()}
+                                                <Show when=move || show_tooltip.get()>
+                                                    <div
+                                                        role="tooltip"
+                                                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
+                                                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                    >
+                                                        {format!("ID: {}", illustration.id)}
+                                                    </div>
+                                                </Show>
+                                            </span>
+                                            
                                             <a
                                                 download
                                                 href=move || format!("/file/{}", id)
@@ -335,7 +375,6 @@ pub fn Event(
                                             >
                                                 <Icon icon=i::LuX />
                                             </button>
-                                            <i class="text-xs">{format!("(ID: {})", illustration.id)}</i>
                                         </div>
                                     }.into_any()
                                 } else {
