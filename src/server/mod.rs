@@ -444,6 +444,7 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
+            let db_user = get_db_user(&user, &pool).await?;
 
             let mut tx = pool.begin().await?;
 
@@ -474,6 +475,14 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                 match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &mut *tx).await {
                     Ok(_) => {
                         tx.commit().await?;
+
+                        if let Some(vm_ids_string) = challenge.vm_ids {
+                            let template_ids = vm_ids_string.split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
+                            for template_id in template_ids {
+                                _ = crate::server::proxmox::destroy_vm(db_user.clone(), template_id).await;
+                            }
+                        };
+
                         _ = build_and_broadcast(AdminEventPayloadKind::ChallengeSolved).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() })
                     }

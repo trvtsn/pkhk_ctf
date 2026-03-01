@@ -46,6 +46,7 @@ cargo leptos watch
 - [x] Fix signals not allowing writing on admin LDAP inputs
 - [x] Add hints to challenges
 - [ ] Find or implement a new and more configurable chart builder for the leaderboard
+- [ ] Allow formatting of challenge descriptions (newline support)
 
 ### Security
 - [ ] Sanitize text inputs

@@ -388,8 +388,7 @@ pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<(), AppError> 
                 async_std::task::sleep(Duration::from_secs(3)).await;
                 // destroy
                 match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
-                    Ok(res) => {
-                        leptos::logging::log!("delete res: {}", res.text().await?);
+                    Ok(_) => {
                         Ok(())
                     },
                     Err(e) => Err(e.into())
