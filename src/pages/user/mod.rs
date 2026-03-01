@@ -56,9 +56,9 @@ pub fn User() -> impl IntoView {
                                             {user.points}
                                         </p>
                                         <p>
-                                            <b>"Group: "</b>
+                                            <b>"Groups: "</b>
                                             {
-                                                let user_group = user.group;
+                                                let user_group = user.groups.replace(",", ", ");
                                                 if user_group.clone().is_empty() {
                                                     view! {
                                                         <i>"None"</i>

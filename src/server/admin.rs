@@ -858,7 +858,7 @@ pub enum UserAction {
         confirm_password: String,
         role: UserRole,
         avatar: Option<UserAvatar>,
-        group: String
+        groups: String
     },
     Delete {
         id: String
@@ -872,7 +872,7 @@ pub enum UserAction {
         points: u32,
         role: UserRole,
         avatar: Option<UserAvatar>,
-        group: String
+        groups: String
     },
     EditPassword {
         id: String,
@@ -889,7 +889,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
             let (_, pool) = authenticated_check().await?;
 
             match action {
-                UserAction::Create { username, email, password, confirm_password, role, avatar, group } => {
+                UserAction::Create { username, email, password, confirm_password, role, avatar, groups } => {
                     if password != confirm_password {
                         return Err(AppError::BadRequest("password and confirm password must match".to_string()));
                     }
@@ -908,7 +908,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         last_active_at: chrono::Local::now(), 
                         role,
                         points: 0,
-                        group,
+                        groups,
                         auth_type: "normal".to_string()
                     };
                     let mut tx = pool.begin().await?;
@@ -963,7 +963,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         }
                     }
                 }
-                UserAction::Edit { id, username, email, password, confirm_password, points, role, avatar, group } => {
+                UserAction::Edit { id, username, email, password, confirm_password, points, role, avatar, groups } => {
                     let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
@@ -1013,7 +1013,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                     }
 
-                    if let Err(e) = DbUser::edit_group(&id, &group, &mut *tx).await {
+                    if let Err(e) = DbUser::edit_groups(&id, &groups, &mut *tx).await {
                         tracing::error!(error = ?e);
                         tx.rollback().await?;
                         return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
@@ -1162,7 +1162,9 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<String>, AppError> {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
             
-            match is_host_reachable(args.url.clone()).await {
+            let ldap_url = url::Url::parse(&args.url)?;
+
+            match is_host_reachable(ldap_url.to_string()).await {
                 Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
                 Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
             }
@@ -1178,7 +1180,7 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<String>, AppError> {
 
             #[allow(unused)]
             let mut settings = LdapConnSettings::default();
-            if let Some(cert) = existing_certificate {
+            if let Some(cert) = existing_certificate && ldap_url.scheme() == "ldaps" {
                 let cert = native_tls::Certificate::from_pem(&cert.file_blob)?;
                 let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
                 settings = LdapConnSettings::new().set_connector(connector);
@@ -1186,7 +1188,7 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<String>, AppError> {
                 settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
             }
             
-            let (conn, mut ldap) = match LdapConnAsync::with_settings(settings, args.url.as_str()).await {
+            let (conn, mut ldap) = match LdapConnAsync::with_settings(settings, ldap_url.as_str()).await {
                 Ok(conn) => conn,
                 Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
             };

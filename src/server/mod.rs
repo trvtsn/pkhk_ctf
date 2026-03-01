@@ -168,13 +168,18 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
                 let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &pool).await?
                     .into_iter().filter(|a| a.file_type == FileType::Attachment).collect::<Vec<AttachmentWithoutBlob>>();
                 let illustration = AttachmentWithoutBlob::get_illustration(&AttachmentIdentifier::ChallengeId(challenge.id.clone()), &pool).await?;
+
                 let visible_to_groups_vec = challenge.visible_to_groups.split(",").map(|v| v.to_string()).collect::<Vec<String>>();
-                if visible_to_groups_vec.contains(&db_user.group) || db_user.role == UserRole::Admin || visible_to_groups_vec.contains(&"all".to_string()) {
-                    cwa.push(ChallengeWithAttachments { challenge, attachments, illustration });
-                } else {
-                    continue;
+                let user_groups_vec = db_user.groups.split(',').map(|g| g.trim().to_string()).collect::<Vec<String>>();
+                for group in visible_to_groups_vec {
+                    if user_groups_vec.contains(&group) || db_user.role == UserRole::Admin || group == "all" {
+                        cwa.push(ChallengeWithAttachments { 
+                            challenge: challenge.clone(), 
+                            attachments: attachments.clone(), 
+                            illustration: illustration.clone() 
+                        });
+                    }
                 }
-                
             }
             Ok(cwa)
         } else {
@@ -198,9 +203,12 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                     let mut active_event_id = "".to_string();
                     for active_event in active_events {
                         let visible_to_groups_vec = active_event.visible_to_groups.split(",").map(|v| v.to_string()).collect::<Vec<String>>();
-                        if visible_to_groups_vec.contains(&db_user.group) || db_user.role == UserRole::Admin || visible_to_groups_vec.contains(&"all".to_string()) {
-                            active_event_id = active_event.id;
-                            break;
+                        let user_groups_vec = db_user.groups.split(',').map(|g| g.trim().to_string()).collect::<Vec<String>>();
+                        for group in visible_to_groups_vec {
+                            if user_groups_vec.contains(&group) || db_user.role == UserRole::Admin || group == "all" {
+                                active_event_id = active_event.id;
+                                break;
+                            }
                         }
                     }
                     active_event_id

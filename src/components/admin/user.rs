@@ -22,7 +22,7 @@ pub fn User(
     let points_signal = RwSignal::new(user.points);
     let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
     let role_signal = RwSignal::new(user.role.to_string());
-    let group_signal = RwSignal::new(user.group.clone());
+    let groups_signal = RwSignal::new(user.groups.clone());
 
     let username_edit = RwSignal::new(user.username);
     let email_edit = RwSignal::new(user.email);
@@ -31,7 +31,7 @@ pub fn User(
     let points_edit = RwSignal::new(user.points);
     let role_edit = RwSignal::new(user.role.to_string());
     let avatar_edit = RwSignal::new(None);
-    let group_edit = RwSignal::new(user.group);
+    let groups_edit = RwSignal::new(user.groups);
 
     let avatar_upload_action = Action::new_local(move |data: &FormData| {
         let data = data.clone();
@@ -108,8 +108,8 @@ pub fn User(
                     {move || last_active_signal.get().format("%Y-%m-%d %H:%M:%S").to_string()}
                 </p>
                 <p class=r#"text-lg/8"#>
-                    <b>"Group: "</b>
-                    {move || group_signal.get().replace(",", ", ")}
+                    <b>"Groups: "</b>
+                    {move || groups_signal.get().replace(",", ", ")}
                 </p>
             </Show>
 
@@ -206,7 +206,7 @@ pub fn User(
                                     }
                                 }
 
-                                group_edit.set(picked.join(","));
+                                groups_edit.set(picked.join(","));
                             }
                         >
                             <option value="__new__">"-- Add New --"</option>
@@ -217,7 +217,7 @@ pub fn User(
                                         each=move || groups.clone()
                                         key=|group: &String| group.clone()
                                         children=move |group| {
-                                            let selected = group_edit.get()
+                                            let selected = groups_edit.get()
                                                 .split(",")
                                                 .map(|g| g.to_string())
                                                 .collect::<Vec<String>>()
@@ -245,7 +245,7 @@ pub fn User(
                             value=""
                             on:change=move |ev: Event| {
                                 let value = event_target_value(&ev);
-                                group_edit.set(value);
+                                groups_edit.set(value);
                             }
                         />
                     </div>
@@ -387,7 +387,7 @@ pub fn User(
                             let points = points_edit.get();
                             let role = role_edit.get();
                             let avatar = avatar_edit.get();
-                            let group = group_edit.get();
+                            let groups = groups_edit.get();
                             if editing.get() {
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
@@ -400,7 +400,7 @@ pub fn User(
                                             points,
                                             role: role.clone().into(),
                                             avatar,
-                                            group
+                                            groups
                                         })
                                         .await && result == ResultStatus::Success
                                     {

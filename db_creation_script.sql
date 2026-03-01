@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`users` (
   `last_active_at` TIMESTAMP NOT NULL,
   `role` VARCHAR(14) NOT NULL,
   `points` INT UNSIGNED NOT NULL,
-  `group` VARCHAR(60) NOT NULL,
+  `groups` VARCHAR(100) NOT NULL,
   `auth_type` VARCHAR(10) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`hints_used` (
     ON DELETE CASCADE
     ON UPDATE CASCADE)
 ENGINE = InnoDB
-AUTO_INCREMENT = 88
+AUTO_INCREMENT = 89
 DEFAULT CHARACTER SET = utf8mb3;
 
 CREATE INDEX `fk_hints_used_challenges1_idx` ON `ctfpkhk`.`hints_used` (`challenge_id` ASC) VISIBLE;

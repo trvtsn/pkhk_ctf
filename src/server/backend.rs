@@ -5,11 +5,14 @@ use axum_login::{AuthnBackend, AuthUser, UserId};
 use cfg_if::cfg_if;
 #[cfg(feature = "ssr")]
 use ldap3::{LdapConnAsync, LdapConnSettings, SearchEntry};
+#[cfg(feature = "ssr")]
+use of_dn_parser::{DistinguishedName, RdnType};
 use password_hash::SaltString;
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
 #[cfg(feature = "ssr")]
 use rand::{rngs::SmallRng, Rng, SeedableRng};
+use std::str::FromStr;
 use tracing::instrument;
 
 #[cfg(feature = "ssr")]
@@ -125,7 +128,7 @@ cfg_if! {
                     last_active_at: chrono::Local::now(), 
                     role: UserRole::Competitor,
                     points: 0,
-                    group: "unassigned".to_string(),
+                    groups: "unassigned".to_string(),
                     auth_type: "normal".to_string()
                 };
                 let new_user_id = new_user.add(&self.pool).await?;
@@ -167,15 +170,16 @@ cfg_if! {
                             Ok(None) => return Ok(None),
                             Err(e) => return Err(e.into())
                         };
+                        let ldap_url = url::Url::parse(&ldap_args.url)?;
 
                         let mut email = "".to_string(); 
                         if let UserIdentifier::Email(ref email_cred) = creds.user_identifier {
                             email = email_cred.to_string();
                         };
                         let mut username = "".to_string();
-                        let mut group = "".to_string();
+                        let mut groups_result = "".to_string();
 
-                        match is_host_reachable(ldap_args.url.clone()).await {
+                        match is_host_reachable(ldap_url.to_string()).await {
                             Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
                             Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
                         }
@@ -187,7 +191,7 @@ cfg_if! {
 
                         #[allow(unused)]
                         let mut settings = LdapConnSettings::default();
-                        if let Some(cert) = certificate {
+                        if let Some(cert) = certificate && ldap_url.scheme() == "ldaps" {
                             let cert = native_tls::Certificate::from_pem(&cert.file_blob)?;
                             let connector = native_tls::TlsConnector::builder().add_root_certificate(cert).build()?;
                             settings = LdapConnSettings::new().set_connector(connector);
@@ -195,7 +199,7 @@ cfg_if! {
                             settings = LdapConnSettings::new().set_no_tls_verify(true).set_starttls(false);
                         }
 
-                        let (conn, mut ldap) = LdapConnAsync::with_settings(settings, ldap_args.url.as_str()).await?;
+                        let (conn, mut ldap) = LdapConnAsync::with_settings(settings, ldap_url.as_str()).await?;
                         ldap3::drive!(conn);
 
                         match ldap.simple_bind(email.as_str(), creds.password.as_str()).await {
@@ -223,7 +227,11 @@ cfg_if! {
                             username = se.attrs.get("sAMAccountName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
                             email = se.attrs.get("userPrincipalName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
                             if let Some(groups) = se.attrs.get("memberOf") {
-                                group = groups.first().cloned().unwrap_or_default();
+                                groups_result = groups.into_iter().filter_map(|s| {
+                                    DistinguishedName::from_str(s).ok().and_then(|dn| dn.find(RdnType::Cn).map(|v| v.to_string()))
+                                })
+                                .collect::<Vec<String>>()
+                                .join(",");
                             }
                         }
 
@@ -241,7 +249,7 @@ cfg_if! {
                                 last_active_at: chrono::Local::now(), 
                                 role: UserRole::Competitor,
                                 points: 0,
-                                group,
+                                groups: groups_result,
                                 auth_type: "ldap".to_string()
                             };
 

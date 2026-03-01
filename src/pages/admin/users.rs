@@ -20,7 +20,7 @@ pub fn Users() -> impl IntoView {
     let roles_signal = RwSignal::new(vec![UserRole::Admin, UserRole::Competitor]);
     let role_signal = RwSignal::new("".to_string());
     let avatar_signal = RwSignal::<Option<UserAvatar>>::new(None);
-    let group_signal = RwSignal::<String>::new("".to_string());
+    let groups_signal = RwSignal::<String>::new("".to_string());
 
     let avatars_signal = RwSignal::new(vec![]);
     let avatars_resource = Resource::new(move || refresh.get(), move |_| async move {
@@ -31,8 +31,8 @@ pub fn Users() -> impl IntoView {
         get_all_users().await.unwrap_or_default()
     });
 
-    let groups_signal = RwSignal::new(vec![]);
-    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let user_groups_signal = RwSignal::new(vec![]);
+    let user_groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
     });
 
@@ -191,7 +191,7 @@ pub fn Users() -> impl IntoView {
                                 }
                             }
 
-                            group_signal.set(picked.join(","));
+                            groups_signal.set(picked.join(","));
                         }
                     >
                         <option value="">"-- Select Group --"</option>
@@ -199,10 +199,10 @@ pub fn Users() -> impl IntoView {
                             view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
-                                let groups = groups_resource.get().unwrap_or_default();
+                                let user_groups = user_groups_resource.get().unwrap_or_default();
                                 view! {
                                     <For
-                                        each=move || groups.clone()
+                                        each=move || user_groups.clone()
                                         key=|group: &String| group.clone()
                                         let(group)
                                     >
@@ -222,7 +222,7 @@ pub fn Users() -> impl IntoView {
                         value=""
                         on:change=move |ev: Event| {
                             let value = event_target_value(&ev);
-                            group_signal.set(value);
+                            groups_signal.set(value);
                         }
                     />
                 </div>
@@ -314,7 +314,7 @@ pub fn Users() -> impl IntoView {
                             let confirm_password = confirm_password_signal.get().clone();
                             let role = role_signal.get().clone().into();
                             let avatar = avatar_signal.get();
-                            let group = group_signal.get();
+                            let groups = groups_signal.get();
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Create {
@@ -324,7 +324,7 @@ pub fn Users() -> impl IntoView {
                                         confirm_password,
                                         role,
                                         avatar,
-                                        group
+                                        groups
                                     })
                                     .await && result == ResultStatus::Success
                                 {
@@ -341,8 +341,8 @@ pub fn Users() -> impl IntoView {
 
         <Transition fallback=move || view! { <Spinner component_size=ComponentSize::Big /> }>
             {move || {
-                let groups = groups_resource.get().unwrap_or_default();
-                groups_signal.set(groups);
+                let user_groups = user_groups_resource.get().unwrap_or_default();
+                user_groups_signal.set(user_groups);
 
                 let avatars = avatars_resource.get().unwrap_or_default();
                 avatars_signal.set(avatars);
@@ -356,7 +356,7 @@ pub fn Users() -> impl IntoView {
                             <User 
                                 user 
                                 user_avatars=avatars_signal
-                                groups=groups_signal
+                                groups=user_groups_signal
                                 refresh 
                             />
                         </For>

@@ -120,7 +120,7 @@ pub mod structs {
         pub last_active_at: DateTime<Local>,
         pub role: UserRole,
         pub points: u32,
-        pub group: String,
+        pub groups: String,
         pub auth_type: String
     }
 
@@ -131,7 +131,7 @@ pub mod structs {
         pub last_active_at: DateTime<Local>,
         pub role: UserRole,
         pub points: u32,
-        pub group: String
+        pub groups: String
     }
 
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default, Eq)]
@@ -443,7 +443,7 @@ cfg_if! {
                 match sqlx::query!(
                     "
                     INSERT INTO users
-                    (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`, auth_type)
+                    (id, username, email, pw_hash, created_at, last_active_at, role, points, `groups`, auth_type)
                     VALUES
                     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ",
@@ -632,11 +632,11 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_group(id: &String, group: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_groups(id: &String, group: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
-                    SET `group` = ?
+                    SET `groups` = ?
                     WHERE id = ?
                     ",
                     group,
@@ -678,7 +678,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -697,7 +697,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -717,7 +717,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE username = ?
                             ", 
@@ -739,7 +739,7 @@ cfg_if! {
                 match sqlx::query_as!(
                     Self,
                     "
-                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
+                    SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                     FROM users 
                     "
                 )
@@ -756,14 +756,24 @@ cfg_if! {
             pub async fn get_all_groups(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 match sqlx::query!(
                     "
-                    SELECT DISTINCT `group`
+                    SELECT DISTINCT `groups`
                     FROM users 
                     "
                 )
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => {
-                            let groups = rows.into_iter().filter(|row| !row.group.is_empty()).map(|row| row.group.clone()).collect::<Vec<String>>();
+                            let groups = rows.into_iter()
+                                .flat_map(|row| {
+                                    row.groups
+                                        .split(",")
+                                        .map(str::trim)
+                                        .filter(|g| !g.is_empty())
+                                        .map(String::from)
+                                        .collect::<Vec<String>>()
+                                })
+                                .collect::<Vec<String>>();
+
                             Ok(groups)
                         },
                         Err(e) => {
@@ -942,7 +952,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE id = ? AND auth_type = \"ldap\"
                             ", 
@@ -961,7 +971,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE email = ? AND auth_type = \"ldap\"
                             ", 
@@ -981,7 +991,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`, auth_type
+                            SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE username = ? AND auth_type = \"ldap\"
                             ", 
@@ -1051,7 +1061,7 @@ cfg_if! {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
-                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`, auth_type) 
+                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `groups`, auth_type) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(),
@@ -1062,7 +1072,7 @@ cfg_if! {
                     self.last_active_at,
                     self.role.to_string(),
                     self.points,
-                    self.group,
+                    self.groups,
                     "normal"
                 )
                     .execute(executor)
@@ -1079,7 +1089,7 @@ cfg_if! {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
-                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `group`, auth_type) 
+                    INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `groups`, auth_type) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ", 
                     id.to_string(),
@@ -1090,7 +1100,7 @@ cfg_if! {
                     self.last_active_at,
                     self.role.to_string(),
                     self.points,
-                    self.group,
+                    self.groups,
                     "ldap"
                 )
                     .execute(executor)
@@ -1149,7 +1159,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -1168,7 +1178,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -1188,7 +1198,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `group`
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`
                             FROM users 
                             WHERE username = ?
                             ", 
