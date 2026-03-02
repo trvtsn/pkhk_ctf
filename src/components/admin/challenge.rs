@@ -28,7 +28,6 @@ pub fn Challenge(
     let category_signal = RwSignal::new(category.clone());
     let difficulty_signal = RwSignal::new(difficulty);
     let points_signal = RwSignal::new(points);
-    let attachments_signal = RwSignal::new(attachments.clone());
     let visible_to_groups_signal = RwSignal::new(visible_to_groups.clone());
     let illustration_signal = RwSignal::new(illustration.clone());
 
@@ -55,11 +54,7 @@ pub fn Challenge(
         let data = data.clone();
         async move {
             if let Ok(api_result) = upload_files(data.clone().into()).await {
-                attachments_edit.update(|a| {
-                    for result in api_result.details {
-                        a.push(result)
-                    }
-                });
+                attachments_edit.set(api_result.details);
             }
         }
     });
@@ -68,7 +63,7 @@ pub fn Challenge(
         let data = data.clone();
         async move {
             if let Ok(api_result) = upload_illustration(data.into()).await {
-                illustration_edit.set(Some(api_result.details.clone()))
+                illustration_edit.set(Some(api_result.details))
             }
         }
     });
@@ -98,6 +93,7 @@ pub fn Challenge(
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get() && !deleted.get()>
+                <h3 class=r#"font-bold text-3xl/8 mb-4"#>{move || name_signal.get().clone()}</h3>
                 {move || {
                     if let Some(illustration) = illustration_signal.get() { 
                         view! {
@@ -112,7 +108,6 @@ pub fn Challenge(
                         "".into_any()
                     }
                 }}
-                <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
                     {move || id_signal.get().clone()}
@@ -320,7 +315,7 @@ pub fn Challenge(
                                 selected=move || {
                                     visible_to_groups_edit
                                         .get().split(",")
-                                        .map(|g| g.to_string())
+                                        .map(String::from)
                                         .collect::<Vec<String>>()
                                         .contains(&"all".to_string())
                                 }
@@ -336,7 +331,7 @@ pub fn Challenge(
                                         children=move |group| {
                                             let selected = visible_to_groups_edit
                                                 .get().split(",")
-                                                .map(|g| g.to_string())
+                                                .map(String::from)
                                                 .collect::<Vec<String>>()
                                                 .contains(&group);
 
@@ -389,7 +384,7 @@ pub fn Challenge(
                                                 .get()
                                                 .unwrap_or_default()
                                                 .split(",")
-                                                .map(|id| id.to_string())
+                                                .map(String::from)
                                                 .collect::<Vec<String>>()
                                                 .contains(&template.id.to_string());
 
@@ -496,7 +491,7 @@ pub fn Challenge(
                         <label class=r#"block mb-1 text-sm font-medium"#>"Attachments"</label>
                         <div class="grid gap-2">
                             <ForEnumerate
-                                each=move || attachments_edit.get().clone()
+                                each=move || attachments_edit.get()
                                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                                 children={move |index, a| {
                                     let show_tooltip = RwSignal::new(false);
@@ -518,7 +513,7 @@ pub fn Challenge(
                                                     <div
                                                         role="tooltip"
                                                         class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
                                                     >
                                                         {format!("ID: {}", a.id)}
                                                     </div>
@@ -550,14 +545,17 @@ pub fn Challenge(
                                 <input
                                     class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                     type="file"
-                                    name="attachment"
+                                    name="attachments"
                                     multiple
                                     on:change=move |ev: Event| {
                                         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                                         if let Some(files) = input.files() && files.length() > 0 {
-                                            let file = files.get(0).unwrap();
+                                            let files_count = files.length();
                                             let fd = FormData::new().unwrap();
-                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            for i in 0..files_count {
+                                                let file = files.get(i).unwrap();
+                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            }
                                             file_upload_action.dispatch_local(fd);
                                         }
                                     }
@@ -590,7 +588,7 @@ pub fn Challenge(
                                                     <div
                                                         role="tooltip"
                                                         class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
                                                     >
                                                         {format!("ID: {}", illustration.id)}
                                                     </div>
@@ -701,7 +699,6 @@ pub fn Challenge(
                                         category_signal.set(category);
                                         difficulty_signal.set(difficulty);
                                         points_signal.set(points);
-                                        attachments_signal.set(attachments.unwrap_or_default());
                                     }
                                 });
                             } else {

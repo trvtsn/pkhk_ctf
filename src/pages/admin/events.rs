@@ -1,4 +1,4 @@
-use crate::{components::admin::event::Event, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, get_all_illustrations, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::{admin::event::Event, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use icondata as i;
 use leptos::{prelude::*, task:: spawn_local};
 use leptos::{web_sys::{FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
@@ -26,10 +26,6 @@ pub fn Events() -> impl IntoView {
     let groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
-    });
-    let illustrations_signal = RwSignal::new(vec![]);
-    let illustrations_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_illustrations().await.unwrap_or_default()
     });
 
     let file_upload_action = Action::new_local(move |data: &FormData| {
@@ -71,9 +67,6 @@ pub fn Events() -> impl IntoView {
             {move || {
                 let groups = groups_resource.get().unwrap_or_default();
                 groups_signal.set(groups);
-                
-                let illustrations = illustrations_resource.get().unwrap_or_default();
-                illustrations_signal.set(illustrations);
 
                 view! {
                     <div class=r#"flex gap-2 mb-4"#>
@@ -202,7 +195,7 @@ pub fn Events() -> impl IntoView {
                                                             <div
                                                                 role="tooltip"
                                                                 class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                                    rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                                    rounded p-1 text-xs bg-card shadow-sm z-1"#
                                                             >
                                                                 {format!("ID: {}", a.id)}
                                                             </div>
@@ -235,13 +228,17 @@ pub fn Events() -> impl IntoView {
                                     <input
                                         class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                         type="file"
-                                        name="attachment"
+                                        name="attachments"
+                                        multiple
                                         on:change=move |ev: Event| {
                                             let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                                             if let Some(files) = input.files() && files.length() > 0 {
-                                                let file = files.get(0).unwrap();
+                                                let files_count = files.length();
                                                 let fd = FormData::new().unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                for i in 0..files_count {
+                                                    let file = files.get(i).unwrap();
+                                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                }
                                                 file_upload_action.dispatch_local(fd);
                                             }
                                         }
@@ -365,22 +362,30 @@ pub fn Events() -> impl IntoView {
                     </div>
 
                     <div class=r#"events pt-4"#>
-                        <div class=r#"grid grid-cols-4 content-stretch"#>
-                            <For
-                                each=move || ewa_resource.get().unwrap_or_default()
-                                key=|ewa: &db::structs::EventWithAttachments| ewa.event.id.clone()
-                                let(ewa)
-                            >
-                                <div class=r#"p-2 event"#>
-                                    <Event 
-                                        ewa
-                                        user_groups=groups_signal
-                                        illustrations=illustrations_signal
-                                        refresh 
-                                    />
-                                </div>
-                            </For>
-                        </div>
+                        <Transition fallback=move || {
+                            view! { <Spinner component_size=ComponentSize::Big /> }
+                        }>
+                            {move || {
+                                let events = ewa_resource.get().unwrap_or_default();
+                                view! {
+                                    <div class=r#"grid grid-cols-4 content-stretch"#>
+                                        <For
+                                            each=move || events.clone()
+                                            key=|ewa: &db::structs::EventWithAttachments| ewa.event.id.clone()
+                                            let(ewa)
+                                        >
+                                            <div class=r#"p-2 event"#>
+                                                <Event 
+                                                    ewa
+                                                    user_groups=groups_signal
+                                                    refresh 
+                                                />
+                                            </div>
+                                        </For>
+                                    </div>
+                                }
+                            }}
+                        </Transition>
                     </div>
                 }
             }}

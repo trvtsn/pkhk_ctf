@@ -1,4 +1,4 @@
-use crate::{components::admin::file::File, server::{admin::{get_all_files, upload_files}, db}};
+use crate::{components::{admin::file::File, utils::{ComponentSize, Spinner}}, server::{admin::{get_all_files, upload_files}, db}};
 use leptos::{prelude::*, web_sys::{FormData, HtmlFormElement, HtmlInputElement, SubmitEvent}, wasm_bindgen::JsCast};
 
 /// Default Home Page
@@ -54,14 +54,23 @@ pub fn Files() -> impl IntoView {
             />
         </form>
         <p>{move || upload_action_text.get()}</p>
-        <div class=r#"grid grid-cols-4 m-2 files items-start"#>
-            <For
-                each=move || all_files.get().clone().unwrap_or_default()
-                key=|file: &db::structs::AttachmentWithoutBlob| file.id.clone()
-                let(file)
-            >
-                <File file refresh />
-            </For>
-        </div>
+        <Transition fallback=move || {
+            view! { <Spinner component_size=ComponentSize::Big /> }
+        }>
+            {move || {
+                let all_files = all_files.get().unwrap_or_default();
+                view! {
+                    <div class=r#"grid grid-cols-4 m-2 files items-start"#>
+                        <For
+                            each=move || all_files.clone()
+                            key=|file: &db::structs::AttachmentWithoutBlob| file.id.clone()
+                            let(file)
+                        >
+                            <File file refresh />
+                        </For>
+                    </div>
+                }
+            }}
+        </Transition>
     }
 }

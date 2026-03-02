@@ -507,7 +507,7 @@ pub fn Challenges() -> impl IntoView {
                                                 <div
                                                     role="tooltip"
                                                     class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                        rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                        rounded p-1 text-xs bg-card shadow-sm z-1"#
                                                 >
                                                     {format!("ID: {}", a.id)}
                                                 </div>
@@ -539,14 +539,17 @@ pub fn Challenges() -> impl IntoView {
                             <input
                                 class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                 type="file"
-                                name="attachment"
+                                name="attachments"
                                 multiple
                                 on:change=move |ev: Event| {
                                     let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                                     if let Some(files) = input.files() && files.length() > 0 {
-                                        let file = files.get(0).unwrap();
+                                        let files_count = files.length();
                                         let fd = FormData::new().unwrap();
-                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                        for i in 0..files_count {
+                                            let file = files.get(i).unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                        }
                                         file_upload_action.dispatch_local(fd);
                                     }
                                 }

@@ -219,7 +219,7 @@ pub fn User(
                                         children=move |group| {
                                             let selected = groups_edit.get()
                                                 .split(",")
-                                                .map(|g| g.to_string())
+                                                .map(String::from)
                                                 .collect::<Vec<String>>()
                                                 .contains(&group);
                                             

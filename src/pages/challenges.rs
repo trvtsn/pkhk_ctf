@@ -181,7 +181,6 @@ pub fn Challenges() -> impl IntoView {
                                                                 solved_challenges=solved_challenge_ids
                                                                 overlay_triggered
                                                                 cwa_popup
-                                                                user_vms=user_vms_signal
                                                                 refresh_solved_challenges
                                                             />
                                                         </div>

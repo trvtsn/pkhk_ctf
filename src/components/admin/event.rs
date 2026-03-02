@@ -8,7 +8,6 @@ use leptos_icons::Icon;
 pub fn Event(
     ewa: db::structs::EventWithAttachments,
     user_groups: RwSignal<Vec<String>>, 
-    illustrations: RwSignal<Vec<AttachmentWithoutBlob>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
     let id_signal = RwSignal::new(ewa.event.id.clone());
@@ -17,6 +16,7 @@ pub fn Event(
     let start_at_signal = RwSignal::new(ewa.event.start_at);
     let end_at_signal = RwSignal::new(ewa.event.end_at);
     let visible_to_groups_signal = RwSignal::new(ewa.event.visible_to_groups.clone());
+    let illustration_signal = RwSignal::new(ewa.illustration.clone());
 
     let name_edit = RwSignal::new(ewa.event.name.clone());
     let description_edit = RwSignal::new(ewa.event.description.clone());
@@ -30,11 +30,7 @@ pub fn Event(
         let data = data.clone();
         async move {
             if let Ok(api_result) = upload_files(data.clone().into()).await {
-                attachments_edit.update(|a| {
-                    for result in api_result.details {
-                        a.push(result)
-                    }
-                });
+                attachments_edit.set(api_result.details);
             }
         }
     });
@@ -43,7 +39,7 @@ pub fn Event(
         let data = data.clone();
         async move {
             if let Ok(api_result) = upload_illustration(data.into()).await {
-                illustration_edit.set(Some(api_result.details.clone()));
+                illustration_edit.set(Some(api_result.details));
             }
         }
     });
@@ -83,14 +79,11 @@ pub fn Event(
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get()>
+                <h3 class=r#"font-bold text-3xl/8 mb-4"#>{move || name_signal.get().clone()}</h3>
                 {move || {
-                    let event_id = id_signal.get();
-                    let illustrations = illustrations.get();
-                    let illustration = illustrations.into_iter().find(|i| i.event_id == Some(event_id.clone()));
-                    illustration_edit.set(illustration.clone());
-                    if let Some(illustration) = illustration {
+                    if let Some(illustration) = illustration_signal.get() {
                         view! {
-                            <div class="flex justify-center m-auto">
+                            <div class="flex justify-center m-auto mb-4">
                                 <img 
                                     src=move || format!("/image/{}", illustration.id) 
                                     class=r#"shadow-sm"#
@@ -101,7 +94,6 @@ pub fn Event(
                         "".into_any()
                     }
                 }}
-                <h3 class=r#"font-bold text-3xl/8"#>{move || name_signal.get().clone()}</h3>
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
                     {move || id_signal.get().clone()}
@@ -221,7 +213,7 @@ pub fn Event(
                                 selected=move || {
                                     visible_to_groups_edit
                                         .get().split(",")
-                                        .map(|g| g.to_string())
+                                        .map(String::from)
                                         .collect::<Vec<String>>()
                                         .contains(&"all".to_string())
                                 }
@@ -237,7 +229,7 @@ pub fn Event(
                                         children=move |group| {
                                             let selected = visible_to_groups_edit
                                                 .get().split(",")
-                                                .map(|g| g.to_string())
+                                                .map(String::from)
                                                 .collect::<Vec<String>>()
                                                 .contains(&group);
 
@@ -282,7 +274,7 @@ pub fn Event(
                                                     <div
                                                         role="tooltip"
                                                         class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
                                                     >
                                                         {format!("ID: {}", a.id)}
                                                     </div>
@@ -315,14 +307,17 @@ pub fn Event(
                                 <input
                                     class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                     type="file"
-                                    name="attachment"
+                                    name="attachments"
                                     multiple
                                     on:change=move |ev: Event| {
                                         let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                                         if let Some(files) = input.files() && files.length() > 0 {
-                                            let file = files.get(0).unwrap();
+                                            let files_count = files.length();
                                             let fd = FormData::new().unwrap();
-                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            for i in 0..files_count {
+                                                let file = files.get(i).unwrap();
+                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            }
                                             file_upload_action.dispatch_local(fd);
                                         }
                                     }
@@ -335,8 +330,7 @@ pub fn Event(
                         <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                         <div class="grid gap-2">
                             {move || {
-                                let illustration = illustration_edit.get();
-                                if let Some(illustration) = illustration {
+                                if let Some(illustration) = illustration_edit.get() {
                                     let show_tooltip = RwSignal::new(false);
                                     let id = illustration.id.clone();
                                     view! {
@@ -354,7 +348,7 @@ pub fn Event(
                                                     <div
                                                         role="tooltip"
                                                         class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
                                                     >
                                                         {format!("ID: {}", illustration.id)}
                                                     </div>

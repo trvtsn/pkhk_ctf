@@ -1,8 +1,7 @@
 use crate::app::RefreshUser;
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments};
-use crate::server::proxmox::ProxmoxVMInstance;
-use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, destroy_vm, enums::ResultStatus, structs::ApiResult};
+use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
@@ -14,7 +13,6 @@ pub fn Challenge(
     solved_challenges: RwSignal<Vec<String>>,
     overlay_triggered: RwSignal<bool>,
     cwa_popup: RwSignal<Option<ChallengeWithAttachments>>,
-    user_vms: RwSignal<Vec<ProxmoxVMInstance>>,
     refresh_solved_challenges: RwSignal<i32>
 ) -> impl IntoView {
     let flag_signal = RwSignal::new("".to_string());
@@ -55,12 +53,11 @@ pub fn Challenge(
             incorrect.set(false);
         }, 2000.0);
 
-    let check_flag_action = Action::new(move |(flag, challenge, template_id): &(String, Challenge, u32)| {
+    let check_flag_action = Action::new(move |(flag, challenge): &(String, Challenge)| {
         let start = start.clone();
         let stop = stop.clone();
         let flag = flag.clone();
         let challenge = challenge.clone();
-        let template_id = template_id.clone();
         async move {
             if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
                 if result == ResultStatus::Fail && details == "incorrect solution" {
@@ -68,7 +65,6 @@ pub fn Challenge(
                     stop();
                     start(());
                 } else if result == ResultStatus::Success {
-                    _ = destroy_vm(template_id).await;
                     refresh_user.update(|r| r.iteration += 1);
                     refresh_solved_challenges.update(|r| *r += 1);
                 }
@@ -143,14 +139,7 @@ pub fn Challenge(
                     on:click=move |_| {
                         let flag = flag_signal.get();
                         let challenge = cwa.get().challenge;
-                        let user_vms = user_vms.get();
-                        let mut user_vm_id = 0_u32;
-                        for user_vm in user_vms {
-                            if user_vm.challenge_id == challenge.id {
-                                user_vm_id = user_vm.id;
-                            }
-                        }
-                        check_flag_action.dispatch((flag, challenge, user_vm_id));
+                        check_flag_action.dispatch((flag, challenge));
                     }
                 >
                     {move || submit_btn_text.get()}

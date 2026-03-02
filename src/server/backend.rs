@@ -228,7 +228,7 @@ cfg_if! {
                             email = se.attrs.get("userPrincipalName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
                             if let Some(groups) = se.attrs.get("memberOf") {
                                 groups_result = groups.into_iter().filter_map(|s| {
-                                    DistinguishedName::from_str(s).ok().and_then(|dn| dn.find(RdnType::Cn).map(|v| v.to_string()))
+                                    DistinguishedName::from_str(s).ok().and_then(|dn| dn.find(RdnType::Cn).map(String::from))
                                 })
                                 .collect::<Vec<String>>()
                                 .join(",");
