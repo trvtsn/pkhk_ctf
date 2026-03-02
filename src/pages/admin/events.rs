@@ -100,7 +100,7 @@ pub fn Events() -> impl IntoView {
 
                             <div class="grid">
                                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Description"</label>
-                                <input
+                                <textarea
                                     class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="description"

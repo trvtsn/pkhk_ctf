@@ -98,11 +98,11 @@ pub fn Event(
                     <b>"ID: "</b>
                     {move || id_signal.get().clone()}
                 </p>
-                <p class=r#"text-lg/8"#>
+                <p class=r#"text-lg/8 whitespace-pre-wrap"#>
                     <b>"Description: "</b>
                     {move || {
                         if let Some(description) = description_signal.get() {
-                            description.clone().into_any()
+                            description.into_any()
                         } else {
                             "".into_any()
                         }
@@ -139,12 +139,12 @@ pub fn Event(
 
                     <div class="grid">
                         <label class=r#"block mb-1 text-sm font-medium"#>"Description"</label>
-                        <input
+                        <textarea
                             class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             name="description"
-                            value=move || description_signal.get()
-                            on:change=move |ev: Event| {
+                            prop:value=move || description_signal.get()
+                            on:input=move |ev: Event| {
                                 let value = event_target_value(&ev);
                                 description_edit.set(Some(value));
                             }

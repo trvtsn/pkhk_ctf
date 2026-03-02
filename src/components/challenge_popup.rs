@@ -115,7 +115,7 @@ pub fn ChallengePopup(
                     }
                 }}
 
-                <p class=r#"text-lg/8 mt-2"#>
+                <p class=r#"text-lg/8 mt-2 whitespace-pre-wrap"#>
                     {move || {
                         let description = RwSignal::new(cwa.get().challenge.description);
                         view! { <TruncatedDesc description /> }
