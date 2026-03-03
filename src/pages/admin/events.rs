@@ -1,12 +1,15 @@
 use crate::{components::{admin::event::Event, toast::{ToastAppear, ToastMessageType}, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use icondata as i;
 use leptos::{prelude::*, task:: spawn_local};
-use leptos::{web_sys::{FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
+use leptos::{web_sys::{FormData, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
 use leptos_icons::Icon;
 
 /// Default Home Page
 #[component]
 pub fn Events() -> impl IntoView {
+    let attachments_ref = NodeRef::new();
+    let illustration_ref = NodeRef::new();
+
     let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
     let toast_appear = expect_context::<RwSignal<ToastAppear>>();
 
@@ -29,40 +32,6 @@ pub fn Events() -> impl IntoView {
     let groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
-    });
-
-    let file_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_files(data.clone().into()).await {
-                attachments.set(Some(api_result.details.clone()))
-            }
-        }
-    });
-
-    let illustration_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_illustration(data.into()).await {
-                illustration.set(Some(api_result.details.clone()));
-            }
-        }
-    });
-
-    let uploading_file_text = Memo::new(move |_| {
-        if file_upload_action.pending().get() {
-            "Uploading...".to_string()
-        } else {
-            "".to_string()
-        }
-    });
-
-    let uploading_illustration_text = Memo::new(move |_| {
-        if illustration_upload_action.pending().get() {
-            "Uploading...".to_string()
-        } else {
-            "".to_string()
-        }
     });
 
     view! {
@@ -233,20 +202,8 @@ pub fn Events() -> impl IntoView {
                                         type="file"
                                         name="attachments"
                                         multiple
-                                        on:change=move |ev: Event| {
-                                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                            if let Some(files) = input.files() && files.length() > 0 {
-                                                let files_count = files.length();
-                                                let fd = FormData::new().unwrap();
-                                                for i in 0..files_count {
-                                                    let file = files.get(i).unwrap();
-                                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                                }
-                                                file_upload_action.dispatch_local(fd);
-                                            }
-                                        }
+                                        node_ref=attachments_ref
                                     />
-                                    <p>{uploading_file_text.get()}</p>
                                 </div>
                             </div>
 
@@ -305,17 +262,8 @@ pub fn Events() -> impl IntoView {
                                         class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                         type="file"
                                         name="illustration"
-                                        on:change=move |ev: Event| {
-                                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                            if let Some(files) = input.files() && files.length() > 0 {
-                                                let file = files.get(0).unwrap();
-                                                let fd = FormData::new().unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                                illustration_upload_action.dispatch_local(fd);
-                                            }
-                                        }
+                                        node_ref=illustration_ref
                                     />
-                                    <p>{uploading_illustration_text.get()}</p>
                                 </div>
                             </div>
 
@@ -338,10 +286,42 @@ pub fn Events() -> impl IntoView {
                                         let start_at = html_local_to_datetime(start_at_signal.get());
                                         let end_at = html_local_to_datetime(end_at_signal.get());
                                         let visible_to_groups = visible_to_groups_signal.get().join(",");
-                                        let attachments = attachments.get();
-                                        let illustration = illustration.get();
                                         spawn_local(async move {
                                             tracing::debug!("creating event...");
+
+                                            if let Some(att_el) = attachments_ref.get() {
+                                                if let Some(files) = att_el.files() {
+                                                    if files.length() > 0 {
+                                                        let fd = FormData::new().unwrap();
+                                                        for i in 0..files.length() {
+                                                            let file = files.get(i).unwrap();
+                                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                        }
+
+                                                        if let Ok(api_result) = upload_files(fd.into()).await {
+                                                            attachments.set(Some(api_result.details));
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            if let Some(illustr_el) = illustration_ref.get() {
+                                                if let Some(files) = illustr_el.files() {
+                                                    if files.length() > 0 {
+                                                        let file = files.get(0).unwrap();
+                                                        let fd = FormData::new().unwrap();
+                                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+
+                                                        if let Ok(api_result) = upload_illustration(fd.into()).await {
+                                                            illustration.set(Some(api_result.details))
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            let attachments = attachments.get();
+                                            let illustration = illustration.get();
+
                                             if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Create {
                                                     name,
                                                     description,

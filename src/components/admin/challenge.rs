@@ -45,6 +45,9 @@ pub fn Challenge(
     let proxmox_vm_id_edit = RwSignal::new(vm_ids);
     let hints_edit = RwSignal::new(vec![Hint::new("1".to_string(), "")]);
 
+    let attachments_ref = NodeRef::new();
+    let illustration_ref = NodeRef::new();
+
     let next_hint_id = RwSignal::new(1_usize);
     let category_add_new_selected = RwSignal::new(false);
     let editing = RwSignal::new(false);
@@ -52,46 +55,6 @@ pub fn Challenge(
     let deleted = RwSignal::new(false);
     let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
     let toast_appear = expect_context::<RwSignal<ToastAppear>>();
-
-    let file_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_files(data.clone().into()).await {
-                attachments_edit.set(api_result.details);
-            }
-        }
-    });
-
-    let illustration_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_illustration(data.into()).await {
-                illustration_edit.set(Some(api_result.details))
-            }
-        }
-    });
-
-    let uploading_file_text = Memo::new(move |_| {
-        if file_upload_action.pending().get() {
-            "Uploading...".to_string()
-        // } else if let Some(Ok(val)) = upload_action.value().get() {
-        //     format!("Uploaded: {}", val.details.file_name)
-        // } else {
-        } else {
-            "".to_string()
-        }
-    });
-
-    let uploading_illustration_text = Memo::new(move |_| {
-        if illustration_upload_action.pending().get() {
-            "Uploading...".to_string()
-        // } else if let Some(Ok(val)) = upload_action.value().get() {
-        //     format!("Uploaded: {}", val.details.file_name)
-        // } else {
-        } else {
-            "".to_string()
-        }
-    });
 
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
@@ -550,20 +513,8 @@ pub fn Challenge(
                                     type="file"
                                     name="attachments"
                                     multiple
-                                    on:change=move |ev: Event| {
-                                        let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                        if let Some(files) = input.files() && files.length() > 0 {
-                                            let files_count = files.length();
-                                            let fd = FormData::new().unwrap();
-                                            for i in 0..files_count {
-                                                let file = files.get(i).unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                            }
-                                            file_upload_action.dispatch_local(fd);
-                                        }
-                                    }
+                                    node_ref=attachments_ref
                                 />
-                                <p>{move || uploading_file_text.get()}</p>
                             </div>
                         </div>
                     </div>
@@ -621,16 +572,8 @@ pub fn Challenge(
                                 class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                 type="file"
                                 name="illustration"
-                                on:change=move |ev: Event| {
-                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                    if let Some(files) = input.files() && files.length() > 0 {
-                                        let file = files.get(0).unwrap();
-                                        let fd = FormData::new().unwrap();
-                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                        illustration_upload_action.dispatch_local(fd);
-                                    }
-                                }
-                            /><p>{move || uploading_illustration_text.get()}</p>
+                                node_ref=illustration_ref
+                            />
                         </div>
                     </div>
                 </div>
@@ -657,7 +600,7 @@ pub fn Challenge(
                         class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {
+                        on:click=move |_| {                            
                             let challenge_id = id_signal.get();
                             let event_id = event_id_edit.get();
                             let name = name_edit.get();
@@ -667,8 +610,6 @@ pub fn Challenge(
                             let points = points_edit.get();
                             let flag = flag_edit.get();
                             let visible_to_groups = visible_to_groups_edit.get();
-                            let attachments = if attachments_edit.get().is_empty() { None } else { Some(attachments_edit.get()) };
-                            let illustration = illustration_edit.get();
                             let vm_ids = proxmox_vm_id_edit.get();
                             let hints = hints_edit.get().into_iter().map(|h| {
                                 let mut hint = Into::<DbHint>::into(h); 
@@ -677,6 +618,39 @@ pub fn Challenge(
                             }).collect::<Vec<DbHint>>();
                             if editing.get() {
                                 spawn_local(async move {
+                                    if let Some(att_el) = attachments_ref.get() {
+                                        if let Some(files) = att_el.files() {
+                                            if files.length() > 0 {
+                                                let fd = FormData::new().unwrap();
+                                                for i in 0..files.length() {
+                                                    let file = files.get(i).unwrap();
+                                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                }
+
+                                                if let Ok(api_result) = upload_files(fd.into()).await {
+                                                    attachments_edit.set(api_result.details);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if let Some(illustr_el) = illustration_ref.get() {
+                                        if let Some(files) = illustr_el.files() {
+                                            if files.length() > 0 {
+                                                let file = files.get(0).unwrap();
+                                                let fd = FormData::new().unwrap();
+                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+
+                                                if let Ok(api_result) = upload_illustration(fd.into()).await {
+                                                    illustration_edit.set(Some(api_result.details))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    let attachments = if attachments_edit.get().is_empty() { None } else { Some(attachments_edit.get()) };
+                                    let illustration = illustration_edit.get();
+
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
                                             id: challenge_id.clone(),
                                             event_id: event_id.clone(),

@@ -41,6 +41,7 @@ pub fn Files() -> impl IntoView {
                 class=r#"p-3 bg-background rounded-lg shadow-sm"# 
                 type="file" name="files" 
                 multiple 
+                required
                 on:change=move |ev| {
                     let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                     if input.files().is_some() {

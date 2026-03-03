@@ -74,6 +74,7 @@ pub fn Login() -> impl IntoView {
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="email"
                     name="email"
+                    required
                     bind:value=email
                 />
 
@@ -84,6 +85,7 @@ pub fn Login() -> impl IntoView {
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if password_hidden.get() { "password" } else { "text" }
                         name="password"
+                        required
                         bind:value=password
                     />
                     <HidePasswordButton hidden=password_hidden />

@@ -1,11 +1,12 @@
 use crate::{components::utils::{ComponentSize, HidePasswordButton, Spinner}, server::{admin::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
 use icondata as i;
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement}};
+use leptos::{prelude::*, task::spawn_local, web_sys::{FormData}};
 use leptos_icons::Icon;
 
 /// Default Home Page
 #[component]
 pub fn Ldap() -> impl IntoView {
+    let certificate_ref = NodeRef::new();
     let refresh = RwSignal::new(0);
     let connect_status_ui = RwSignal::new("".to_string());
     let connect_success = RwSignal::new(false);
@@ -50,15 +51,6 @@ pub fn Ldap() -> impl IntoView {
         }
 
         ldap_args
-    });
-
-    let cert_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_certificate(data.into()).await {
-                certificate.set(Some(api_result.details.clone()));
-            }
-        }
     });
 
     let connect_status_classes = Memo::new(move |_| {
@@ -222,22 +214,8 @@ pub fn Ldap() -> impl IntoView {
                                             class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                             type="file"
                                             name="certificate"
-                                            on:change=move |ev: Event| {
-                                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                                if let Some(files) = input.files() && files.length() > 0 {
-                                                    let file = files.get(0).unwrap();
-                                                    let fd = FormData::new().unwrap();
-                                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                                    cert_upload_action.dispatch_local(fd);
-                                                }
-                                            }
-                                        /><p>{move || {
-                                            if cert_upload_action.pending().get() {
-                                                "Uploading..."
-                                            } else {
-                                                ""
-                                            }
-                                        }}</p>
+                                            node_ref=certificate_ref
+                                        />
                                     </div>
                                 </div>
 
@@ -252,6 +230,20 @@ pub fn Ldap() -> impl IntoView {
                                             let base_dn = base_dn.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
+                                                if let Some(cert_el) = certificate_ref.get() {
+                                                    if let Some(files) = cert_el.files() {
+                                                        if files.length() > 0 {
+                                                            let file = files.get(0).unwrap();
+                                                            let fd = FormData::new().unwrap();
+                                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+
+                                                            if let Ok(api_result) = upload_certificate(fd.into()).await {
+                                                                certificate.set(Some(api_result.details.clone()));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
                                                 if let Ok(ApiResult { result, details }) = test_ldap(LdapArgs {
                                                         url,
                                                         bind_dn,
@@ -284,9 +276,24 @@ pub fn Ldap() -> impl IntoView {
                                             let bind_dn = bind_dn.get();
                                             let bind_pw = bind_pw.get();
                                             let base_dn = base_dn.get();
-                                            let certificate = certificate.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
+                                                if let Some(cert_el) = certificate_ref.get() {
+                                                    if let Some(files) = cert_el.files() {
+                                                        if files.length() > 0 {
+                                                            let file = files.get(0).unwrap();
+                                                            let fd = FormData::new().unwrap();
+                                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+
+                                                            if let Ok(api_result) = upload_certificate(fd.into()).await {
+                                                                certificate.set(Some(api_result.details.clone()));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                let certificate = certificate.get();
+
                                                 if let Ok(ApiResult { result, details }) = update_ldap(LdapArgs {
                                                         url,
                                                         bind_dn,

@@ -6,6 +6,8 @@ use leptos_icons::Icon;
 /// Default Home Page
 #[component]
 pub fn Users() -> impl IntoView {
+    let avatar_ref = NodeRef::new();
+
     let section = RwSignal::new(Actions::None);
     let refresh = RwSignal::new(0);
     let creating = RwSignal::new(false);
@@ -34,26 +36,6 @@ pub fn Users() -> impl IntoView {
     let user_groups_signal = RwSignal::new(vec![]);
     let user_groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
-    });
-
-    let avatar_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_avatar(data.clone().into()).await {
-                avatar_signal.set(Some(api_result.details.clone()));
-            }
-        }
-    });
-
-    let uploading_avatar_text = Memo::new(move |_| {
-        if avatar_upload_action.pending().get() {
-            "Uploading...".to_string()
-        // } else if let Some(Ok(val)) = upload_action.value().get() {
-        //     format!("Uploaded: {}", val.details.file_name)
-        // } else {
-        } else {
-            "".to_string()
-        }
     });
 
     view! {
@@ -280,18 +262,9 @@ pub fn Users() -> impl IntoView {
                     <input
                         class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                         type="file"
-                        name="illustration"
-                        on:change=move |ev: Event| {
-                            let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                            if let Some(files) = input.files() && files.length() > 0 {
-                                let file = files.get(0).unwrap();
-                                let fd = FormData::new().unwrap();
-                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                avatar_upload_action.dispatch_local(fd);
-                            }
-                        }
+                        name="avatar"
+                        node_ref=avatar_ref
                     />
-                    <p>{uploading_avatar_text.get()}</p>
                 </div>
 
                 <div class=r#"flex gap-3 mt-2"#>
@@ -313,10 +286,26 @@ pub fn Users() -> impl IntoView {
                             let password = password_signal.get().clone();
                             let confirm_password = confirm_password_signal.get().clone();
                             let role = role_signal.get().clone().into();
-                            let avatar = avatar_signal.get();
                             let groups = groups_signal.get();
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
+                                
+                                if let Some(avatar_el) = avatar_ref.get() {
+                                    if let Some(files) = avatar_el.files() {
+                                        if files.length() > 0 {
+                                            let file = files.get(0).unwrap();
+                                            let fd = FormData::new().unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+
+                                            if let Ok(api_result) = upload_avatar(fd.into()).await {
+                                                avatar_signal.set(Some(api_result.details.clone()));
+                                            }
+                                        }
+                                    }
+                                }
+
+                                let avatar = avatar_signal.get();
+
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Create {
                                         username,
                                         email,

@@ -47,6 +47,9 @@ impl Into<crate::server::db::structs::Hint> for Hint {
 /// Default Home Page
 #[component]
 pub fn Challenges() -> impl IntoView {
+    let attachments_ref = NodeRef::new();
+    let illustration_ref = NodeRef::new();
+
     let category_add_new_selected = RwSignal::new(false);
     let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
     let toast_appear = expect_context::<RwSignal<ToastAppear>>();
@@ -98,24 +101,6 @@ pub fn Challenges() -> impl IntoView {
         get_all_hints().await.unwrap_or_default()
     });
 
-    let file_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_files(data.clone().into()).await {
-                attachments.set(Some(api_result.details.clone()))
-            }
-        }
-    });
-
-    let illustration_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_illustration(data.into()).await {
-                illustration.set(Some(api_result.details.clone()));
-            }
-        }
-    });
-
     let UseEventSourceReturn { message, .. } = 
         use_event_source_with_options::<String, FromToStringCodec>(
             "/events".to_string(), 
@@ -136,22 +121,6 @@ pub fn Challenges() -> impl IntoView {
     let creating = RwSignal::new(false);
     let create_submit_btn_text = Memo::new(move |_| {
         if created.get() { "Created!".to_string() } else { "Create".to_string() }
-    });
-
-    let uploading_file_text = Memo::new(move |_| {
-        if file_upload_action.pending().get() {
-            "Uploading...".to_string()
-        } else {
-            "".to_string()
-        }
-    });
-
-    let uploading_illustration_text = Memo::new(move |_| {
-        if illustration_upload_action.pending().get() {
-            "Uploading...".to_string()
-        } else {
-            "".to_string()
-        }
     });
 
     view! {
@@ -178,6 +147,7 @@ pub fn Challenges() -> impl IntoView {
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         name="event_id"
+                        required
                         bind:value=event_id
                     >
                         <option value="">"-- Select Event --"</option>
@@ -210,6 +180,7 @@ pub fn Challenges() -> impl IntoView {
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         name="name"
+                        required
                         bind:value=name
                     />
                 </div>
@@ -544,20 +515,8 @@ pub fn Challenges() -> impl IntoView {
                                 type="file"
                                 name="attachments"
                                 multiple
-                                on:change=move |ev: Event| {
-                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                    if let Some(files) = input.files() && files.length() > 0 {
-                                        let files_count = files.length();
-                                        let fd = FormData::new().unwrap();
-                                        for i in 0..files_count {
-                                            let file = files.get(i).unwrap();
-                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                        }
-                                        file_upload_action.dispatch_local(fd);
-                                    }
-                                }
+                                node_ref=attachments_ref
                             />
-                            <p>{uploading_file_text.get()}</p>
                         </div>
                     </div>
                 </div>
@@ -618,17 +577,8 @@ pub fn Challenges() -> impl IntoView {
                             class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                             type="file"
                             name="illustration"
-                            on:change=move |ev: Event| {
-                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                if let Some(files) = input.files() && files.length() > 0 {
-                                    let file = files.get(0).unwrap();
-                                    let fd = FormData::new().unwrap();
-                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                    illustration_upload_action.dispatch_local(fd);
-                                }
-                            }
+                            node_ref=illustration_ref
                         />
-                        <p>{uploading_illustration_text.get()}</p>
                     </div>
                 </div>
 
@@ -655,11 +605,42 @@ pub fn Challenges() -> impl IntoView {
                             let points = points.get();
                             let flag = flag.get();
                             let visible_to_groups = visible_to_groups.get().join(",");
-                            let attachments = attachments.get();
-                            let illustration = illustration.get();
                             let vm_ids = vm_ids.get();
                             let hints = hints.get().unwrap_or_default().into_iter().map(|h| Into::<DbHint>::into(h)).collect::<Vec<DbHint>>();
                             spawn_local(async move {
+                                if let Some(att_el) = attachments_ref.get() {
+                                    if let Some(files) = att_el.files() {
+                                        if files.length() > 0 {
+                                            let fd = FormData::new().unwrap();
+                                            for i in 0..files.length() {
+                                                let file = files.get(i).unwrap();
+                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            }
+
+                                            if let Ok(api_result) = upload_files(fd.into()).await {
+                                                attachments.set(Some(api_result.details.clone()))
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if let Some(illustr_el) = illustration_ref.get() {
+                                    if let Some(files) = illustr_el.files() {
+                                        if files.length() > 0 {
+                                            let file = files.get(0).unwrap();
+                                            let fd = FormData::new().unwrap();
+                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+
+                                            if let Ok(api_result) = upload_illustration(fd.into()).await {
+                                                illustration.set(Some(api_result.details.clone()));
+                                            }
+                                        }
+                                    }
+                                }
+
+                                let attachments = attachments.get();
+                                let illustration = illustration.get();
+
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Create {
                                         event_id,
                                         name,

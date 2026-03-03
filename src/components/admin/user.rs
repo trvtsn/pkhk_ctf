@@ -10,6 +10,7 @@ pub fn User(
     groups: RwSignal<Vec<String>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
+    let avatar_ref = NodeRef::new();
     let group_add_new_selected = RwSignal::new(false);
     
     let id_signal = RwSignal::new(user.id.clone());
@@ -32,15 +33,6 @@ pub fn User(
     let role_edit = RwSignal::new(user.role.to_string());
     let avatar_edit = RwSignal::new(None);
     let groups_edit = RwSignal::new(user.groups);
-
-    let avatar_upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(api_result) = upload_avatar(data.clone().into()).await {
-                avatar_edit.set(Some(api_result.details.clone()));
-            }
-        }
-    });
 
     let editing = RwSignal::new(false);
     let editing_password = RwSignal::new(false);
@@ -303,15 +295,7 @@ pub fn User(
                                 class=r#"bg-background w-full text-sm p-3 rounded-lg shadow-sm"#
                                 type="file"
                                 name="avatar"
-                                on:change=move |ev: Event| {
-                                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                                    if let Some(files) = input.files() && files.length() > 0 {
-                                        let file = files.get(0).unwrap();
-                                        let fd = FormData::new().unwrap();
-                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
-                                        avatar_upload_action.dispatch_local(fd);
-                                    }
-                                }
+                                node_ref=avatar_ref
                             />
                         </div>
                     </div>
@@ -386,11 +370,27 @@ pub fn User(
                             let confirm_password = confirm_new_password_edit.get();
                             let points = points_edit.get();
                             let role = role_edit.get();
-                            let avatar = avatar_edit.get();
                             let groups = groups_edit.get();
                             if editing.get() {
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
+
+                                    if let Some(avatar_el) = avatar_ref.get() {
+                                        if let Some(files) = avatar_el.files() {
+                                            if files.length() > 0 {
+                                                let file = files.get(0).unwrap();
+                                                let fd = FormData::new().unwrap();
+                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+
+                                                if let Ok(api_result) = upload_avatar(fd.into()).await {
+                                                    avatar_edit.set(Some(api_result.details.clone()));
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    let avatar = avatar_edit.get();
+
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Edit {
                                             id: user_id,
                                             username: username.clone(),

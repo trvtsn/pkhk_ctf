@@ -223,6 +223,7 @@ pub fn Settings() -> impl IntoView {
                             class=r#"p-2 rounded-lg shadow-sm bg-background-secondary"#
                             type="file"
                             name="file"
+                            required
                             on:change=move |ev: Event| {
                                 let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
                                 if input.files().is_some() {
