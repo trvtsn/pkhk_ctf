@@ -25,6 +25,7 @@
     --color-text-hover: var(--color-text-hover);
     --color-card: var(--color-card);
     --color-card-hover: var(--color-card-hover);
+    --color-toast: var(--color-toast);
     --color-yale-blue-50: #e8f6fd;
     --color-yale-blue-100: #d0edfb;
     --color-yale-blue-200: #a1dcf7;
@@ -96,6 +97,7 @@
         --color-text-hover: var(--color-slate-grey-900);
         --color-card: var(--color-yale-blue-50);
         --color-card-hover: var(--color-yale-blue-100);
+        --color-toast: var(--color-yale-blue-100)
     }
 
     html[data-theme="dark"] {
@@ -107,6 +109,7 @@
         --color-text-hover: var(--color-slate-grey-950);
         --color-card: var(--color-yale-blue-800);
         --color-card-hover: var(--color-yale-blue-900);
+        --color-toast: var(--color-yale-blue-900)
     }
 }
 
@@ -141,10 +144,4 @@
     50% {
         background-position: 100% 50%;
     }
-}
-
-form {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--spacing) * 4);
 }

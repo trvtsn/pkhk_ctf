@@ -59,7 +59,7 @@ cargo leptos watch
 - [x] Fix tooltip color on leaderboard hover
 - [x] Fix select option color
 - [x] Add spinner for indicating pending tasks
-- [ ] Add toast messages
+- [x] Add toast messages
 
 ### Project Longevity
 - [ ] Add doc comments to pages and components

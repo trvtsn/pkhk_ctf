@@ -24,24 +24,28 @@ pub fn Files() -> impl IntoView {
     });
 
     view! {
-        <form on:submit=move |ev: SubmitEvent| {
-            ev.prevent_default();
-            if !has_files_signal.get() {
-                return;
-            } else {
-                let target = ev.target().unwrap().unchecked_into::<HtmlFormElement>();
-                let form_data = FormData::new_with_form(&target).unwrap();
-                upload_action.dispatch_local(form_data);
+        <form 
+            class="flex flex-col gap-4 mb-4"
+            on:submit=move |ev: SubmitEvent| {
+                ev.prevent_default();
+                if !has_files_signal.get() {
+                    return;
+                } else {
+                    let target = ev.target().unwrap().unchecked_into::<HtmlFormElement>();
+                    let fd = FormData::new_with_form(&target).unwrap();
+                    upload_action.dispatch_local(fd);
+                }
             }
-        }>
+        >
             <input 
                 class=r#"p-3 bg-background rounded-lg shadow-sm"# 
                 type="file" name="files" 
                 multiple 
                 on:change=move |ev| {
                     let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
-                    let has_files = input.files().map(|files| files.length() > 0).unwrap_or(false);
-                    has_files_signal.set(has_files);
+                    if input.files().is_some() {
+                        has_files_signal.set(true);
+                    }
                 }
             />
             <input
@@ -60,7 +64,7 @@ pub fn Files() -> impl IntoView {
             {move || {
                 let all_files = all_files.get().unwrap_or_default();
                 view! {
-                    <div class=r#"grid grid-cols-4 m-2 files items-start"#>
+                    <div class=r#"grid grid-cols-4 m-2 files items-start gap-4"#>
                         <For
                             each=move || all_files.clone()
                             key=|file: &db::structs::AttachmentWithoutBlob| file.id.clone()

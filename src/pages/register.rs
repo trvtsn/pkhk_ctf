@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, utils::{ComponentSize, HidePasswordButton, Spinner}}, server::{Register, get_user, user_exists}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, utils::{ComponentSize, HidePasswordButton, Spinner}}, server::{get_user, register_user, user_exists}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
@@ -8,11 +8,20 @@ pub fn Register() -> impl IntoView {
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
     let confirm_password = RwSignal::new("".to_string());
+    let password_confirm_matches = RwSignal::new(false);
+
     let password_hidden = RwSignal::new(true);
     let confirm_password_hidden = RwSignal::new(true);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
-    let register: ServerAction<Register> = ServerAction::new();
+    let register = Action::new_local(move |(email, password, confirm_password): &(String, String, String)| {
+        let email = email.clone();
+        let password = password.clone();
+        let confirm_password = confirm_password.clone();
+        async move {
+            register_user(email, password, confirm_password).await
+        }
+    });
 
     let logged_in_user = Resource::new(
         move || register.version().get(),
@@ -46,7 +55,16 @@ pub fn Register() -> impl IntoView {
         <NavBar />
         <div class=r#"grid justify-center p-8 grid-col bg-background text-text min-h-screen"#>
             <h3 class=r#"text-4xl text-center"#>"Register"</h3>
-            <ActionForm action=register>
+            <form 
+                class="flex flex-col gap-4"
+                on:submit=move |ev| {
+                    ev.prevent_default();
+                    let email = email.get();
+                    let password = password.get();
+                    let confirm_password = confirm_password.get();
+                    register.dispatch((email, password, confirm_password));
+                }
+            >
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Email"</label>
                 <Transition fallback=|| view! { <Spinner component_size=ComponentSize::Medium /> }>
                     {available_ui}
@@ -57,6 +75,7 @@ pub fn Register() -> impl IntoView {
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                     type="email"
                     name="email"
+                    required
                     on:blur=move |ev| {
                         let value = event_target_value(&ev);
                         email.set(value);
@@ -70,6 +89,7 @@ pub fn Register() -> impl IntoView {
                         ocus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if password_hidden.get() { "password" } else { "text" }
                         name="password"
+                        required
                         bind:value=password
                     />
                     <HidePasswordButton hidden=password_hidden />
@@ -84,6 +104,7 @@ pub fn Register() -> impl IntoView {
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if confirm_password_hidden.get() { "password" } else { "text" }
                         name="confirm_password"
+                        required
                         bind:value=confirm_password
                     />
                     <HidePasswordButton hidden=confirm_password_hidden />
@@ -92,15 +113,17 @@ pub fn Register() -> impl IntoView {
                 {move || if password.get() != confirm_password.get() {
                     "Confirmation must match"
                 } else {
+                    password_confirm_matches.set(true);
                     ""
                 }}
 
                 <input
                     type="submit"
                     class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
+                    disabled=move || !password_confirm_matches.get()
                     value="Register"
                 />
-            </ActionForm>
+            </form>
         </div>
     }
 }

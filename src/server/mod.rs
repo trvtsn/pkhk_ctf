@@ -777,10 +777,14 @@ pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
 
 #[server(name=EditPassword, prefix="/api/user", endpoint="password")]
 #[instrument(skip(old_password, new_password))]
-pub async fn edit_password(old_password: String, new_password: String) -> Result<ApiResult<String>, AppError> {
+pub async fn edit_password(old_password: String, new_password: String, confirm_new_password: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
+
+            if new_password != confirm_new_password {
+                return Err(AppError::BadRequest("new password and confirm new password must be the same".to_string()));
+            }
 
             if old_password == new_password {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });

@@ -1,11 +1,13 @@
+use std::time::Duration;
+
 use crate::app::RefreshUser;
+use crate::components::toast::{ToastAppear, ToastMessageType};
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
-use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 
 #[component]
 pub fn Challenge(
@@ -15,6 +17,9 @@ pub fn Challenge(
     cwa_popup: RwSignal<Option<ChallengeWithAttachments>>,
     refresh_solved_challenges: RwSignal<i32>
 ) -> impl IntoView {
+    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
+    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
+
     let flag_signal = RwSignal::new("".to_string());
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
@@ -47,24 +52,23 @@ pub fn Challenge(
         }
     });
 
-    let UseTimeoutFnReturn { start, stop, .. } =
-        use_timeout_fn(move |_: ()| {
-            // runs after the delay on the client
-            incorrect.set(false);
-        }, 2000.0);
+    Effect::new(move |_| {
+        if incorrect.get() {
+            set_timeout(move || incorrect.set(false), Duration::from_secs(2));
+        }
+    });
 
     let check_flag_action = Action::new(move |(flag, challenge): &(String, Challenge)| {
-        let start = start.clone();
-        let stop = stop.clone();
         let flag = flag.clone();
         let challenge = challenge.clone();
+        let challenge_points = challenge.clone().points;
         async move {
             if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
                 if result == ResultStatus::Fail && details == "incorrect solution" {
                     incorrect.set(true);
-                    stop();
-                    start(());
                 } else if result == ResultStatus::Success {
+                    toast_appear.set(true);
+                    toast_message_type.set(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
                     refresh_user.update(|r| r.iteration += 1);
                     refresh_solved_challenges.update(|r| *r += 1);
                 }

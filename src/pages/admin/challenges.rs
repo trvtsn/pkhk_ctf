@@ -1,3 +1,4 @@
+use crate::components::toast::{ToastAppear, ToastMessageType};
 use crate::components::utils::ComponentSize;
 use crate::server::admin::{get_all_challenge_templates, get_all_hints, get_all_user_groups, upload_illustration};
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbHint};
@@ -47,6 +48,8 @@ impl Into<crate::server::db::structs::Hint> for Hint {
 #[component]
 pub fn Challenges() -> impl IntoView {
     let category_add_new_selected = RwSignal::new(false);
+    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
+    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
     
     let event_id = RwSignal::new("".to_string());
     let name = RwSignal::new("".to_string());
@@ -674,9 +677,14 @@ pub fn Challenges() -> impl IntoView {
                                     .await && result == ResultStatus::Success
                                 {
                                     created.set(true);
+                                    toast_appear.set(true);
+                                    toast_message_type.set(ToastMessageType::ChallengeCreated);
                                     refresh.update(|n| *n += 1);
                                     sleep(Duration::from_secs(2)).await;
                                     created.set(false);
+                                } else {
+                                    toast_appear.set(true);
+                                    toast_message_type.set(ToastMessageType::ChallengeCreateFail);
                                 }
                             });
                         }

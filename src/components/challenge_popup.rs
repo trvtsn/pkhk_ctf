@@ -1,4 +1,5 @@
 use crate::app::RefreshUser;
+use crate::components::toast::{ToastAppear, ToastMessageType};
 use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize};
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
@@ -7,8 +8,8 @@ use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::Resul
 use icondata as i;
 use leptos::{prelude::*};
 use leptos_icons::Icon;
-use leptos_use::{use_timeout_fn, UseTimeoutFnReturn};
 use std::collections::HashMap;
+use std::time::Duration;
 
 #[component]
 pub fn ChallengePopup(
@@ -25,6 +26,8 @@ pub fn ChallengePopup(
 ) -> impl IntoView {
     let flag_signal = RwSignal::new("".to_string());
 
+    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
+    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
     let incorrect = RwSignal::new(false);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     
@@ -57,24 +60,23 @@ pub fn ChallengePopup(
         }
     });
 
-    let UseTimeoutFnReturn { start, stop, .. } =
-        use_timeout_fn(move |_: ()| {
-            // runs after the delay on the client
-            incorrect.set(false);
-        }, 2000.0);
+    Effect::new(move |_| {
+        if incorrect.get() {
+            set_timeout(move || incorrect.set(false), Duration::from_secs(2));
+        }
+    });
 
     let check_flag_action = Action::new_local(move |(flag, challenge): &(String, Challenge)| {
-        let start = start.clone();
-        let stop = stop.clone();
         let flag = flag.clone();
         let challenge = challenge.clone();
+        let challenge_points = challenge.clone().points;
         async move {
             if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
                 if result == ResultStatus::Fail && details == "incorrect solution" {
                     incorrect.set(true);
-                    stop();
-                    start(());
                 } else if result == ResultStatus::Success {
+                    toast_appear.set(true);
+                    toast_message_type.set(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
                     refresh_user.update(|r| r.iteration += 1);
                     refresh_solved_challenges.update(|r| *r += 1);
                 }
@@ -86,7 +88,7 @@ pub fn ChallengePopup(
         <div
             class="absolute inset-0 z-20 flex content-center items-center justify-center rounded-lg p-4"
         >
-            <div class="bg-card p-4 rounded-lg w-1/3">
+            <div class="bg-card p-4 rounded-lg max-w-1/3 min-w-1/4">
                 <div class="flex justify-between mb-4">
                     <h3 class=r#"font-bold text-3xl/8"#>{move || cwa.get().challenge.name}</h3>
                     <button 
@@ -270,7 +272,12 @@ pub fn ChallengePopup(
                                             let challenge = challenge.clone();
                                             async move {
                                                 if let Ok(_) = start_vm(template_id, challenge).await {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMStarted);
                                                     refresh_user_vms.update(|n| *n += 1);
+                                                } else {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMStartFail);
                                                 }
                                             }
                                         });
@@ -278,7 +285,12 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(_) = restart_vm(template_id).await {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMRestarted);
                                                     refresh_user_vms.update(|n| *n += 1);
+                                                } else {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMRestartFail);
                                                 }
                                             }
                                         });
@@ -286,7 +298,12 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(_) = add_vm_time(template_id).await {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMAddedTime);
                                                     refresh_user_vms.update(|n| *n += 1);
+                                                } else {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMAddTimeFail);
                                                 }
                                             }
                                         });
@@ -294,7 +311,12 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(_) = destroy_vm(template_id).await {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMDestroyed);
                                                     refresh_user_vms.update(|n| *n += 1);
+                                                } else {
+                                                    toast_appear.set(true);
+                                                    toast_message_type.set(ToastMessageType::VMDestroyFail);
                                                 }
                                             }
                                         });

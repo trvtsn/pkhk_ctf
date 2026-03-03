@@ -1,4 +1,4 @@
-use crate::server::{db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
+use crate::{components::toast::{ToastAppear, ToastMessageType}, server::{db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult}};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 use leptos_icons::Icon;
@@ -19,6 +19,9 @@ pub fn File(
         file_size 
     } = file;
 
+    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
+    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
+
     let file_name_signal = RwSignal::new(file_name.clone());
     let new_file_name = RwSignal::new(file_name);
     let file_url_path = Memo::new(
@@ -34,7 +37,7 @@ pub fn File(
     });
 
     view! {
-        <div class=r#"grid content-center p-4 m-4 rounded-lg bg-card hover:bg-card-hover break-all"#>
+        <div class=r#"grid content-center p-4 rounded-lg bg-card hover:bg-card-hover break-all"#>
             <h3 class=r#"font-bold text-3xl/8"#>{move || file_name_signal.get()}</h3>
             <p class=r#"text-lg/8"#>
                 <b>"ID: "</b>
@@ -103,8 +106,13 @@ pub fn File(
                                         )
                                         .await && result == ResultStatus::Success
                                     {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::FileRenamed);
                                         file_name_signal.set(new_file_name);
                                         refresh.update(|n| *n += 1);
+                                    } else {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::FileRenameFail);
                                     }
                                 });
                                 renaming.set(false);

@@ -1,3 +1,4 @@
+use crate::components::toast::{ToastAppear, ToastMessageType};
 use crate::components::utils::TruncatedDesc;
 use crate::pages::admin::challenges::Hint;
 use crate::server::admin::upload_illustration;
@@ -49,6 +50,8 @@ pub fn Challenge(
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
+    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
+    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
 
     let file_upload_action = Action::new_local(move |data: &FormData| {
         let data = data.clone();
@@ -691,6 +694,8 @@ pub fn Challenge(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::ChallengeEdited);
                                         refresh.update(|n| *n += 1);
                                         editing.set(false);
                                         event_id_signal.set(event_id);
@@ -725,6 +730,8 @@ pub fn Challenge(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::ChallengeDeleted);
                                         deleting.set(false);
                                         deleted.set(true);
                                         refresh.update(|n| *n += 1);

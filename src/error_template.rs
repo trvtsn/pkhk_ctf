@@ -4,7 +4,7 @@ use leptos::{prelude::*, server_fn::codec::JsonEncoding};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Clone, Debug, Error, Serialize, Deserialize)]
+#[derive(Clone, Debug, Error, Serialize, Deserialize, PartialEq)]
 pub enum AppError {
     #[error("Not Found")]
     NotFound,

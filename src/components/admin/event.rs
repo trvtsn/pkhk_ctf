@@ -1,4 +1,4 @@
-use crate::{server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::toast::{ToastAppear, ToastMessageType}, server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use chrono::DateTime;
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
@@ -10,6 +10,9 @@ pub fn Event(
     user_groups: RwSignal<Vec<String>>, 
     refresh: RwSignal<i32>
 ) -> impl IntoView {
+    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
+    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
+
     let id_signal = RwSignal::new(ewa.event.id.clone());
     let name_signal = RwSignal::new(ewa.event.name.clone());
     let description_signal = RwSignal::new(ewa.event.description.clone());
@@ -436,11 +439,16 @@ pub fn Event(
                                     })
                                     .await && result == ResultStatus::Success
                                 {
+                                    toast_appear.set(true);
+                                    toast_message_type.set(ToastMessageType::EventEdited);
                                     refresh.update(|n| *n += 1);
                                     name_signal.set(name);
                                     description_signal.set(description);
                                     start_at_signal.set(start_at);
                                     end_at_signal.set(end_at);
+                                } else {
+                                    toast_appear.set(true);
+                                    toast_message_type.set(ToastMessageType::EventEditFail);
                                 }
                             });
                             editing.set(false)
@@ -467,8 +475,13 @@ pub fn Event(
                                     })
                                     .await && result == ResultStatus::Success
                                 {
+                                    toast_appear.set(true);
+                                    toast_message_type.set(ToastMessageType::EventDeleted);
                                     refresh.update(|n| *n += 1);
                                     deleting.set(false);
+                                } else {
+                                    toast_appear.set(true);
+                                    toast_message_type.set(ToastMessageType::EventDeleteFail);
                                 }
                             });
                         } else {
