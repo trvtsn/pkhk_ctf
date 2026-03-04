@@ -1,12 +1,10 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastAppear, ToastMessageType}, utils::HidePasswordButton}, server::{edit_avatar, edit_password, edit_username, enums::ResultStatus}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, server::{edit_avatar, edit_password, edit_username, enums::ResultStatus}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlFormElement, HtmlInputElement}};
 use leptos_use::{ColorMode};
 
 /// Default Home Page
 #[component]
 pub fn Settings() -> impl IntoView {
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
@@ -19,11 +17,9 @@ pub fn Settings() -> impl IntoView {
         let data = data.clone();
         async move {
             if let Ok(_) = edit_avatar(data.clone().into()).await {
-                toast_appear.set(true);
-                toast_message_type.set(ToastMessageType::AvatarEdited);
+                push_new_toast(ToastMessageType::AvatarEdited);
             } else {
-                toast_appear.set(true);
-                toast_message_type.set(ToastMessageType::AvatarEditFail);
+                push_new_toast(ToastMessageType::AvatarEditFail);
             }
         }
     });
@@ -34,11 +30,9 @@ pub fn Settings() -> impl IntoView {
         async move {
             if let Ok(result) = edit_password(old_password, new_password, confirm_new_password).await
             && result.result != ResultStatus::Fail {
-                toast_appear.set(true);
-                toast_message_type.set(ToastMessageType::UserPasswordChanged);
+                push_new_toast(ToastMessageType::UserPasswordChanged);
             } else {
-                toast_appear.set(true);
-                toast_message_type.set(ToastMessageType::UserPasswordChangeFail);
+                push_new_toast(ToastMessageType::UserPasswordChangeFail);
             }
         }
     });
@@ -93,12 +87,10 @@ pub fn Settings() -> impl IntoView {
                             if !new_username.is_empty() {
                                 spawn_local(async move {
                                     if edit_username(new_username).await.is_ok() {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::UserUsernameChanged);
+                                        push_new_toast(ToastMessageType::UserUsernameChanged);
                                         refresh_user.update(|r| r.iteration += 1);
                                     } else {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::UserUsernameChangeFail);
+                                        push_new_toast(ToastMessageType::UserUsernameChangeFail);
                                     }
                                 });
                             }

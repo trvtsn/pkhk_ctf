@@ -1,4 +1,4 @@
-use crate::{components::{toast::{ToastAppear, ToastMessageType}, utils::HidePasswordButton}, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 use leptos_icons::Icon;
@@ -10,9 +10,6 @@ pub fn User(
     groups: RwSignal<Vec<String>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
-
     let avatar_ref = NodeRef::new();
     let group_add_new_selected = RwSignal::new(false);
     
@@ -413,8 +410,7 @@ pub fn User(
 
                                     if !any_changes_made.get_untracked() {
                                         editing.set(false);
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::NoChangesMade);
+                                        push_new_toast(ToastMessageType::NoChangesMade);
                                     } else {
                                         if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Edit {
                                                 id: user_id,
@@ -429,8 +425,7 @@ pub fn User(
                                             })
                                             .await && result == ResultStatus::Success
                                         {
-                                            toast_appear.set(true);
-                                            toast_message_type.set(ToastMessageType::UserEdited);
+                                            push_new_toast(ToastMessageType::UserEdited);
                                             refresh.update(|n| *n += 1);
                                             username_signal.set(username);
                                             email_signal.set(email);
@@ -439,8 +434,7 @@ pub fn User(
                                             points_signal.set(points);
                                             role_signal.set(role);
                                         } else {
-                                            toast_appear.set(true);
-                                            toast_message_type.set(ToastMessageType::UserEditFail);
+                                            push_new_toast(ToastMessageType::UserEditFail);
                                         }
                                     }
                                 });
@@ -472,12 +466,10 @@ pub fn User(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::UserPasswordChanged);
+                                        push_new_toast(ToastMessageType::UserPasswordChanged);
                                         refresh.update(|n| *n += 1);
                                     } else {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::UserPasswordChangeFail);
+                                        push_new_toast(ToastMessageType::UserPasswordChangeFail);
                                     }
                                 });
                                 editing_password.set(false)
@@ -504,12 +496,10 @@ pub fn User(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::UserDeleted);
+                                        push_new_toast(ToastMessageType::UserDeleted);
                                         refresh.update(|n| *n += 1);
                                     } else {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::UserDeleteFail);
+                                        push_new_toast(ToastMessageType::UserDeleteFail);
                                     }
                                 });
                                 deleting.set(false);

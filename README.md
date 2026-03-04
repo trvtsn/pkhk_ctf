@@ -47,7 +47,7 @@ cargo leptos watch
 - [x] Add hints to challenges
 - [ ] Find or implement a new and more configurable chart builder for the leaderboard
 - [x] Allow formatting of challenge descriptions (newline support)
-- [ ] Allow for multiple toast messages to appear at once instead of one
+- [x] Allow for multiple toast messages to appear instead of one at a time
 
 ### Security
 - [ ] Sanitize text inputs

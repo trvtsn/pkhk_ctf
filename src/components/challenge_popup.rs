@@ -1,5 +1,5 @@
 use crate::app::RefreshUser;
-use crate::components::toast::{ToastAppear, ToastMessageType};
+use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize};
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
@@ -26,8 +26,6 @@ pub fn ChallengePopup(
 ) -> impl IntoView {
     let flag_signal = RwSignal::new("".to_string());
 
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
     let incorrect = RwSignal::new(false);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     
@@ -80,8 +78,7 @@ pub fn ChallengePopup(
                 if result == ResultStatus::Fail && details == "incorrect solution" {
                     incorrect.set(true);
                 } else if result == ResultStatus::Success {
-                    toast_appear.set(true);
-                    toast_message_type.set(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
+                    push_new_toast(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
                     refresh_user.update(|r| r.iteration += 1);
                     refresh_solved_challenges.update(|r| *r += 1);
                 }
@@ -277,12 +274,10 @@ pub fn ChallengePopup(
                                             let challenge = challenge.clone();
                                             async move {
                                                 if let Ok(result) = start_vm(template_id, challenge).await {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
+                                                    push_new_toast(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMStartFail);
+                                                    push_new_toast(ToastMessageType::VMStartFail);
                                                 }
                                             }
                                         });
@@ -290,12 +285,10 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(result) = restart_vm(template_id).await {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
+                                                    push_new_toast(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMRestartFail);
+                                                    push_new_toast(ToastMessageType::VMRestartFail);
                                                 }
                                             }
                                         });
@@ -303,12 +296,10 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(result) = add_vm_time(template_id).await {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
+                                                    push_new_toast(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMAddTimeFail);
+                                                    push_new_toast(ToastMessageType::VMAddTimeFail);
                                                 }
                                             }
                                         });
@@ -316,12 +307,10 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(result) = destroy_vm(template_id).await {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
+                                                    push_new_toast(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMDestroyFail);
+                                                    push_new_toast(ToastMessageType::VMDestroyFail);
                                                 }
                                             }
                                         });

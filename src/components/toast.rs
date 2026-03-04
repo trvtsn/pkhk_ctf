@@ -3,7 +3,14 @@ use std::time::Duration;
 
 pub type ToastAppear = bool;
 
-#[derive(Clone, Default)]
+#[derive(Clone, PartialEq, Debug)]
+pub struct ToastMessage {
+    pub id: u32,
+    pub message_type: RwSignal<ToastMessageType>,
+    pub appear: RwSignal<ToastAppear>,
+}
+
+#[derive(Clone, Default, PartialEq)]
 pub enum ToastMessageType {
     #[default]
     None,
@@ -95,29 +102,32 @@ impl std::fmt::Display for ToastMessageType {
 
 #[component]
 pub fn Toast(
-    toast_message_type: RwSignal<ToastMessageType>,
-    appear: RwSignal<ToastAppear>,
+    toast_message: ToastMessage,
 ) -> impl IntoView {
+    let toast_messages = expect_context::<RwSignal<Vec<ToastMessage>>>();
     let entered = RwSignal::new(false);
     let mounted = RwSignal::new(false);
 
     let parent_classes = Memo::new(move |_| {
-        let base = "fixed flex top-4 right-4 transition-all duration-1000 ease-in-out pointer-events-none";
+        let base = "flex transition-all duration-1000 ease-in-out pointer-events-none";
         if entered.get() {
-            format!("{base} mt-8")
+            format!("{base} translate-x-0")
         } else {
-            format!("{base} -mt-36")
+            format!("{base} translate-x-72")
         }
     });
 
     Effect::new(move |_| {
-        if appear.get() {
+        if toast_message.appear.get() {
             mounted.set(true);
             set_timeout(move || entered.set(true), Duration::from_millis(16));
-            set_timeout(move || appear.set(false), Duration::from_secs(4));
+            set_timeout(move || toast_message.appear.set(false), Duration::from_secs(4));
         } else {
             entered.set(false);
             set_timeout(move || mounted.set(false), Duration::from_millis(1000));
+            set_timeout(move || {
+                toast_messages.update(|t| t.retain(|tm| tm.id != toast_message.id))
+            }, Duration::from_millis(1000));
         }
     });
 
@@ -128,11 +138,44 @@ pub fn Toast(
             >
                 <div 
                     class="flex bg-toast rounded px-8 py-4 text-text transition-all duration-1000 ease-in-out shadow-sm cursor-pointer z-50 pointer-events-auto"
-                    on:click=move |_| appear.set(false)
+                    on:click=move |_| {
+                        toast_message.appear.set(false);
+                    }
                 >
-                    {move || toast_message_type.get().to_string()}
+                    {move || toast_message.message_type.get().to_string()}
                 </div>
             </div>
         </Show>
     }
 }
+
+#[component]
+pub fn Toasts() -> impl IntoView {
+    let toast_messages = expect_context::<RwSignal<Vec<ToastMessage>>>();
+
+    view! {
+        <Show when=move || !toast_messages.get().is_empty()>
+            <div class="flex flex-col gap-4 top-10 right-8 fixed h-full items-center">
+                <For
+                    each=move || toast_messages.get()
+                    key=|toast_message: &ToastMessage| toast_message.id
+                    let(toast_message)
+                >
+                    <Toast toast_message />
+                </For>
+            </div>
+        </Show>
+    }
+}
+
+pub fn push_new_toast(message_type: ToastMessageType) {
+    let toast_messages = expect_context::<RwSignal<Vec<ToastMessage>>>();
+
+    let max_id = toast_messages.get_untracked().iter().max_by_key(|t| t.id).map(|t| t.id).unwrap_or_default() + 1;
+    toast_messages.update(|t| t.push(ToastMessage { 
+        id: max_id, 
+        message_type: RwSignal::new(message_type), 
+        appear: RwSignal::new(true) 
+    }));
+}
+

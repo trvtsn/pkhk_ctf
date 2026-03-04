@@ -1,4 +1,4 @@
-use crate::{components::{admin::user::User, toast::{ToastAppear, ToastMessageType}, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
+use crate::{components::{admin::user::User, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 use leptos_icons::Icon;
@@ -6,9 +6,6 @@ use leptos_icons::Icon;
 /// Default Home Page
 #[component]
 pub fn Users() -> impl IntoView {
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
-
     let avatar_ref = NodeRef::new();
 
     let section = RwSignal::new(Actions::None);
@@ -320,12 +317,10 @@ pub fn Users() -> impl IntoView {
                                     })
                                     .await && result == ResultStatus::Success
                                 {
-                                    toast_appear.set(true);
-                                    toast_message_type.set(ToastMessageType::UserCreated);
+                                    push_new_toast(ToastMessageType::UserCreated);
                                     refresh.update(|n| *n += 1);
                                 } else {
-                                    toast_appear.set(true);
-                                    toast_message_type.set(ToastMessageType::UserCreateFail);
+                                    push_new_toast(ToastMessageType::UserCreateFail);
                                 }
                             });
                         }

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::app::RefreshUser;
-use crate::components::toast::{ToastAppear, ToastMessageType};
+use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::TruncatedDesc;
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
@@ -17,9 +17,6 @@ pub fn Challenge(
     cwa_popup: RwSignal<Option<ChallengeWithAttachments>>,
     refresh_solved_challenges: RwSignal<i32>
 ) -> impl IntoView {
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
-
     let flag_signal = RwSignal::new("".to_string());
     let solved = RwSignal::new(false);
     let incorrect = RwSignal::new(false);
@@ -67,8 +64,7 @@ pub fn Challenge(
                 if result == ResultStatus::Fail && details == "incorrect solution" {
                     incorrect.set(true);
                 } else if result == ResultStatus::Success {
-                    toast_appear.set(true);
-                    toast_message_type.set(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
+                    push_new_toast(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
                     refresh_user.update(|r| r.iteration += 1);
                     refresh_solved_challenges.update(|r| *r += 1);
                 }

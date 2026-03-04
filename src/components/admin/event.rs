@@ -1,4 +1,4 @@
-use crate::{components::toast::{ToastAppear, ToastMessageType}, server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::toast::{ToastMessageType, push_new_toast}, server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use chrono::DateTime;
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlOptionElement, HtmlSelectElement}};
@@ -12,9 +12,6 @@ pub fn Event(
 ) -> impl IntoView {
     let attachments_ref = NodeRef::new();
     let illustration_ref = NodeRef::new();
-
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
 
     let id_signal = RwSignal::new(ewa.event.id.clone());
     let name_signal = RwSignal::new(ewa.event.name.clone());
@@ -423,8 +420,7 @@ pub fn Event(
 
                                 if !any_changes_made.get_untracked() {
                                     editing.set(false);
-                                    toast_appear.set(true);
-                                    toast_message_type.set(ToastMessageType::NoChangesMade);
+                                    push_new_toast(ToastMessageType::NoChangesMade);
                                 } else {
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Edit {
                                             id: event_id,
@@ -438,16 +434,14 @@ pub fn Event(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::EventEdited);
+                                        push_new_toast(ToastMessageType::EventEdited);
                                         refresh.update(|n| *n += 1);
                                         name_signal.set(name);
                                         description_signal.set(description);
                                         start_at_signal.set(start_at);
                                         end_at_signal.set(end_at);
                                     } else {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::EventEditFail);
+                                        push_new_toast(ToastMessageType::EventEditFail);
                                     }
                                 }
                             });
@@ -475,13 +469,11 @@ pub fn Event(
                                     })
                                     .await && result == ResultStatus::Success
                                 {
-                                    toast_appear.set(true);
-                                    toast_message_type.set(ToastMessageType::EventDeleted);
+                                    push_new_toast(ToastMessageType::EventDeleted);
                                     refresh.update(|n| *n += 1);
                                     deleting.set(false);
                                 } else {
-                                    toast_appear.set(true);
-                                    toast_message_type.set(ToastMessageType::EventDeleteFail);
+                                    push_new_toast(ToastMessageType::EventDeleteFail);
                                 }
                             });
                         } else {

@@ -1,4 +1,4 @@
-use crate::{components::toast::{ToastAppear, ToastMessageType}, server::{db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::toast::{ToastMessageType, push_new_toast}, server::{db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult}};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 use leptos_icons::Icon;
@@ -18,9 +18,6 @@ pub fn File(
         mime_type, 
         file_size 
     } = file;
-
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
 
     let file_name_signal = RwSignal::new(file_name.clone());
     let new_file_name = RwSignal::new(file_name);
@@ -106,13 +103,11 @@ pub fn File(
                                         )
                                         .await && result == ResultStatus::Success
                                     {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::FileRenamed);
+                                        push_new_toast(ToastMessageType::FileRenamed);
                                         file_name_signal.set(new_file_name);
                                         refresh.update(|n| *n += 1);
                                     } else {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::FileRenameFail);
+                                        push_new_toast(ToastMessageType::FileRenameFail);
                                     }
                                 });
                                 renaming.set(false);

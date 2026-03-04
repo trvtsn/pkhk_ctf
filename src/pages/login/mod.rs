@@ -1,15 +1,12 @@
 pub mod ldap;
 
-use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastAppear, ToastMessageType}, utils::HidePasswordButton}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
 /// Default Home Page
 #[component]
 pub fn Login() -> impl IntoView {
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
-
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
     let password_hidden = RwSignal::new(true);
@@ -21,8 +18,7 @@ pub fn Login() -> impl IntoView {
         async move {
             if let Err(e) = login_user(email, password, crate::server::backend::enums::AuthType::Normal).await 
             && e == AppError::BadRequest("invalid credentials".to_string()) {
-                toast_appear.set(true);
-                toast_message_type.set(ToastMessageType::InvalidCredentials);
+                push_new_toast(ToastMessageType::InvalidCredentials);
             }
         }
     });

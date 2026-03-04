@@ -1,4 +1,4 @@
-use crate::components::toast::{ToastAppear, ToastMessageType};
+use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::TruncatedDesc;
 use crate::pages::admin::challenges::Hint;
 use crate::server::admin::upload_illustration;
@@ -55,8 +55,6 @@ pub fn Challenge(
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
 
     let any_changes_made = Memo::new(move |_| {
         let challenge_id = id_signal.get();
@@ -691,8 +689,7 @@ pub fn Challenge(
 
                                     if !any_changes_made.get_untracked() {
                                         editing.set(false);
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::NoChangesMade);
+                                        push_new_toast(ToastMessageType::NoChangesMade);
                                     } else {
                                         if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
                                                 id: challenge_id.clone(),
@@ -711,8 +708,7 @@ pub fn Challenge(
                                             })
                                             .await && result == ResultStatus::Success
                                         {
-                                            toast_appear.set(true);
-                                            toast_message_type.set(ToastMessageType::ChallengeEdited);
+                                            push_new_toast(ToastMessageType::ChallengeEdited);
                                             refresh.update(|n| *n += 1);
                                             editing.set(false);
                                             event_id_signal.set(event_id);
@@ -721,6 +717,8 @@ pub fn Challenge(
                                             category_signal.set(category);
                                             difficulty_signal.set(difficulty);
                                             points_signal.set(points);
+                                        } else {
+                                            push_new_toast(ToastMessageType::ChallengeEditFail);
                                         }
                                     }
                                 });
@@ -748,11 +746,12 @@ pub fn Challenge(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::ChallengeDeleted);
+                                        push_new_toast(ToastMessageType::ChallengeDeleted);
                                         deleting.set(false);
                                         deleted.set(true);
                                         refresh.update(|n| *n += 1);
+                                    } else {
+                                        push_new_toast(ToastMessageType::ChallengeDeleteFail);
                                     }
                                 });
                             } else {

@@ -1,4 +1,4 @@
-use crate::{components::{admin::event::Event, toast::{ToastAppear, ToastMessageType}, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::{admin::event::Event, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use icondata as i;
 use leptos::{prelude::*, task:: spawn_local};
 use leptos::{web_sys::{FormData, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
@@ -9,9 +9,6 @@ use leptos_icons::Icon;
 pub fn Events() -> impl IntoView {
     let attachments_ref = NodeRef::new();
     let illustration_ref = NodeRef::new();
-
-    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
-    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
 
     let creating = RwSignal::new(false);
     let section = RwSignal::new(Actions::None);
@@ -333,12 +330,10 @@ pub fn Events() -> impl IntoView {
                                                 })
                                                 .await && result == ResultStatus::Success
                                             {
-                                                toast_appear.set(true);
-                                                toast_message_type.set(ToastMessageType::EventCreated);
+                                                push_new_toast(ToastMessageType::EventCreated);
                                                 refresh.update(|n| *n += 1);
                                             } else {
-                                                toast_appear.set(true);
-                                                toast_message_type.set(ToastMessageType::EventCreateFail);
+                                                push_new_toast(ToastMessageType::EventCreateFail);
                                             }
                                         });
                                     }

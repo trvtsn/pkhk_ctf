@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 // Top-Level pages
 use crate::{
-    components::toast::{Toast, ToastAppear, ToastMessageType}, pages::{
+    components::toast::{Toasts, ToastMessage}, pages::{
         admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login,
         not_found::NotFound, register::Register, user,
     }, server::{db::{enums::UserRole, structs::DbUserWithoutPII}, get_db_user_without_pii}
@@ -51,8 +51,7 @@ pub fn App() -> impl IntoView {
     provide_context(mode);
     provide_context(set_mode);
 
-    let toast_message_type = RwSignal::new(ToastMessageType::default());
-    let toast_appear = RwSignal::<ToastAppear>::new(false);
+    let toast_messages = RwSignal::<Vec<ToastMessage>>::new(vec![]);
     let refresh_user = RwSignal::new(RefreshUser { iteration: 0 });
     let user = RwSignal::<Option<DbUserWithoutPII>>::new(None);
     let user_resource = Resource::new(move || refresh_user.get(), |_| async move {
@@ -69,8 +68,7 @@ pub fn App() -> impl IntoView {
         }
     });
 
-    provide_context(toast_message_type);
-    provide_context(toast_appear);
+    provide_context(toast_messages);
     provide_context(user);
     provide_context(refresh_user);
 
@@ -95,10 +93,7 @@ pub fn App() -> impl IntoView {
             <leptos_meta::Html attr:data-theme=move || mode.get().to_string() {..} class="h-full"/>
             <Title text="PKHK CTF" />
 
-            <Toast 
-                toast_message_type
-                appear=toast_appear
-            />
+            <Toasts />
 
             <Router>
                 <Routes fallback=NotFound>
