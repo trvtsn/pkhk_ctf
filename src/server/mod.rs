@@ -855,7 +855,7 @@ pub async fn start_vm(template_id: u32, challenge: Challenge) -> Result<ApiResul
             let db_user = get_db_user(&user, &pool).await?;
 
             match crate::server::proxmox::start_vm(template_id, challenge, db_user.clone()).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm(s) have started".to_string() }),
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully started VM (ID: {vm_id})") }),
                 Err(e) => return Err(e.into())
             }
         } else {
@@ -873,7 +873,7 @@ pub async fn restart_vm(template_id: u32) -> Result<ApiResult<String>, AppError>
             let db_user = get_db_user(&user, &pool).await?;
 
             match crate::server::proxmox::restart_vm(db_user, template_id).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "vm has been restarted".to_string() }),
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully restarted VM (ID: {vm_id})") }),
                 Err(e) => Err(e)
             }
         } else {
@@ -891,7 +891,7 @@ pub async fn destroy_vm(template_id: u32) -> Result<ApiResult<String>, AppError>
             let db_user = get_db_user(&user, &pool).await?;
 
             match crate::server::proxmox::destroy_vm(db_user, template_id).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: format!("vm has been destroyed") }),
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully destroyed VM (ID: {vm_id})") }),
                 Err(e) => return Err(e)
             }
         } else {
@@ -909,7 +909,7 @@ pub async fn add_vm_time(template_id: u32) -> Result<ApiResult<String>, AppError
             let db_user = get_db_user(&user, &pool).await?;
             
             match crate::server::proxmox::add_vm_time(db_user, template_id).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "added time to vm".to_string() }),
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully added time to VM (ID: {vm_id})") }),
                 Err(e) => Err(e.into())
             }
         } else {

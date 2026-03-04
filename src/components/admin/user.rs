@@ -1,4 +1,4 @@
-use crate::{components::utils::HidePasswordButton, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::{toast::{ToastAppear, ToastMessageType}, utils::HidePasswordButton}, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
 use leptos_icons::Icon;
@@ -10,6 +10,9 @@ pub fn User(
     groups: RwSignal<Vec<String>>,
     refresh: RwSignal<i32>
 ) -> impl IntoView {
+    let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
+    let toast_appear = expect_context::<RwSignal<ToastAppear>>();
+
     let avatar_ref = NodeRef::new();
     let group_add_new_selected = RwSignal::new(false);
     
@@ -53,6 +56,18 @@ pub fn User(
     });
     let edit_password_submit_btn_text = Memo::new(move |_| {
         if editing.get() { "Confirm Edit".to_string() } else { "Edit Password".to_string() }
+    });
+
+    let any_changes_made = Memo::new(move |_| {
+        if username_signal.get() == username_edit.get() &&
+            email_signal.get() == email_edit.get() &&
+            new_password_signal.get() == new_password_edit.get() &&
+            confirm_new_password_signal.get() == confirm_new_password_edit.get() &&
+            points_signal.get() == points_edit.get() &&
+            role_signal.get() == role_edit.get() &&
+            groups_signal.get() == groups_edit.get() &&
+            avatar_edit.get() == user_avatar.get()
+        { false } else { true }
     });
     
     view! {
@@ -371,11 +386,14 @@ pub fn User(
                             let points = points_edit.get();
                             let role = role_edit.get();
                             let groups = groups_edit.get();
+
+                            let avatar_ref = avatar_ref.get();
+
                             if editing.get() {
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
 
-                                    if let Some(avatar_el) = avatar_ref.get() {
+                                    if let Some(avatar_el) = avatar_ref {
                                         if let Some(files) = avatar_el.files() {
                                             if files.length() > 0 {
                                                 let file = files.get(0).unwrap();
@@ -389,28 +407,41 @@ pub fn User(
                                         }
                                     }
 
-                                    let avatar = avatar_edit.get();
+                                    // using .get_untracked as we're inside an on:click event handler and don't require an active subscription to these values
+                                    // consider changing the .get()'s of the initial values above
+                                    let avatar = avatar_edit.get_untracked();
 
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Edit {
-                                            id: user_id,
-                                            username: username.clone(),
-                                            email: email.clone(),
-                                            password: password.clone(),
-                                            confirm_password: confirm_password.clone(),
-                                            points,
-                                            role: role.clone().into(),
-                                            avatar,
-                                            groups
-                                        })
-                                        .await && result == ResultStatus::Success
-                                    {
-                                        refresh.update(|n| *n += 1);
-                                        username_signal.set(username);
-                                        email_signal.set(email);
-                                        new_password_signal.set(password);
-                                        confirm_new_password_signal.set(confirm_password);
-                                        points_signal.set(points);
-                                        role_signal.set(role);
+                                    if !any_changes_made.get_untracked() {
+                                        editing.set(false);
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::NoChangesMade);
+                                    } else {
+                                        if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Edit {
+                                                id: user_id,
+                                                username: username.clone(),
+                                                email: email.clone(),
+                                                password: password.clone(),
+                                                confirm_password: confirm_password.clone(),
+                                                points,
+                                                role: role.clone().into(),
+                                                avatar,
+                                                groups
+                                            })
+                                            .await && result == ResultStatus::Success
+                                        {
+                                            toast_appear.set(true);
+                                            toast_message_type.set(ToastMessageType::UserEdited);
+                                            refresh.update(|n| *n += 1);
+                                            username_signal.set(username);
+                                            email_signal.set(email);
+                                            new_password_signal.set(password);
+                                            confirm_new_password_signal.set(confirm_password);
+                                            points_signal.set(points);
+                                            role_signal.set(role);
+                                        } else {
+                                            toast_appear.set(true);
+                                            toast_message_type.set(ToastMessageType::UserEditFail);
+                                        }
                                     }
                                 });
                                 editing.set(false)
@@ -441,7 +472,12 @@ pub fn User(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::UserPasswordChanged);
                                         refresh.update(|n| *n += 1);
+                                    } else {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::UserPasswordChangeFail);
                                     }
                                 });
                                 editing_password.set(false)
@@ -468,7 +504,12 @@ pub fn User(
                                         })
                                         .await && result == ResultStatus::Success
                                     {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::UserDeleted);
                                         refresh.update(|n| *n += 1);
+                                    } else {
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::UserDeleteFail);
                                     }
                                 });
                                 deleting.set(false);

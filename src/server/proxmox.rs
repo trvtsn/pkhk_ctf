@@ -228,7 +228,7 @@ async fn get_next_free_vm_id() -> Result<u32, AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Result<(), AppError> {
+pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Result<u32, AppError> {
     let proxmox_args = get_proxmox_args().await?;
     is_host_reachable(proxmox_args.base_url.clone()).await?;
 
@@ -245,7 +245,7 @@ pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> R
             let start_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, vm_id);
             // start
             match client.post(start_url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
-                Ok(_) => Ok(()),
+                Ok(_) => Ok(vm_id),
                 Err(e) => return Err(e.into())
             }
         },
@@ -270,7 +270,7 @@ pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> R
                         for vm in vms.data.members {
                             let vm_status = vm.status.unwrap_or_default();
                             let vm_id = vm.vmid.unwrap_or_default();
-                            if vm_status == "running" && vm_id == new_vm_id { return Ok(()); } else { continue };
+                            if vm_status == "running" && vm_id == new_vm_id { return Ok(new_vm_id); } else { continue };
                         }
                     }
                 },
@@ -337,7 +337,7 @@ async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Resul
 // return Ok only when vm status shows running again
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<(), AppError> {
+pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<u32, AppError> {
     let proxmox_args = get_proxmox_args().await?;
     is_host_reachable(proxmox_args.base_url.clone()).await?;
 
@@ -355,7 +355,7 @@ pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<(), AppError> 
     let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
     match client.post(url).header(header::AUTHORIZATION, auth_value).send().await {
-        Ok(_) => Ok(()),
+        Ok(_) => Ok(vm_id),
         Err(e) => Err(e.into())
     }
 }
@@ -363,7 +363,7 @@ pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<(), AppError> 
 // return Ok only when vm with template id doesn't exist in user pool anymore
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<(), AppError> {
+pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<u32, AppError> {
     let proxmox_args = get_proxmox_args().await?;
     is_host_reachable(proxmox_args.base_url.clone()).await?;
 
@@ -389,7 +389,7 @@ pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<(), AppError> 
                 // destroy
                 match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
                     Ok(_) => {
-                        Ok(())
+                        Ok(vm_id)
                     },
                     Err(e) => Err(e.into())
                 }
@@ -501,7 +501,7 @@ pub async fn test_auth(args: ProxmoxArgs) -> Result<(), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-async fn schedule_vm_deletion(user: DbUser, vm_id: u32) -> Result<(), AppError> {
+async fn schedule_vm_deletion(user: DbUser, vm_id: u32) -> Result<u32, AppError> {
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
@@ -545,7 +545,7 @@ async fn schedule_vm_deletion(user: DbUser, vm_id: u32) -> Result<(), AppError> 
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn add_vm_time(user: DbUser, template_id: u32) -> Result<(), AppError> {
+pub async fn add_vm_time(user: DbUser, template_id: u32) -> Result<u32, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
@@ -589,7 +589,7 @@ pub async fn add_vm_time(user: DbUser, template_id: u32) -> Result<(), AppError>
                 return Err(e.into())
             }
 
-            Ok(())
+            Ok(vm_id)
         } else {
             Err(AppError::NoServerConnection)
         }

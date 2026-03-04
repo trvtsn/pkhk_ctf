@@ -30,7 +30,9 @@ pub fn Challenge(
     let difficulty_signal = RwSignal::new(difficulty);
     let points_signal = RwSignal::new(points);
     let visible_to_groups_signal = RwSignal::new(visible_to_groups.clone());
+    let attachments_signal = RwSignal::new(attachments.clone());
     let illustration_signal = RwSignal::new(illustration.clone());
+    let proxmox_vm_id_signal = RwSignal::new(vm_ids.clone());
 
     let event_id_edit = RwSignal::new(event_id);
     let name_edit = RwSignal::new(name.clone());
@@ -38,7 +40,7 @@ pub fn Challenge(
     let category_edit = RwSignal::new(category.clone());
     let difficulty_edit = RwSignal::new(difficulty);
     let points_edit = RwSignal::new(points);
-    let attachments_edit = RwSignal::new(attachments.clone());
+    let attachments_edit = RwSignal::new(attachments);
     let flag_edit = RwSignal::new("".to_string());
     let illustration_edit = RwSignal::new(illustration);
     let visible_to_groups_edit = RwSignal::new(visible_to_groups);
@@ -55,6 +57,36 @@ pub fn Challenge(
     let deleted = RwSignal::new(false);
     let toast_message_type = expect_context::<RwSignal<ToastMessageType>>();
     let toast_appear = expect_context::<RwSignal<ToastAppear>>();
+
+    let any_changes_made = Memo::new(move |_| {
+        let challenge_id = id_signal.get();
+        
+        let hints_edit = hints_edit.get().into_iter().map(|h| {
+            let mut hint = Into::<DbHint>::into(h); 
+            hint.challenge_id = challenge_id.clone(); 
+            hint
+        }).collect::<Vec<DbHint>>();
+
+        let initial_hints_value = vec![Hint::new("1".to_string(), "")].into_iter().map(|h| {
+            let mut hint = Into::<DbHint>::into(h); 
+            hint.challenge_id = challenge_id.clone(); 
+            hint
+        }).collect::<Vec<DbHint>>();
+
+        if event_id_signal.get() == event_id_edit.get() &&
+            name_signal.get() == name_edit.get() && 
+            description_signal.get() == description_edit.get() && 
+            category_signal.get() == category_edit.get() &&
+            difficulty_signal.get() == difficulty_edit.get() &&
+            points_signal.get() == points_edit.get() &&
+            "" == flag_edit.get() &&
+            visible_to_groups_signal.get() == visible_to_groups_edit.get() &&
+            proxmox_vm_id_signal.get() == proxmox_vm_id_edit.get() &&
+            initial_hints_value == hints_edit &&
+            attachments_signal.get() == attachments_edit.get() &&
+            illustration_signal.get() == illustration_edit.get()
+        { false } else { true }
+    });
 
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
@@ -600,7 +632,7 @@ pub fn Challenge(
                         class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {                            
+                        on:click=move |_| {
                             let challenge_id = id_signal.get();
                             let event_id = event_id_edit.get();
                             let name = name_edit.get();
@@ -616,9 +648,13 @@ pub fn Challenge(
                                 hint.challenge_id = challenge_id.clone(); 
                                 hint
                             }).collect::<Vec<DbHint>>();
+
+                            let attachments_ref = attachments_ref.get();
+                            let illustration_ref = illustration_ref.get();
+
                             if editing.get() {
                                 spawn_local(async move {
-                                    if let Some(att_el) = attachments_ref.get() {
+                                    if let Some(att_el) = attachments_ref {
                                         if let Some(files) = att_el.files() {
                                             if files.length() > 0 {
                                                 let fd = FormData::new().unwrap();
@@ -634,7 +670,7 @@ pub fn Challenge(
                                         }
                                     }
 
-                                    if let Some(illustr_el) = illustration_ref.get() {
+                                    if let Some(illustr_el) = illustration_ref {
                                         if let Some(files) = illustr_el.files() {
                                             if files.length() > 0 {
                                                 let file = files.get(0).unwrap();
@@ -648,36 +684,44 @@ pub fn Challenge(
                                         }
                                     }
 
-                                    let attachments = if attachments_edit.get().is_empty() { None } else { Some(attachments_edit.get()) };
-                                    let illustration = illustration_edit.get();
+                                    // using .get_untracked as we're inside an on:click event handler and don't require an active subscription to these values
+                                    // consider changing the .get()'s of the initial values above
+                                    let attachments = if attachments_edit.get_untracked().is_empty() { None } else { Some(attachments_edit.get_untracked()) };
+                                    let illustration = illustration_edit.get_untracked();
 
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
-                                            id: challenge_id.clone(),
-                                            event_id: event_id.clone(),
-                                            name: name.clone(),
-                                            description: description.clone().unwrap_or_default(),
-                                            category: category.clone().unwrap_or_default(),
-                                            difficulty,
-                                            points,
-                                            flag: flag.clone(),
-                                            visible_to_groups,
-                                            attachments: attachments.clone(),
-                                            illustration: illustration.clone(),
-                                            vm_ids,
-                                            hints: hints.into()
-                                        })
-                                        .await && result == ResultStatus::Success
-                                    {
-                                        toast_appear.set(true);
-                                        toast_message_type.set(ToastMessageType::ChallengeEdited);
-                                        refresh.update(|n| *n += 1);
+                                    if !any_changes_made.get_untracked() {
                                         editing.set(false);
-                                        event_id_signal.set(event_id);
-                                        name_signal.set(name);
-                                        description_signal.set(description);
-                                        category_signal.set(category);
-                                        difficulty_signal.set(difficulty);
-                                        points_signal.set(points);
+                                        toast_appear.set(true);
+                                        toast_message_type.set(ToastMessageType::NoChangesMade);
+                                    } else {
+                                        if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
+                                                id: challenge_id.clone(),
+                                                event_id: event_id.clone(),
+                                                name: name.clone(),
+                                                description: description.clone().unwrap_or_default(),
+                                                category: category.clone().unwrap_or_default(),
+                                                difficulty,
+                                                points,
+                                                flag: flag.clone(),
+                                                visible_to_groups,
+                                                attachments: attachments.clone(),
+                                                illustration: illustration.clone(),
+                                                vm_ids,
+                                                hints: hints.into()
+                                            })
+                                            .await && result == ResultStatus::Success
+                                        {
+                                            toast_appear.set(true);
+                                            toast_message_type.set(ToastMessageType::ChallengeEdited);
+                                            refresh.update(|n| *n += 1);
+                                            editing.set(false);
+                                            event_id_signal.set(event_id);
+                                            name_signal.set(name);
+                                            description_signal.set(description);
+                                            category_signal.set(category);
+                                            difficulty_signal.set(difficulty);
+                                            points_signal.set(points);
+                                        }
                                     }
                                 });
                             } else {

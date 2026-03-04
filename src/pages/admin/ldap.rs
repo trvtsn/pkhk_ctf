@@ -224,13 +224,15 @@ pub fn Ldap() -> impl IntoView {
                                         type="button"
                                         class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                                         on:click=move |_| {
+                                            let certificate_ref = certificate_ref.get();
+
                                             let url = ldap_url.get();
                                             let bind_dn = bind_dn.get();
                                             let bind_pw = bind_pw.get();
                                             let base_dn = base_dn.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
-                                                if let Some(cert_el) = certificate_ref.get() {
+                                                if let Some(cert_el) = certificate_ref {
                                                     if let Some(files) = cert_el.files() {
                                                         if files.length() > 0 {
                                                             let file = files.get(0).unwrap();
@@ -272,13 +274,15 @@ pub fn Ldap() -> impl IntoView {
                                         text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
                                         bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                                         on:click=move |_| {
+                                            let certificate_ref = certificate_ref.get();
+
                                             let url = ldap_url.get();
                                             let bind_dn = bind_dn.get();
                                             let bind_pw = bind_pw.get();
                                             let base_dn = base_dn.get();
                                             let enabled = enabled.get();
                                             spawn_local(async move {
-                                                if let Some(cert_el) = certificate_ref.get() {
+                                                if let Some(cert_el) = certificate_ref {
                                                     if let Some(files) = cert_el.files() {
                                                         if files.length() > 0 {
                                                             let file = files.get(0).unwrap();
@@ -292,7 +296,7 @@ pub fn Ldap() -> impl IntoView {
                                                     }
                                                 }
 
-                                                let certificate = certificate.get();
+                                                let certificate = certificate.get_untracked();
 
                                                 if let Ok(ApiResult { result, details }) = update_ldap(LdapArgs {
                                                         url,

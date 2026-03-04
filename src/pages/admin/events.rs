@@ -319,8 +319,8 @@ pub fn Events() -> impl IntoView {
                                                 }
                                             }
 
-                                            let attachments = attachments.get();
-                                            let illustration = illustration.get();
+                                            let attachments = attachments.get_untracked();
+                                            let illustration = illustration.get_untracked();
 
                                             if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Create {
                                                     name,

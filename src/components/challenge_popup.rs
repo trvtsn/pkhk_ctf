@@ -35,6 +35,11 @@ pub fn ChallengePopup(
         if solved_challenges.get().contains(&cwa.get().challenge.id) { true } else { false }
     });
 
+    let active_vm_origin_ids = Memo::new(move |_| {
+        let user_vms = user_vms.get();
+        user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>()
+    });
+
     let button_classes = Memo::new(move |_| {
         let base = r#"inline-flex items-center gap-2 rounded-lg text-white px-4 py-2 
             text-sm font-medium focus:outline-none focus:ring-2 active:scale-95 transition"#;
@@ -271,9 +276,9 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             let challenge = challenge.clone();
                                             async move {
-                                                if let Ok(_) = start_vm(template_id, challenge).await {
+                                                if let Ok(result) = start_vm(template_id, challenge).await {
                                                     toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMStarted);
+                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
                                                     toast_appear.set(true);
@@ -284,9 +289,9 @@ pub fn ChallengePopup(
                                         let restart_vm_action = Action::new_local(move |template_id: &u32| {
                                             let template_id = template_id.clone();
                                             async move {
-                                                if let Ok(_) = restart_vm(template_id).await {
+                                                if let Ok(result) = restart_vm(template_id).await {
                                                     toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMRestarted);
+                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
                                                     toast_appear.set(true);
@@ -297,9 +302,9 @@ pub fn ChallengePopup(
                                         let add_vm_time_action = Action::new_local(move |template_id: &u32| {
                                             let template_id = template_id.clone();
                                             async move {
-                                                if let Ok(_) = add_vm_time(template_id).await {
+                                                if let Ok(result) = add_vm_time(template_id).await {
                                                     toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMAddedTime);
+                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
                                                     toast_appear.set(true);
@@ -310,9 +315,9 @@ pub fn ChallengePopup(
                                         let destroy_vm_action = Action::new_local(move |template_id: &u32| {
                                             let template_id = template_id.clone();
                                             async move {
-                                                if let Ok(_) = destroy_vm(template_id).await {
+                                                if let Ok(result) = destroy_vm(template_id).await {
                                                     toast_appear.set(true);
-                                                    toast_message_type.set(ToastMessageType::VMDestroyed);
+                                                    toast_message_type.set(ToastMessageType::Custom(result.details));
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
                                                     toast_appear.set(true);
@@ -324,11 +329,7 @@ pub fn ChallengePopup(
                                         view! {
                                             <div class="flex gap-2 items-center">
                                                 <label>{template.name}</label>
-                                                <Show when=move || {
-                                                    let user_vms = user_vms.get();
-                                                    let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                                    !active_vm_origin_ids.contains(&template.id)
-                                                }>
+                                                <Show when=move || !active_vm_origin_ids.get().contains(&template.id)>
                                                     <button
                                                         class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
@@ -349,11 +350,7 @@ pub fn ChallengePopup(
                                                     </button>
                                                 </Show>
 
-                                                <Show when=move || {
-                                                    let user_vms = user_vms.get();
-                                                    let active_vm_origin_ids = user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>();
-                                                    active_vm_origin_ids.contains(&template.id)
-                                                }>
+                                                <Show when=move || active_vm_origin_ids.get().contains(&template.id)>
                                                     <button
                                                         class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                                                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
