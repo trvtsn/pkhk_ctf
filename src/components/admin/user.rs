@@ -86,14 +86,14 @@ pub fn User(
                 }
             }}
             <Show when=move || !editing.get()>
-                <h3 class=r#"font-bold text-3xl/8"#>{move || username_signal.get().clone()}</h3>
+                <h3 class=r#"font-bold text-3xl/8"#>{move || username_signal.get()}</h3>
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
-                    {move || id_signal.get().clone()}
+                    {move || id_signal.get()}
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"E-mail: "</b>
-                    {move || email_signal.get().clone()}
+                    {move || email_signal.get()}
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Role: "</b>
@@ -215,10 +215,9 @@ pub fn User(
                         >
                             <option value="__new__">"-- Add New --"</option>
                             {move || {
-                                let groups = groups.get();
                                 view! {
                                     <For
-                                        each=move || groups.clone()
+                                        each=move || groups.get()
                                         key=|group: &String| group.clone()
                                         children=move |group| {
                                             let selected = groups_edit.get()
@@ -229,7 +228,7 @@ pub fn User(
                                             
                                             view! {
                                                 <option 
-                                                    value=group.clone()
+                                                    value=group
                                                     selected=selected
                                                 >
                                                     {group.clone()}
@@ -457,12 +456,12 @@ pub fn User(
                             if editing_password.get() {
                                 spawn_local(async move {
                                     tracing::debug!(
-                                        "editing user password: {}", id_signal.get().clone()
+                                        "editing user password: {}", id_signal.get()
                                     );
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::EditPassword {
-                                            id: id_signal.get().clone(),
-                                            password: new_password_edit.get().clone(),
-                                            confirm_password: confirm_new_password_edit.get().clone(),
+                                            id: id_signal.get(),
+                                            password: new_password_edit.get(),
+                                            confirm_password: confirm_new_password_edit.get(),
                                         })
                                         .await && result == ResultStatus::Success
                                     {
@@ -487,7 +486,7 @@ pub fn User(
                         bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            let id = id_signal.get().clone();
+                            let id = id_signal.get();
                             if deleting.get() {
                                 spawn_local(async move {
                                     tracing::debug!("deleting user: {id}");

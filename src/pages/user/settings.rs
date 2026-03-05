@@ -13,16 +13,6 @@ pub fn Settings() -> impl IntoView {
     let confirm_new_password = RwSignal::new("".to_string());
     let new_password_confirm_matches = RwSignal::new(false);
     let new_username = RwSignal::new("".to_string());
-    let edit_avatar_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(_) = edit_avatar(data.clone().into()).await {
-                push_new_toast(ToastMessageType::AvatarEdited);
-            } else {
-                push_new_toast(ToastMessageType::AvatarEditFail);
-            }
-        }
-    });
     let edit_password = Action::new_local(move |(old_password, new_password, confirm_new_password): &(String, String, String)| {
         let old_password = old_password.clone();
         let new_password = new_password.clone();
@@ -39,10 +29,6 @@ pub fn Settings() -> impl IntoView {
     let color_mode = use_context::<Signal<ColorMode>>().unwrap();
     let set_color_mode = use_context::<WriteSignal<ColorMode>>().unwrap();
     let changing_password = RwSignal::new(false);
-
-    let edit_avatar_action_text = Memo::new(move |_| {
-        if edit_avatar_action.pending().get() { "Uploading..." } else { "" }
-    });
 
     let old_password_hidden = RwSignal::new(true);
     let new_password_hidden = RwSignal::new(true);
@@ -207,7 +193,13 @@ pub fn Settings() -> impl IntoView {
                             } else {
                                 let target = ev.target().unwrap().unchecked_into::<HtmlFormElement>();
                                 let fd = FormData::new_with_form(&target).unwrap();
-                                edit_avatar_action.dispatch_local(fd);
+                                spawn_local(async move {
+                                    if let Ok(_) = edit_avatar(fd.into()).await {
+                                        push_new_toast(ToastMessageType::AvatarEdited);
+                                    } else {
+                                        push_new_toast(ToastMessageType::AvatarEditFail);
+                                    }
+                                });
                             }
                         }
                     >
@@ -232,7 +224,6 @@ pub fn Settings() -> impl IntoView {
                             value="Submit"
                         />
                     </form>
-                    <p>{move || edit_avatar_action_text.get()}</p>
                 </div>
             </div>
         </div>

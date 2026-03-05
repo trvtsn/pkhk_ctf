@@ -61,7 +61,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
 
             match action {
                 ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
-                    let flag_hash = hash_string(flag.clone())?;
+                    let flag_hash = hash_string(&flag)?;
                     let mut tx = pool.begin().await?;
                     let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
                         Ok(result) => result,
@@ -159,7 +159,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                 ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
                     let mut flag_hash = "".to_string();
                     if !flag.is_empty() {
-                        flag_hash = hash_string(flag.clone())?;
+                        flag_hash = hash_string(&flag)?;
                     }
                     let mut tx = pool.begin().await?;
                     if let Err(e) = db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
@@ -177,7 +177,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     };
                     
-                    if let Some(attachments) = attachments.clone() {
+                    if let Some(attachments) = &attachments {
                         for attachment in attachments.iter() {
                             if let Err(e) = db::structs::Attachment::edit_challenge(&attachment.id, &id, &mut *tx).await {
                                 tx.rollback().await?;
@@ -187,10 +187,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
 
-                    let new_attachment_ids = attachments.clone().unwrap_or_default().clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                    let new_attachment_ids = attachments.unwrap_or_default().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
                     for existing_attachment_id in all_challenge_attachment_ids {
                         if !new_attachment_ids.contains(&existing_attachment_id) {
-                            if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
+                            if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id), &mut *tx).await {
                                 tx.rollback().await?;
                                 tracing::error!(error = ?e);
                                 return Err(AppError::InternalError(e.to_string()));
@@ -208,8 +208,8 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             }
                         };
                         
-                        let new_hints_ids = hints.clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
-                        for hint in hints.clone() {
+                        let new_hints_ids = hints.iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                        for hint in hints {
                             if !hint.hint.is_empty() && !all_challenge_hint_ids.contains(&hint.id) {
                                 if let Err(e) = DbHint::add(&hint.hint, &id, &hint.points_penalty, &mut *tx).await {
                                     tx.rollback().await?;
@@ -404,7 +404,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                         }
                     };
 
-                    if let Some(attachments) = attachments.clone() {
+                    if let Some(attachments) = &attachments {
                         for attachment in attachments {
                             if let Err(e) = db::structs::Attachment::edit_event(&attachment.id, &id, &mut *tx).await {
                                 tx.rollback().await?;
@@ -414,10 +414,10 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                         }
                     }
 
-                    let new_attachment_ids = attachments.clone().unwrap_or_default().clone().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                    let new_attachment_ids = attachments.unwrap_or_default().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
                     for existing_attachment_id in all_event_attachment_ids {
                         if !new_attachment_ids.contains(&existing_attachment_id) {
-                            if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id.clone()), &mut *tx).await {
+                            if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id), &mut *tx).await {
                                 tx.rollback().await?;
                                 tracing::error!(error = ?e);
                                 return Err(AppError::InternalError(e.to_string()));
@@ -898,11 +898,11 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         return Err(AppError::BadRequest("username must not be empty".to_string()));
                     }
 
-                    let hashed_pw = hash_string(password.clone())?;
+                    let hashed_pw = hash_string(&password)?;
                     let new_user = DbUser { 
                         id: "".to_string(), 
-                        username: username.clone(), 
-                        email: email.clone(), 
+                        username, 
+                        email, 
                         pw_hash: hashed_pw, 
                         created_at: chrono::Local::now(), 
                         last_active_at: chrono::Local::now(), 
@@ -939,7 +939,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                     }
                 }
                 UserAction::Delete { id } => {
-                    let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &pool).await {
+                    let user = match DbUser::get(&UserIdentifier::Id(id), &pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
                                 return Err(AppError::InternalError("cannot delete admin users".to_string()));
@@ -1026,7 +1026,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                             return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
                     } else {
-                        let existing_avatar = match DbUser::get_avatar(&UserIdentifier::Id(id.clone()), &mut *tx).await {
+                        let existing_avatar = match DbUser::get_avatar(&UserIdentifier::Id(id), &mut *tx).await {
                             Ok(avatar) => avatar,
                             Err(e) => {
                                 tracing::error!(error = ?e);
@@ -1048,7 +1048,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                     return Ok(ApiResult { result: ResultStatus::Success, details: "edited user".to_string() });
                 }
                 UserAction::EditPassword { id, password, confirm_password } => {
-                    let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &pool).await {
+                    let user = match DbUser::get(&UserIdentifier::Id(id), &pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
                                 return Err(AppError::InternalError("cannot edit password on admin users".to_string()));
@@ -1068,7 +1068,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         return Err(AppError::BadRequest("password and confirm password must match".to_string()));
                     }
 
-                    let hashed_pw = hash_string(password.clone())?;
+                    let hashed_pw = hash_string(&password)?;
 
                     match DbUser::edit_password(&user.id, &hashed_pw, &pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "edited user".to_string() }),
@@ -1092,7 +1092,7 @@ pub async fn delete_file(id: String) -> Result<ApiResult<String>, AppError> {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
 
-            match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(id.clone()), &pool).await {
+            match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(id), &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted file".to_string() }),
                 Err(e) => {
                     tracing::error!(error = ?e);
@@ -1133,7 +1133,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
             let (user, pool) = authenticated_check().await?;
 
             if username.is_some() {
-                match DbUser::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &pool).await {
+                match DbUser::get(&UserIdentifier::Username(username.unwrap_or_default()), &pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
@@ -1141,7 +1141,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
                     }
                 }    
             } else {
-                match DbUser::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                match DbUser::get(&UserIdentifier::Id(user.id), &pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
@@ -1164,7 +1164,7 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<String>, AppError> {
             
             let ldap_url = url::Url::parse(&args.url)?;
 
-            match is_host_reachable(ldap_url.to_string()).await {
+            match is_host_reachable(&ldap_url.to_string()).await {
                 Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
                 Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
             }
@@ -1280,7 +1280,7 @@ pub async fn update_ldap(args: LdapArgs, new_certificate: Option<AttachmentWitho
                 Ok(cert) => cert,
                 Err(e) => return Err(e.into())
             };
-            if let Some(existing_certificate) = existing_certificate.clone() && new_certificate.is_none() {
+            if let Some(existing_certificate) = &existing_certificate && new_certificate.is_none() {
                 if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_certificate.id.clone()), &pool).await {
                     tracing::error!(error = ?e);
                     return Err(AppError::InternalError(e.to_string()));
@@ -1364,7 +1364,7 @@ pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<String>, AppE
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
             
-            if let Err(e) = crate::server::proxmox::test_auth(args.clone()).await {
+            if let Err(e) = crate::server::proxmox::test_auth(&args).await {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
             }
 
@@ -1393,7 +1393,7 @@ pub async fn test_proxmox(args: ProxmoxArgs) -> Result<ApiResult<String>, AppErr
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
             
-            match crate::server::proxmox::test_auth(args).await {
+            match crate::server::proxmox::test_auth(&args).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "success".to_string()}),
                 Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
             }

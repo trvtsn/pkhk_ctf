@@ -54,7 +54,7 @@ pub fn Event(
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get()>
-                <h3 class=r#"font-bold text-3xl/8 mb-4"#>{move || name_signal.get().clone()}</h3>
+                <h3 class=r#"font-bold text-3xl/8 mb-4"#>{move || name_signal.get()}</h3>
                 {move || {
                     if let Some(illustration) = illustration_signal.get() {
                         view! {
@@ -71,7 +71,7 @@ pub fn Event(
                 }}
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
-                    {move || id_signal.get().clone()}
+                    {move || id_signal.get()}
                 </p>
                 <p class=r#"text-lg/8 whitespace-pre-wrap"#>
                     <b>"Description: "</b>
@@ -196,10 +196,9 @@ pub fn Event(
                                 "All"
                             </option>
                             {move || {
-                                let user_groups = user_groups.get();
                                 view! {
                                     <For
-                                        each=move || user_groups.clone()
+                                        each=move || user_groups.get()
                                         key=|group: &String| group.clone()
                                         children=move |group| {
                                             let selected = visible_to_groups_edit
@@ -210,7 +209,7 @@ pub fn Event(
 
                                             view! {
                                                 <option 
-                                                    value=group.clone()
+                                                    value=group
                                                     selected=selected
                                                 >
                                                     {group.clone()}

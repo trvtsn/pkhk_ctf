@@ -131,7 +131,7 @@ pub fn Events() -> impl IntoView {
                                                 key=|group: &String| group.clone()
                                                 let(group)
                                             >
-                                                <option value={group.clone()}>{group.clone()}</option>
+                                                <option value={group}>{group.clone()}</option>
                                             </For>
                                         }
                                     }}

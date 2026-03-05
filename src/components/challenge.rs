@@ -77,7 +77,7 @@ pub fn Challenge(
             class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover break-all"#
         >
             <div class="flex items-center justify-between mb-4">
-                <h3 class=r#"font-bold text-3xl/8"#>{move || cwa.get().challenge.name.clone()}</h3>
+                <h3 class=r#"font-bold text-3xl/8"#>{move || cwa.get().challenge.name}</h3>
                 <button 
                     class="cursor-pointer"
                     on:click=move |_| {

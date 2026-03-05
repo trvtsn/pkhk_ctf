@@ -95,7 +95,7 @@ async fn main() {
     
     let app_state = AppState {
         leptos_options,
-        pool: pool.clone(),
+        pool,
         routes: routes.clone(),
     };
 

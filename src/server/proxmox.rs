@@ -80,7 +80,7 @@ pub async fn create_realm() -> Result<(), AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
-            is_host_reachable(proxmox_args.base_url.clone()).await?;
+            is_host_reachable(&proxmox_args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -93,7 +93,7 @@ pub async fn create_realm() -> Result<(), AppError> {
             let url = format!("{base_url}/{api_path}/access/domains");
 
             let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-            match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => {
                     let domains = res.json::<ProxmoxApiResponse<Vec<Domains>>>().await?;
                     for domain in domains.data {
@@ -125,7 +125,7 @@ pub async fn create_realm() -> Result<(), AppError> {
 
             let resp = client
                 .post(&url)
-                .header(header::AUTHORIZATION, auth_value.clone())
+                .header(header::AUTHORIZATION, &auth_value)
                 .body(body)
                 .send()
                 .await?;
@@ -137,7 +137,7 @@ pub async fn create_realm() -> Result<(), AppError> {
             ]).unwrap_or_default();
 
             if resp.status().is_success() {
-                match client.post(sync_url.clone()).header(header::AUTHORIZATION, auth_value).body(body).send().await {
+                match client.post(&sync_url).header(header::AUTHORIZATION, &auth_value).body(body).send().await {
                     Ok(res) => {
                         if res.status().is_success() {
                             Ok(())
@@ -162,7 +162,7 @@ pub async fn sync_realm() -> Result<(), AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
-            is_host_reachable(proxmox_args.base_url.clone()).await?;
+            is_host_reachable(&proxmox_args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -181,7 +181,7 @@ pub async fn sync_realm() -> Result<(), AppError> {
                 ("remove-vanished", "acl;entry;properties")
             ]).unwrap_or_default();
 
-            match client.post(sync_url.clone()).header(header::AUTHORIZATION, auth_value).body(body).send().await {
+            match client.post(&sync_url).header(header::AUTHORIZATION, &auth_value).body(body).send().await {
                 Ok(res) => {
                     if res.status().is_success() {
                         Ok(())
@@ -212,7 +212,7 @@ async fn get_next_free_vm_id() -> Result<u32, AppError> {
             let url = format!("{base_url}/{api_path}/cluster/nextid");
             let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
-            match client.get(url.clone()).header(header::AUTHORIZATION, auth_value).send().await {
+            match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => {
                     let next_free_vm_id = res.json::<Vmid>().await?;
                     let next_free_vm_id = next_free_vm_id.data.parse::<u32>()?;
@@ -228,9 +228,9 @@ async fn get_next_free_vm_id() -> Result<u32, AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Result<u32, AppError> {
+pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Result<u32, AppError> {
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -240,27 +240,27 @@ pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> R
     let base_url = proxmox_args.base_url.trim_end_matches("/");
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let poolid = format!("CTFPKHK-{}", user.username);
-    match get_user_vmid_from_template_id(user.clone(), template_id).await? {
+    match get_user_vmid_from_template_id(&user, &template_id).await? {
         Some(vm_id) => {
             let start_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, vm_id);
             // start
-            match client.post(start_url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            match client.post(&start_url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(_) => Ok(vm_id),
                 Err(e) => return Err(e.into())
             }
         },
         None => {
-            let new_vm_id = clone_vm(template_id, challenge, user.clone()).await?;
+            let new_vm_id = clone_vm(&template_id, &challenge, &user).await?;
             let start_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, new_vm_id);
 
             // start
-            match client.post(start_url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            match client.post(&start_url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(_) => {
-                    _ = schedule_vm_deletion(user, new_vm_id).await;
+                    _ = schedule_vm_deletion(user.clone(), new_vm_id).await;
                     let pools_url = format!("{base_url}/{api_path}/pools/{poolid}");
                     loop {
                         async_std::task::sleep(Duration::from_secs(1)).await;
-                        let vms = match client.get(pools_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+                        let vms = match client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await {
                             Ok(res) => {
                                 res.json::<ProxmoxApiResponse<Members>>().await?
                             },
@@ -282,9 +282,9 @@ pub async fn start_vm(template_id: u32, challenge: Challenge, user: DbUser) -> R
 
 #[cfg(feature = "ssr")]
 #[instrument]
-async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Result<u32, AppError> {
+async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Result<u32, AppError> {
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -306,8 +306,8 @@ async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Resul
     ]).unwrap_or_default();
 
     // clone
-    let clone_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/clone", proxmox_args.node, template_id.clone());
-    if let Err(e) = client.post(clone_url).header(header::AUTHORIZATION, auth_value.clone()).body(clone_body).send().await {
+    let clone_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/clone", &proxmox_args.node, &template_id);
+    if let Err(e) = client.post(&clone_url).header(header::AUTHORIZATION, &auth_value).body(clone_body).send().await {
         return Err(e.into())
     }
 
@@ -315,9 +315,9 @@ async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Resul
     let expire_at = created_at + chrono::Duration::hours(1);
     let vm_description = format!(
         "id={new_vm_id}&challenge_id={}&origin_id={}&user_id={}&created_at={}&expire_at={}", 
-        challenge.id.clone(), 
+        challenge.id, 
         template_id, 
-        user.id.clone(), 
+        user.id, 
         created_at.to_string(), 
         expire_at.to_string()
     );
@@ -328,7 +328,7 @@ async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Resul
     ]).unwrap_or_default();
 
     // update config
-    match client.post(conf_url).header(header::AUTHORIZATION, auth_value.clone()).body(conf_body).send().await {
+    match client.post(&conf_url).header(header::AUTHORIZATION, &auth_value).body(conf_body).send().await {
         Ok(_) => Ok(new_vm_id),
         Err(e) => return Err(e.into())
     }
@@ -337,9 +337,9 @@ async fn clone_vm(template_id: u32, challenge: Challenge, user: DbUser) -> Resul
 // return Ok only when vm status shows running again
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<u32, AppError> {
+pub async fn restart_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -363,9 +363,9 @@ pub async fn restart_vm(user: DbUser, template_id: u32) -> Result<u32, AppError>
 // return Ok only when vm with template id doesn't exist in user pool anymore
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<u32, AppError> {
+pub async fn destroy_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -382,7 +382,7 @@ pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<u32, AppError>
     let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
     
     // stop
-    match client.post(stop_url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+    match client.post(&stop_url).header(header::AUTHORIZATION, &auth_value).send().await {
         Ok(res) => {
             if res.status().is_success() {
                 async_std::task::sleep(Duration::from_secs(3)).await;
@@ -403,11 +403,11 @@ pub async fn destroy_vm(user: DbUser, template_id: u32) -> Result<u32, AppError>
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn create_user_pool(user: DbUser) -> Result<(), AppError> {
+pub async fn create_user_pool(user: &DbUser) -> Result<(), AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
-            is_host_reachable(proxmox_args.base_url.clone()).await?;
+            is_host_reachable(&proxmox_args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -420,7 +420,7 @@ pub async fn create_user_pool(user: DbUser) -> Result<(), AppError> {
             let poolid = format!("CTFPKHK-{}", user.username);
             let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
-            match client.get(pools_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            match client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => {
                     let pools = res.json::<ProxmoxApiResponse<Vec<Pools>>>().await?;
                     for pool in pools.data {
@@ -432,9 +432,9 @@ pub async fn create_user_pool(user: DbUser) -> Result<(), AppError> {
                 Err(e) => return Err(e.into())
             };
 
-            let body = serde_urlencoded::to_string(&[("poolid", poolid.clone())]).unwrap_or_default();
+            let body = serde_urlencoded::to_string(&[("poolid", &poolid)]).unwrap_or_default();
             client.post(&pools_url)
-                .header(header::AUTHORIZATION, auth_value.clone())
+                .header(header::AUTHORIZATION, &auth_value)
                 .body(body)
                 .send()
                 .await?;
@@ -447,7 +447,7 @@ pub async fn create_user_pool(user: DbUser) -> Result<(), AppError> {
                     ("propagate", "1".to_string())
                 ]).unwrap_or_default();
                 client.put(&acl_url)
-                    .header(header::AUTHORIZATION, auth_value)
+                    .header(header::AUTHORIZATION, &auth_value)
                     .body(body)
                     .send()
                     .await?;
@@ -474,10 +474,10 @@ pub async fn create_user_pool(user: DbUser) -> Result<(), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn test_auth(args: ProxmoxArgs) -> Result<(), AppError> {
+pub async fn test_auth(args: &ProxmoxArgs) -> Result<(), AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            is_host_reachable(args.base_url.clone()).await?;
+            is_host_reachable(&args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -487,9 +487,9 @@ pub async fn test_auth(args: ProxmoxArgs) -> Result<(), AppError> {
             let base_url = args.base_url.trim_end_matches("/");
             let api_path = args.api_path.trim_start_matches("/").trim_end_matches("/");
             let url = format!("{base_url}/{api_path}/nodes/status");
-            let auth_value = format!("PVEAPIToken={}", args.api_token.unwrap_or_default());
+            let auth_value = format!("PVEAPIToken={}", args.api_token.as_deref().unwrap_or_default());
 
-            match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => if res.status().is_success() { Ok(()) } else { Err(AppError::Unauthorized) },
                 Err(e) => return Err(e.into())
             }
@@ -507,18 +507,19 @@ async fn schedule_vm_deletion(user: DbUser, vm_id: u32) -> Result<u32, AppError>
         .build()?;
 
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let base_url = proxmox_args.base_url.trim_end_matches("/");
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", proxmox_args.node.clone(), vm_id);
+    let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", &proxmox_args.node, vm_id);
     let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
     let handle = tokio::spawn(async move {
         let user = user.clone();
+        let vm_id = vm_id.clone();
         let mut intv = tokio::time::interval(Duration::from_secs(60 * 30));
         loop {
-            let config = match client.get(conf_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            let config = match client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => {
                     res.json::<ProxmoxApiResponse<Config>>().await?
                 },
@@ -530,7 +531,7 @@ async fn schedule_vm_deletion(user: DbUser, vm_id: u32) -> Result<u32, AppError>
             let end_at = args.end_at.timestamp();
             let now = Local::now().timestamp();
             if now >= end_at {
-                return destroy_vm(user, vm_id).await;
+                return destroy_vm(&user, &vm_id).await;
             }
 
             intv.tick().await;
@@ -545,11 +546,11 @@ async fn schedule_vm_deletion(user: DbUser, vm_id: u32) -> Result<u32, AppError>
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn add_vm_time(user: DbUser, template_id: u32) -> Result<u32, AppError> {
+pub async fn add_vm_time(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
-            is_host_reachable(proxmox_args.base_url.clone()).await?;
+            is_host_reachable(&proxmox_args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -561,10 +562,10 @@ pub async fn add_vm_time(user: DbUser, template_id: u32) -> Result<u32, AppError
                 Some(vm_id) => vm_id,
                 None =>  return Err(AppError::InternalError("".to_string()))
             };
-            let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", proxmox_args.node.clone(), vm_id);
+            let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", &proxmox_args.node, vm_id);
             let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
-            let config = match client.get(conf_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            let config = match client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => res.json::<ProxmoxApiResponse<Config>>().await?,
                 Err(e) => return Err(e.into())
             };
@@ -585,7 +586,7 @@ pub async fn add_vm_time(user: DbUser, template_id: u32) -> Result<u32, AppError
             ]).unwrap_or_default();
 
             // update config
-            if let Err(e) = client.post(conf_url).header(header::AUTHORIZATION, auth_value.clone()).body(conf_body).send().await {
+            if let Err(e) = client.post(&conf_url).header(header::AUTHORIZATION, &auth_value).body(conf_body).send().await {
                 return Err(e.into())
             }
 
@@ -598,11 +599,11 @@ pub async fn add_vm_time(user: DbUser, template_id: u32) -> Result<u32, AppError
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn get_user_vms(user: DbUser) -> Result<Vec<ProxmoxVMInstance>, AppError> {
+pub async fn get_user_vms(user: &DbUser) -> Result<Vec<ProxmoxVMInstance>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
-            is_host_reachable(proxmox_args.base_url.clone()).await?;
+            is_host_reachable(&proxmox_args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -614,7 +615,7 @@ pub async fn get_user_vms(user: DbUser) -> Result<Vec<ProxmoxVMInstance>, AppErr
             let poolid = format!("CTFPKHK-{}", user.username);
             let url = format!("{base_url}/{api_path}/pools/{poolid}");
 
-            let vms = match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            let vms = match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => {
                     res.json::<ProxmoxApiResponse<Members>>().await?
                 },
@@ -624,8 +625,8 @@ pub async fn get_user_vms(user: DbUser) -> Result<Vec<ProxmoxVMInstance>, AppErr
             let mut user_vms = Vec::<ProxmoxVMInstance>::new();
             for vm in vms.data.members {
                 let vm_status = vm.status.unwrap_or_default();
-                let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", proxmox_args.node.clone(), vm.vmid.unwrap_or_default());
-                let config = match client.get(conf_url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+                let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", &proxmox_args.node, vm.vmid.unwrap_or_default());
+                let config = match client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await {
                     Ok(res) => res.json::<ProxmoxApiResponse<Config>>().await?,
                     Err(e) => return Err(e.into())
                 };
@@ -666,7 +667,7 @@ pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
-            is_host_reachable(proxmox_args.base_url.clone()).await?;
+            is_host_reachable(&proxmox_args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -677,7 +678,7 @@ pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
             let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
             let url = format!("{base_url}/{api_path}/pools/{}", proxmox_args.templates_pool_id);
 
-            let vms = match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            let vms = match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => {
                     res.json::<ProxmoxApiResponse<Members>>().await?
                 },
@@ -697,13 +698,13 @@ pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-async fn get_user_vmid_from_template_id(user: DbUser, template_id: u32) -> Result<Option<u32>, AppError> {
+async fn get_user_vmid_from_template_id(user: &DbUser, template_id: &u32) -> Result<Option<u32>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let user_vms = get_user_vms(user).await?;
             let mut vm_id = None;
             for user_vm in user_vms {
-                if user_vm.origin_id == template_id {
+                if user_vm.origin_id == *template_id {
                     vm_id = Some(user_vm.id);
                     break;
                 }
@@ -717,9 +718,9 @@ async fn get_user_vmid_from_template_id(user: DbUser, template_id: u32) -> Resul
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn create_user(email: String, username: String, password: String) -> Result<(), AppError> {
+pub async fn create_user(email: &String, username: &String, password: &String) -> Result<(), AppError> {
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -730,7 +731,7 @@ pub async fn create_user(email: String, username: String, password: String) -> R
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let url = format!("{base_url}/{api_path}/access/users");
 
-    match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
         Ok(res) => {
             let users = res.json::<ProxmoxApiResponse<Vec<User>>>().await?;
             let userid = format!("{}@pve", username);
@@ -745,10 +746,10 @@ pub async fn create_user(email: String, username: String, password: String) -> R
 
     let body = serde_urlencoded::to_string(&[
         ("userid", format!("{}@pve", username)),
-        ("password", password),
+        ("password", password.to_string()),
         ("expire", 0.to_string()),
         ("enable", 1.to_string()),
-        ("email", email),
+        ("email", email.to_string()),
     ]).unwrap_or_default();
 
     match client.post(&url).header(header::AUTHORIZATION, auth_value).body(body).send().await {
@@ -795,7 +796,7 @@ pub async fn create_user(email: String, username: String, password: String) -> R
 #[instrument]
 async fn get_roles() -> Result<Vec<Role>, AppError> {
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -806,7 +807,7 @@ async fn get_roles() -> Result<Vec<Role>, AppError> {
     let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let url = format!("{base_url}/{api_path}/access/roles");
 
-    match client.get(url).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
         Ok(res) => {
             let roles = res.json::<ProxmoxApiResponse<Vec<Role>>>().await?;
             Ok(roles.data)
@@ -819,7 +820,7 @@ async fn get_roles() -> Result<Vec<Role>, AppError> {
 #[instrument]
 pub async fn create_user_role() -> Result<(), AppError> {
     let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(proxmox_args.base_url.clone()).await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
 
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
@@ -849,7 +850,7 @@ pub async fn create_user_role() -> Result<(), AppError> {
         ("privs", "Pool.Audit"), 
     ]).unwrap_or_default();
 
-    match client.post(url).header(header::AUTHORIZATION, auth_value.clone()).body(body).send().await {
+    match client.post(&url).header(header::AUTHORIZATION, &auth_value).body(body).send().await {
         Ok(_) => Ok(()),
         Err(e) => return Err(e.into())
     }
@@ -857,11 +858,11 @@ pub async fn create_user_role() -> Result<(), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn get_template_info(template_id: u32) -> Result<ProxmoxVMTemplate, AppError> {
+pub async fn get_template_info(template_id: &u32) -> Result<ProxmoxVMTemplate, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let proxmox_args = get_proxmox_args().await?;
-            is_host_reachable(proxmox_args.base_url.clone()).await?;
+            is_host_reachable(&proxmox_args.base_url).await?;
 
             let client = Client::builder()
                 .danger_accept_invalid_certs(true)
@@ -872,7 +873,7 @@ pub async fn get_template_info(template_id: u32) -> Result<ProxmoxVMTemplate, Ap
             let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
             let url = format!("{base_url}/{api_path}/pools/{}", proxmox_args.templates_pool_id);
 
-            let vms = match client.get(url.clone()).header(header::AUTHORIZATION, auth_value.clone()).send().await {
+            let vms = match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
                 Ok(res) => {
                     res.json::<ProxmoxApiResponse<Members>>().await?
                 },
@@ -881,7 +882,7 @@ pub async fn get_template_info(template_id: u32) -> Result<ProxmoxVMTemplate, Ap
 
             let mut template_info = ProxmoxVMTemplate::default();
             for vm in vms.data.members {
-                if vm.vmid.unwrap_or_default() == template_id {
+                if vm.vmid.unwrap_or_default() == *template_id {
                     template_info = ProxmoxVMTemplate { id: vm.vmid.unwrap_or_default(), name: vm.name.unwrap_or_default() };
                     break;
                 }

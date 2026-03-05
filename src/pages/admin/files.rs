@@ -1,5 +1,5 @@
 use crate::{components::{admin::file::File, utils::{ComponentSize, Spinner}}, server::{admin::{get_all_files, upload_files}, db}};
-use leptos::{prelude::*, web_sys::{FormData, HtmlFormElement, HtmlInputElement, SubmitEvent}, wasm_bindgen::JsCast};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{FormData, HtmlFormElement, HtmlInputElement, SubmitEvent}};
 
 /// Default Home Page
 #[component]
@@ -8,19 +8,6 @@ pub fn Files() -> impl IntoView {
     let has_files_signal = RwSignal::new(false);
     let all_files = Resource::new(move || refresh.get(), move |_| async move {
         get_all_files().await.unwrap_or_default()
-    });
-
-    let upload_action = Action::new_local(move |data: &FormData| {
-        let data = data.clone();
-        async move {
-            if let Ok(_) = upload_files(data.clone().into()).await {
-                refresh.update(|n| *n += 1);
-            }
-        }
-    });
-
-    let upload_action_text = Memo::new(move |_| {
-        if upload_action.pending().get() { "Uploading..." } else { "" }
     });
 
     view! {
@@ -33,7 +20,11 @@ pub fn Files() -> impl IntoView {
                 } else {
                     let target = ev.target().unwrap().unchecked_into::<HtmlFormElement>();
                     let fd = FormData::new_with_form(&target).unwrap();
-                    upload_action.dispatch_local(fd);
+                    spawn_local(async move {
+                        if let Ok(_) = upload_files(fd.into()).await {
+                            refresh.update(|n| *n += 1);
+                        }
+                    });
                 }
             }
         >
@@ -58,7 +49,6 @@ pub fn Files() -> impl IntoView {
                 value="Upload"
             />
         </form>
-        <p>{move || upload_action_text.get()}</p>
         <Transition fallback=move || {
             view! { <Spinner component_size=ComponentSize::Big /> }
         }>

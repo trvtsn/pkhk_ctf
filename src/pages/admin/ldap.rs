@@ -68,10 +68,10 @@ pub fn Ldap() -> impl IntoView {
         }>
             {move || {
                 if let Some(ldap_args) = ldap_resource.get() {
-                    ldap_url.set(ldap_args.url.clone());
-                    bind_dn.set(ldap_args.bind_dn.clone());
-                    bind_pw.set(ldap_args.bind_pw.clone());
-                    base_dn.set(ldap_args.base_dn.clone());
+                    ldap_url.set(ldap_args.url);
+                    bind_dn.set(ldap_args.bind_dn);
+                    bind_pw.set(ldap_args.bind_pw);
+                    base_dn.set(ldap_args.base_dn);
                     enabled.set(ldap_args.enabled);
                 }
 
@@ -192,7 +192,7 @@ pub fn Ldap() -> impl IntoView {
                                                         </span>
                                                         <a
                                                             download
-                                                            href=move || format!("/file/{}", cert.id.clone())
+                                                            href=move || format!("/file/{}", cert.id)
                                                         >
                                                             <Icon icon=i::LuDownload />
                                                         </a>
@@ -240,7 +240,7 @@ pub fn Ldap() -> impl IntoView {
                                                             fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
 
                                                             if let Ok(api_result) = upload_certificate(fd.into()).await {
-                                                                certificate.set(Some(api_result.details.clone()));
+                                                                certificate.set(Some(api_result.details));
                                                             }
                                                         }
                                                     }
@@ -290,7 +290,7 @@ pub fn Ldap() -> impl IntoView {
                                                             fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
 
                                                             if let Ok(api_result) = upload_certificate(fd.into()).await {
-                                                                certificate.set(Some(api_result.details.clone()));
+                                                                certificate.set(Some(api_result.details));
                                                             }
                                                         }
                                                     }

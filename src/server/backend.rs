@@ -78,7 +78,7 @@ cfg_if! {
 
             /// Insert a new user into the database. Success only if the user doesn't already exist
             /// and the data meets criteria (which are *very* weak in this example!).
-            pub async fn add_user(&self, email: String, password: String) -> Result<Option<User>, AppError> {
+            pub async fn add_user(&self, email: &String, password: &String) -> Result<Option<User>, AppError> {
                 // First validate the data. You must do better than this.
                 if email.len() < 2 || password.len() < 2 {
                     return Err(AppError::InvalidData("Username and password have to be at least 2 characters each!".into()));
@@ -121,8 +121,8 @@ cfg_if! {
                 }
                 let new_user = DbUser { 
                     id: "".to_string(), 
-                    username: username.clone(), 
-                    email, 
+                    username, 
+                    email: email.to_string(), 
                     pw_hash: pw_hash_str, 
                     created_at: chrono::Local::now(), 
                     last_active_at: chrono::Local::now(), 
@@ -179,7 +179,7 @@ cfg_if! {
                         let mut username = "".to_string();
                         let mut groups_result = "".to_string();
 
-                        match is_host_reachable(ldap_url.to_string()).await {
+                        match is_host_reachable(&ldap_url.to_string()).await {
                             Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
                             Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
                         }
@@ -236,7 +236,7 @@ cfg_if! {
                         }
 
                         ldap.unbind().await?;
-                        let pw_hash = hash_string(creds.password.clone())?;
+                        let pw_hash = hash_string(&creds.password)?;
 
                         if let Ok(None) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
                             let mut tx = self.pool.begin().await?;
@@ -283,7 +283,7 @@ cfg_if! {
                     }
                 };
 
-                if let Ok(()) = verify_hash(creds.password, user.clone().pw_hash) {
+                if let Ok(()) = verify_hash(&creds.password, &user.pw_hash) {
                     Ok(Some(user.to_user().await?))
                 } else {
                     Err(Self::Error::InternalError("wrong pw".to_string()))
@@ -320,7 +320,7 @@ cfg_if! {
             }
         }
 
-        pub fn hash_string(string: String) -> Result<String, argon2::password_hash::Error> {
+        pub fn hash_string(string: &String) -> Result<String, argon2::password_hash::Error> {
             let argon2 = Argon2::default();
             // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
             let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
@@ -334,7 +334,7 @@ cfg_if! {
             Ok(flag_hash.to_string())
         }
 
-        pub fn verify_hash(string: String, hash: String) -> Result<(), argon2::password_hash::Error> {
+        pub fn verify_hash(string: &String, hash: &String) -> Result<(), argon2::password_hash::Error> {
             let hasher = Argon2::default();
             let hash = argon2::PasswordHash::parse(hash.as_ref(), argon2::password_hash::Encoding::B64)?;
             // Use the existing implementation to verify the password. I was doing this myself until

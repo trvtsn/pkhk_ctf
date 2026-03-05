@@ -35,9 +35,9 @@ pub fn Challenge(
     let proxmox_vm_id_signal = RwSignal::new(vm_ids.clone());
 
     let event_id_edit = RwSignal::new(event_id);
-    let name_edit = RwSignal::new(name.clone());
-    let description_edit = RwSignal::new(description.clone());
-    let category_edit = RwSignal::new(category.clone());
+    let name_edit = RwSignal::new(name);
+    let description_edit = RwSignal::new(description);
+    let category_edit = RwSignal::new(category);
     let difficulty_edit = RwSignal::new(difficulty);
     let points_edit = RwSignal::new(points);
     let attachments_edit = RwSignal::new(attachments);
@@ -89,7 +89,7 @@ pub fn Challenge(
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             <Show when=move || !editing.get() && !deleted.get()>
-                <h3 class=r#"font-bold text-3xl/8 mb-4"#>{move || name_signal.get().clone()}</h3>
+                <h3 class=r#"font-bold text-3xl/8 mb-4"#>{move || name_signal.get()}</h3>
                 {move || {
                     if let Some(illustration) = illustration_signal.get() { 
                         view! {
@@ -106,11 +106,11 @@ pub fn Challenge(
                 }}
                 <p class=r#"text-lg/8"#>
                     <b>"ID: "</b>
-                    {move || id_signal.get().clone()}
+                    {move || id_signal.get()}
                 </p>
                 <p class=r#"text-lg/8"#>
                     <b>"Event ID: "</b>
-                    {move || event_id_signal.get().clone()}
+                    {move || event_id_signal.get()}
                 </p>
                 <p class=r#"text-lg/8 whitespace-pre-wrap"#>
                     <TruncatedDesc description=description_signal />
@@ -151,9 +151,7 @@ pub fn Challenge(
                                 key=|e: &crate::server::db::structs::Event| e.id.clone()
                                 let(e: crate::server::db::structs::Event)
                             >
-                                <option value=e
-                                    .id
-                                    .clone()>{e.name.clone()} " (ID: " {e.id.clone()} ")"</option>
+                                <option value=e.id>{e.name.clone()} " (ID: " {e.id.clone()} ")"</option>
                             </For>
                         </select>
                     </div>
@@ -216,7 +214,7 @@ pub fn Challenge(
                                     let selected = category_edit.get().map(|c| c == category).unwrap_or(false);
                                     view! {
                                         <option 
-                                            value=category.clone()
+                                            value=category
                                             selected=selected
                                         >
                                             {category.clone()}
@@ -333,7 +331,7 @@ pub fn Challenge(
 
                                             view! {
                                                 <option 
-                                                    value=group.clone()
+                                                    value=group
                                                     selected=selected
                                                 >
                                                     {group.clone()}
@@ -370,10 +368,9 @@ pub fn Challenge(
                             }
                         >
                             {move || {
-                                let templates = templates.get();
                                 view! {
                                     <For
-                                        each=move || templates.clone()
+                                        each=move || templates.get()
                                         key=|template: &ProxmoxVMTemplate| template.id
                                         children=move |template| {
                                             let selected = proxmox_vm_id_edit
@@ -738,11 +735,11 @@ pub fn Challenge(
                         focus:ring-yale-blue-500"#
                         on:click=move |_| {
                             if deleting.get() {
-                                let challenge_id = id_signal.get().clone();
+                                let challenge_id = id_signal.get();
                                 spawn_local(async move {
                                     tracing::debug!("deleting challenge ID: {challenge_id}");
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Delete {
-                                            id: challenge_id.clone(),
+                                            id: challenge_id,
                                         })
                                         .await && result == ResultStatus::Success
                                     {

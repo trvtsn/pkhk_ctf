@@ -188,7 +188,7 @@ pub fn Users() -> impl IntoView {
                                         key=|group: &String| group.clone()
                                         let(group)
                                     >
-                                        <option value={group.clone()}>{group.clone()}</option>
+                                        <option value={group}>{group.clone()}</option>
                                     </For>
                                 }
                             }}
@@ -240,7 +240,7 @@ pub fn Users() -> impl IntoView {
                                         </span>
                                         <a
                                             download
-                                            href=move || format!("/file/{}", user_avatar.attachment_id.clone())
+                                            href=move || format!("/file/{}", user_avatar.attachment_id)
                                         >
                                             <Icon icon=i::LuDownload />
                                         </a>
@@ -281,11 +281,11 @@ pub fn Users() -> impl IntoView {
                         text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
                         bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            let username = username_signal.get().clone();
-                            let email = email_signal.get().clone();
-                            let password = password_signal.get().clone();
-                            let confirm_password = confirm_password_signal.get().clone();
-                            let role = role_signal.get().clone().into();
+                            let username = username_signal.get();
+                            let email = email_signal.get();
+                            let password = password_signal.get();
+                            let confirm_password = confirm_password_signal.get();
+                            let role = role_signal.get().into();
                             let groups = groups_signal.get();
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
@@ -298,7 +298,7 @@ pub fn Users() -> impl IntoView {
                                             fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
 
                                             if let Ok(api_result) = upload_avatar(fd.into()).await {
-                                                avatar_signal.set(Some(api_result.details.clone()));
+                                                avatar_signal.set(Some(api_result.details));
                                             }
                                         }
                                     }

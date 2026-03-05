@@ -13,11 +13,11 @@ pub fn TruncatedDesc(description: RwSignal<Option<String>>) -> impl IntoView {
     let desc_expanded = RwSignal::new(false);
 
     let needs_truncate =  Memo::new(move |_| {
-        description.get().clone().chars().count() > desc_max_len
+        description.get().chars().count() > desc_max_len
     });
     let truncated_desc = Memo::new(move |_| {
         if needs_truncate.get() && !desc_expanded.get() {
-            format!("{}...", description.get().clone().chars().take(desc_max_len).collect::<String>())
+            format!("{}...", description.get().chars().take(desc_max_len).collect::<String>())
         } else {
             description.get()
         }

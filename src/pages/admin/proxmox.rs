@@ -64,10 +64,10 @@ pub fn Proxmox() -> impl IntoView {
             {move || {
                 let proxmox_args = proxmox_resource.get();
                 if let Some(proxmox_args) = proxmox_args {
-                    api_path.set(proxmox_args.api_path.clone());
+                    api_path.set(proxmox_args.api_path);
                     api_token.set(proxmox_args.api_token);
                     auth_type.set(proxmox_args.auth_type);
-                    base_url.set(proxmox_args.base_url.clone());
+                    base_url.set(proxmox_args.base_url);
                     node.set(proxmox_args.node);
                     templates_pool_id.set(proxmox_args.templates_pool_id);
                 }

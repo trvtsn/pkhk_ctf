@@ -42,7 +42,7 @@ cfg_if! {
             let username = &constants::config::ADMIN_USERNAME.to_string();
             let email = &constants::config::ADMIN_EMAIL.to_string();
             let password = &constants::config::ADMIN_PASSWORD.to_string();
-            let pw_hash = hash_string(password.clone())?;
+            let pw_hash = hash_string(&password)?;
 
             match DbUser::get(&UserIdentifier::Email(email.clone()), get_db_ref()).await {
                 Ok(Some(_)) => return Ok(()),

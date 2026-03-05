@@ -321,10 +321,10 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
                     Ok(_) => {
                         let db_user = get_db_user(&user, &auth.backend.pool).await?;
                         let last_active_at = chrono::Local::now();
-                        _ = DbUser::edit_last_active(&user.id.clone(), &last_active_at, &auth.backend.pool).await;
+                        _ = DbUser::edit_last_active(&user.id, &last_active_at, &auth.backend.pool).await;
                         
-                        _ = crate::server::proxmox::create_user(email, db_user.clone().username, password).await;
-                        _ = crate::server::proxmox::create_user_pool(db_user).await;
+                        _ = crate::server::proxmox::create_user(&email, &db_user.username, &password).await;
+                        _ = crate::server::proxmox::create_user_pool(&db_user).await;
                         Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
                     },
                     Err(e) => {
@@ -348,7 +348,7 @@ pub async fn get_user() -> Result<Option<User>, AppError> {
         if #[cfg(feature = "ssr")] {
             let response = expect_context::<ResponseOptions>();
             match use_context::<AuthSession>() {
-                Some(session) => Ok(session.user.clone()),
+                Some(session) => Ok(session.user),
                 None => {
                     response.set_status(StatusCode::FORBIDDEN);
                     Ok(None)
@@ -386,7 +386,7 @@ pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
             if username.is_some() {
-                match DbUserWithoutPII::get(&UserIdentifier::Username(username.unwrap_or_default().clone()), &pool).await {
+                match DbUserWithoutPII::get(&UserIdentifier::Username(username.unwrap_or_default()), &pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
@@ -394,7 +394,7 @@ pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<
                     }
                 }    
             } else {
-                match DbUserWithoutPII::get(&UserIdentifier::Id(user.id.clone()), &pool).await {
+                match DbUserWithoutPII::get(&UserIdentifier::Id(user.id), &pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);
@@ -419,15 +419,15 @@ pub async fn register_user(email: String, password: String, confirm_password: St
                 return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
             }
 
-            let user: Option<User> = auth_session.backend.add_user(email.clone(), password.clone()).await?;
+            let user: Option<User> = auth_session.backend.add_user(&email, &password).await?;
 
             if let Some(user) = user {
                 // Tell the AuthSession that we're logged-in now and it should behave accordingly. This will set the
                 // session id and send it to the browser as a side-effect (before now you likely had no session id in the browser).
                 auth_session.login(&user).await?;
                 let db_user = get_db_user(&user, &auth_session.backend.pool).await?;
-                _ = crate::server::proxmox::create_user(email, db_user.clone().username, password).await?;
-                _ = crate::server::proxmox::create_user_pool(db_user).await?;
+                _ = crate::server::proxmox::create_user(&email, &db_user.username, &password).await?;
+                _ = crate::server::proxmox::create_user_pool(&db_user).await?;
                 Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
             } else {
                 Err(AppError::InternalError("".to_string()))
@@ -471,7 +471,7 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                 }
             };
 
-            if let Ok(()) = verify_hash(flag.clone(), challenge_flag_hash) {                
+            if let Ok(()) = verify_hash(&flag, &challenge_flag_hash) {                
                 match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &mut *tx).await {
                     Ok(_) => {
                         tx.commit().await?;
@@ -479,7 +479,7 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                         if let Some(vm_ids_string) = challenge.vm_ids {
                             let template_ids = vm_ids_string.split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
                             for template_id in template_ids {
-                                _ = crate::server::proxmox::destroy_vm(db_user.clone(), template_id).await;
+                                _ = crate::server::proxmox::destroy_vm(&db_user, &template_id).await;
                             }
                         };
 
@@ -790,7 +790,7 @@ pub async fn edit_password(old_password: String, new_password: String, confirm_n
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
             }
 
-            let pw_hash = hash_string(new_password.clone())?;
+            let pw_hash = hash_string(&new_password)?;
             match DbUser::edit_password(&user.id, &pw_hash, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
                 Err(e) => return Err(e.into())
@@ -854,7 +854,7 @@ pub async fn start_vm(template_id: u32, challenge: Challenge) -> Result<ApiResul
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
 
-            match crate::server::proxmox::start_vm(template_id, challenge, db_user.clone()).await {
+            match crate::server::proxmox::start_vm(&template_id, &challenge, &db_user).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully started VM (ID: {vm_id})") }),
                 Err(e) => return Err(e.into())
             }
@@ -872,7 +872,7 @@ pub async fn restart_vm(template_id: u32) -> Result<ApiResult<String>, AppError>
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
 
-            match crate::server::proxmox::restart_vm(db_user, template_id).await {
+            match crate::server::proxmox::restart_vm(&db_user, &template_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully restarted VM (ID: {vm_id})") }),
                 Err(e) => Err(e)
             }
@@ -890,7 +890,7 @@ pub async fn destroy_vm(template_id: u32) -> Result<ApiResult<String>, AppError>
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
 
-            match crate::server::proxmox::destroy_vm(db_user, template_id).await {
+            match crate::server::proxmox::destroy_vm(&db_user, &template_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully destroyed VM (ID: {vm_id})") }),
                 Err(e) => return Err(e)
             }
@@ -908,7 +908,7 @@ pub async fn add_vm_time(template_id: u32) -> Result<ApiResult<String>, AppError
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
             
-            match crate::server::proxmox::add_vm_time(db_user, template_id).await {
+            match crate::server::proxmox::add_vm_time(&db_user, &template_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully added time to VM (ID: {vm_id})") }),
                 Err(e) => Err(e.into())
             }
@@ -926,7 +926,7 @@ pub async fn get_user_active_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
 
-            let vms = match crate::server::proxmox::get_user_vms(db_user).await {
+            let vms = match crate::server::proxmox::get_user_vms(&db_user).await {
                 Ok(vms) => vms,
                 Err(e) => return Err(e)
             };
@@ -950,7 +950,7 @@ pub async fn get_user_vms() -> Result<Vec<ProxmoxVMInstance>, AppError> {
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
 
-            match crate::server::proxmox::get_user_vms(db_user).await {
+            match crate::server::proxmox::get_user_vms(&db_user).await {
                 Ok(vms) => Ok(vms),
                 Err(e) => return Err(e)
             }
@@ -1149,8 +1149,8 @@ async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn is_host_reachable(url: String) -> Result<bool, AppError> {
-    let url = url::Url::parse(&url)?;
+pub async fn is_host_reachable(url: &String) -> Result<bool, AppError> {
+    let url = url::Url::parse(url)?;
     let host = url.host_str().unwrap_or_default();
     let port = url.port().unwrap_or_default();
     let timeout = Duration::from_millis(1000);

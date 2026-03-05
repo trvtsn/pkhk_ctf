@@ -40,9 +40,8 @@ pub fn Leaderboard() -> impl IntoView {
             }>
                 {move || {
                     let data = leaderboard_data_resource.get().unwrap_or_default();
-                    let usernames = data.users.clone();
                     let base = Series::new(|r: &PivotRow| r.ts);
-                    let series = usernames
+                    let series = data.users
                         .iter()
                         .cloned()
                         .fold(

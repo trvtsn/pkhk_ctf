@@ -75,23 +75,17 @@ pub fn Challenges() -> impl IntoView {
         get_all_challenges_with_attachments().await.unwrap_or_default()
     });
     let categories_resource = Resource::new(move || refresh.get(), move |_| async move {
-        let all_categories = get_all_challenge_categories().await.unwrap_or_default();
-        categories_signal.set(all_categories.clone());
-        all_categories
+        get_all_challenge_categories().await.unwrap_or_default()
     });
     let events_resource = Resource::new(move || refresh.get(), move |_| async move {
-        let all_events = get_all_events().await.unwrap_or_default();
-        events_signal.set(all_events.clone());
-        all_events
+        get_all_events().await.unwrap_or_default()
     });
     let user_groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
     });
     let challenge_templates_resource = Resource::new(move || refresh.get(), move |_| async move {
-        let templates = get_all_challenge_templates().await.unwrap_or_default();
-        templates_signal.set(templates.clone());
-        templates
+        get_all_challenge_templates().await.unwrap_or_default()
     });
 
     let hints_signal = RwSignal::new(vec![]);
@@ -154,9 +148,10 @@ pub fn Challenges() -> impl IntoView {
                         }>
                             {move || {
                                 let events = events_resource.get().unwrap_or_default();
+                                events_signal.set(events);
                                 view! {
                                     <For
-                                        each=move || events.clone()
+                                        each=move || events_signal.get()
                                         key=|e: &db::structs::Event| e.id.clone()
                                         let(e: db::structs::Event)
                                     >
@@ -227,13 +222,14 @@ pub fn Challenges() -> impl IntoView {
                         }>
                             {move || {
                                 let categories = categories_resource.get().unwrap_or_default();
+                                categories_signal.set(categories.clone());
                                 view! {
                                     <For
-                                        each=move || categories.clone()
+                                        each=move || categories_signal.get()
                                         key=|category: &String| category.clone()
                                         let(category)
                                     >
-                                        <option value=category.clone()>{category.clone()}</option>
+                                        <option value=category>{category.clone()}</option>
                                     </For>
                                 }
                             }}
@@ -369,9 +365,10 @@ pub fn Challenges() -> impl IntoView {
                         }>
                             {move || {
                                 let templates = challenge_templates_resource.get().unwrap_or_default();
+                                templates_signal.set(templates);
                                 view! {
                                     <For
-                                        each=move || templates.clone()
+                                        each=move || templates_signal.get()
                                         key=|template: &ProxmoxVMTemplate| template.id
                                         let(template)
                                     >
