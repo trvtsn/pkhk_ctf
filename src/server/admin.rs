@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast, is_host_reachable};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}, utils::get_context};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -577,7 +577,12 @@ pub async fn upload_files(files: MultipartData) -> Result<ApiResult<Vec<Attachme
 
             let mut attachments: Vec<AttachmentWithoutBlob> = Vec::new();
 
-            let mut data = files.into_inner().unwrap();
+            let mut data = match files.into_inner() {
+                Some(inner_data) => inner_data,
+                None => {
+                    return Err(AppError::InternalError("Failed to extract inner data from files".to_string()));
+                }
+            };
             let mut found_file = false;
             while let Ok(Some(mut field)) = data.next_field().await {
                 let file_name = match field.file_name() {
@@ -651,7 +656,12 @@ pub async fn upload_certificate(file: MultipartData) -> Result<ApiResult<Attachm
 
             let mut attachment = AttachmentWithoutBlob::default();
 
-            let mut data = file.into_inner().unwrap();
+            let mut data = match file.into_inner() {
+                Some(inner_data) => inner_data,
+                None => {
+                    return Err(AppError::InternalError("Failed to extract inner data from file".to_string()));
+                }
+            };
             let mut found_file = false;
             while let Ok(Some(mut field)) = data.next_field().await {
                 let file_name = match field.file_name() {
@@ -718,7 +728,12 @@ pub async fn upload_illustration(file: MultipartData) -> Result<ApiResult<Attach
 
             let mut attachment = AttachmentWithoutBlob::default();
 
-            let mut data = file.into_inner().unwrap();
+            let mut data = match file.into_inner() {
+                Some(inner_data) => inner_data,
+                None => {
+                    return Err(AppError::InternalError("Failed to extract inner data from file".to_string()));
+                }
+            };
             while let Ok(Some(mut field)) = data.next_field().await {
                 let file_name = match field.file_name() {
                     Some(n) => n.to_string(),
@@ -770,7 +785,12 @@ pub async fn upload_avatar(file: MultipartData) -> Result<ApiResult<UserAvatar>,
 
             let mut avatar = UserAvatar::default();
 
-            let mut data = file.into_inner().unwrap();
+            let mut data = match file.into_inner() {
+                Some(inner_data) => inner_data,
+                None => {
+                    return Err(AppError::InternalError("Failed to extract inner data from file".to_string()));
+                }
+            };
             while let Ok(Some(mut field)) = data.next_field().await {
                 let file_name = match field.file_name() {
                     Some(n) => n.to_string(),
@@ -1406,8 +1426,8 @@ pub async fn test_proxmox(args: ProxmoxArgs) -> Result<ApiResult<String>, AppErr
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
-    let auth = use_context::<AuthSession>().unwrap();
-    let response = expect_context::<ResponseOptions>();
+    let auth = get_context::<AuthSession>()?;
+    let response = get_context::<ResponseOptions>()?;
     let user = match auth.user {
         Some(user) => user,
         None => {

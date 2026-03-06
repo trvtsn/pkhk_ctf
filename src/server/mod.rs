@@ -1,13 +1,13 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::offset_to_datetime};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::{get_context, offset_to_datetime}};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
-use leptos::{prelude::{expect_context, use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
+use leptos::{prelude::{use_context}, server, server_fn::codec::{MultipartData, MultipartFormData}};
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
 use tracing::instrument;
@@ -21,8 +21,6 @@ use axum::{response::IntoResponse, http::{StatusCode, header}};
 use crate::server::{enums::AdminEventPayloadKind, db::enums::AttachmentIdentifier};
 
 pub mod admin;
-#[cfg(feature = "ssr")]
-pub mod auth;
 pub mod backend;
 pub mod db;
 pub mod proxmox;
@@ -130,9 +128,7 @@ pub mod enums {
 
 #[cfg(feature = "ssr")]
 pub fn pool() -> Result<MySqlPool, AppError> {
-    use_context::<MySqlPool>().ok_or_else(|| {
-        AppError::DatabaseError("Pool missing.".to_string())
-    })
+    Ok(get_context::<MySqlPool>()?)
 }
 
 #[cfg(feature = "ssr")]
@@ -227,80 +223,87 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 }
             };
 
-            let event_name = meta.name.unwrap_or("".to_string());
-            let x_min = offset_to_datetime(meta.first_submission.unwrap());
-            let x_max = offset_to_datetime(meta.last_submission.unwrap());
+            let event_name = meta.name.unwrap_or_default();
+            if let Some(first_submission) = meta.first_submission && let Some(last_submission) = meta.last_submission {
+                let x_min = offset_to_datetime(first_submission);
+                let x_max = offset_to_datetime(last_submission);
 
-            let y_max = db::structs::Event::get_total_possible_points(&active_event_id, &pool).await.unwrap();
-
-            let solves = sqlx::query!(
-                r#"
-                WITH first_solves AS (
-                    SELECT user_id, challenge_id, MIN(solved_at) AS solved_at
-                    FROM submissions
-                    WHERE event_id = ?
-                    GROUP BY user_id, challenge_id
-                )
-                SELECT fs.user_id, u.username, fs.solved_at, c.points
-                FROM first_solves fs
-                JOIN challenges c ON c.id = fs.challenge_id
-                JOIN users u ON u.id = fs.user_id
-                ORDER BY fs.solved_at
-                "#,
-                active_event_id
-            )
-            .fetch_all(&pool)
-            .await?;
-
-            let users: Vec<String> = solves.iter().map(|r| r.username.clone()).collect();
-
-            let mut timestamps = BTreeSet::new();
-
-            #[derive(Debug)]
-            struct Solve { username: String, ts: DateTime<Local>, points: f64 }
-
-            let mut solves_parsed: Vec<Solve> = Vec::new();
-            for r in solves {
-                let ts = match r.solved_at {
-                    Some(ts) => offset_to_datetime(ts),
-                    None => chrono::Local::now()
+                let y_max = match db::structs::Event::get_total_possible_points(&active_event_id, &pool).await {
+                    Ok(y_max) => y_max,
+                    Err(_) => return Err(AppError::InternalError("internal error".to_string()))
                 };
-                timestamps.insert(ts);
-                solves_parsed.push(Solve {
-                    username: r.username,
-                    ts,
-                    points: r.points as f64,
-                });
-            }
 
-            let mut times: Vec<DateTime<Local>> = timestamps.into_iter().collect();
-            times.sort();
+                let solves = sqlx::query!(
+                    r#"
+                    WITH first_solves AS (
+                        SELECT user_id, challenge_id, MIN(solved_at) AS solved_at
+                        FROM submissions
+                        WHERE event_id = ?
+                        GROUP BY user_id, challenge_id
+                    )
+                    SELECT fs.user_id, u.username, fs.solved_at, c.points
+                    FROM first_solves fs
+                    JOIN challenges c ON c.id = fs.challenge_id
+                    JOIN users u ON u.id = fs.user_id
+                    ORDER BY fs.solved_at
+                    "#,
+                    active_event_id
+                )
+                .fetch_all(&pool)
+                .await?;
 
-            let mut user_cumulative: HashMap<String, f64> = users.iter().map(|u| (u.clone(), 0.0)).collect();
-            let mut solves_by_ts: HashMap<DateTime<Local>, Vec<&Solve>> = HashMap::new();
-            for s in &solves_parsed {
-                solves_by_ts.entry(s.ts).or_default().push(s);
-            }
+                let users: Vec<String> = solves.iter().map(|r| r.username.clone()).collect();
 
-            let mut rows: Vec<PivotRow> = Vec::new();
-            for ts in times {
-                if let Some(slist) = solves_by_ts.get(&ts) {
-                    for s in slist {
-                        if let Some(v) = user_cumulative.get_mut(&s.username) {
-                            *v += s.points;
-                        } else {
-                            user_cumulative.insert(s.username.clone(), s.points);
+                let mut timestamps = BTreeSet::new();
+
+                #[derive(Debug)]
+                struct Solve { username: String, ts: DateTime<Local>, points: f64 }
+
+                let mut solves_parsed: Vec<Solve> = Vec::new();
+                for r in solves {
+                    let ts = match r.solved_at {
+                        Some(ts) => offset_to_datetime(ts),
+                        None => chrono::Local::now()
+                    };
+                    timestamps.insert(ts);
+                    solves_parsed.push(Solve {
+                        username: r.username,
+                        ts,
+                        points: r.points as f64,
+                    });
+                }
+
+                let mut times: Vec<DateTime<Local>> = timestamps.into_iter().collect();
+                times.sort();
+
+                let mut user_cumulative: HashMap<String, f64> = users.iter().map(|u| (u.clone(), 0.0)).collect();
+                let mut solves_by_ts: HashMap<DateTime<Local>, Vec<&Solve>> = HashMap::new();
+                for s in &solves_parsed {
+                    solves_by_ts.entry(s.ts).or_default().push(s);
+                }
+
+                let mut rows: Vec<PivotRow> = Vec::new();
+                for ts in times {
+                    if let Some(slist) = solves_by_ts.get(&ts) {
+                        for s in slist {
+                            if let Some(v) = user_cumulative.get_mut(&s.username) {
+                                *v += s.points;
+                            } else {
+                                user_cumulative.insert(s.username.clone(), s.points);
+                            }
                         }
                     }
+                    let mut values = HashMap::new();
+                    for u in &users {
+                        values.insert(u.clone(), *user_cumulative.get(u).unwrap_or(&0.0_f64));
+                    }
+                    rows.push(PivotRow { ts, values });
                 }
-                let mut values = HashMap::new();
-                for u in &users {
-                    values.insert(u.clone(), *user_cumulative.get(u).unwrap_or(&0.0_f64));
-                }
-                rows.push(PivotRow { ts, values });
-            }
 
-            Ok(LeaderboardData { event_name, x_min, x_max, y_max: y_max as f64, users, rows })
+                Ok(LeaderboardData { event_name, x_min, x_max, y_max: y_max as f64, users, rows })
+            } else {
+                Ok(LeaderboardData::default())
+            }
         } else {
             Err(AppError::NoServerConnection)
         }
@@ -312,7 +315,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
 pub async fn login_user(email: String, password: String, auth_type: AuthType) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let mut auth = use_context::<AuthSession>().unwrap();
+            let mut auth = get_context::<AuthSession>()?;
             let creds = Credentials { user_identifier: UserIdentifier::Email(email.clone()), password: password.clone(), auth_type };
             let user: Option<User> = auth.backend.authenticate(creds).await?;
 
@@ -346,7 +349,7 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
 pub async fn get_user() -> Result<Option<User>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let response = expect_context::<ResponseOptions>();
+            let response = get_context::<ResponseOptions>()?;
             match use_context::<AuthSession>() {
                 Some(session) => Ok(session.user),
                 None => {
@@ -413,7 +416,7 @@ pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<
 pub async fn register_user(email: String, password: String, confirm_password: String) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let mut auth_session: AuthSession = use_context().expect("auth-session not provided");
+            let mut auth_session = get_context::<AuthSession>()?;
 
             if password != confirm_password {
                 return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
@@ -532,13 +535,27 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
             
-            let mut data = avatar.into_inner().unwrap();
+            let mut data = match avatar.into_inner() {
+                Some(inner_data) => inner_data,
+                None => {
+                    return Err(AppError::InternalError("Failed to extract inner data from avatar".to_string()));
+                }
+            };
             let mut file_name = String::new();
             let mut file_blob = Vec::<u8>::new();
             let mut mime_type = String::new();
             while let Ok(Some(mut field)) = data.next_field().await {
-                file_name = field.file_name().unwrap().to_string();
-                mime_type = field.content_type().unwrap().to_string();
+                if let Some(field_file_name) = field.file_name() {
+                    file_name = field_file_name.to_string();
+                } else {
+                    return Err(AppError::InternalError("Failed to extract file name".to_string()))
+                }
+
+                if let Some(field_content_type) = field.content_type() {
+                    mime_type = field_content_type.to_string();
+                } else {
+                    return Err(AppError::InternalError("Failed to extract content type".to_string()))
+                }
 
                 while let Ok(Some(chunk)) = field.chunk().await {
                     file_blob.append(&mut chunk.to_vec());
@@ -754,7 +771,7 @@ pub async fn serve_image(
 pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
+            let auth = get_context::<AuthSession>()?;
             let events = match db::structs::Event::get_all(&auth.backend.pool).await {
                 Ok(events) => events,
                 Err(e) => return Err(e.into())
@@ -808,7 +825,7 @@ pub async fn edit_password(old_password: String, new_password: String, confirm_n
 
 #[server(name=UserExists, prefix="/api",endpoint="user_exists")]
 pub async fn user_exists(email: String) -> Result<bool, AppError> {
-    let auth = use_context::<AuthSession>().unwrap();
+    let auth = get_context::<AuthSession>()?;
 
     match DbUser::is_user_available(&email, &auth.backend.pool).await {
         Ok(result) => Ok(result),
@@ -818,7 +835,7 @@ pub async fn user_exists(email: String) -> Result<bool, AppError> {
 
 #[server(name=LogoutUser, prefix="/api/",endpoint="logout")]
 pub async fn logout_user() -> Result<(), AppError> {
-    let mut auth = use_context::<AuthSession>().unwrap();
+    let mut auth = get_context::<AuthSession>()?;
 
     match auth.logout().await {
         Ok(_) => {
@@ -834,7 +851,7 @@ pub async fn logout_user() -> Result<(), AppError> {
 pub async fn is_ldap_enabled() -> Result<bool, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
-            let auth = use_context::<AuthSession>().unwrap();
+            let auth = get_context::<AuthSession>()?;
             
             match LdapArgs::get_status(&auth.backend.pool).await {
                 Ok(enabled) => Ok(enabled),
@@ -1136,8 +1153,8 @@ cfg_if! {
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
-    let auth = use_context::<AuthSession>().unwrap();
-    let response = expect_context::<ResponseOptions>();
+    let auth = get_context::<AuthSession>()?;
+    let response = get_context::<ResponseOptions>()?;
     match auth.user {
         Some(user) => Ok((user, auth.backend.pool)),
         None => {

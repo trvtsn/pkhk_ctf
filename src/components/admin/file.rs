@@ -93,8 +93,8 @@ pub fn File(
                         let value = id.clone();
                         move |_| {
                             let id = value.clone();
-                            let new_file_name = new_file_name.get();
-                            if renaming.get() {
+                            let new_file_name = new_file_name.get_untracked();
+                            if renaming.get_untracked() {
                                 spawn_local(async move {
                                     tracing::debug!("renaming file: {id}");
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::rename_file(
@@ -127,7 +127,7 @@ pub fn File(
                     focus:ring-yale-blue-500"#
                     on:click=move |_| {
                         let id = id.clone();
-                        if deleting.get() {
+                        if deleting.get_untracked() {
                             spawn_local(async move {
                                 tracing::debug!("deleting file: {id}");
                                 if let Ok(ApiResult { result, .. }) = crate::server::admin::delete_file(

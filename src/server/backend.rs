@@ -136,13 +136,17 @@ cfg_if! {
                 // Now we need to make sure we can make a good session key. In this case, we're using the raw bytes
                 // that were output from the password hash (in this case, 32 bytes). This does *not* include the salt
                 // or other associated data that's bulit into the pass_hash_str
-                let hash_bytes = pw_hash.hash.unwrap().as_bytes().to_owned();
-                Ok(Some(
-                    User {
-                        id: new_user_id,
-                        session_auth_hash: hash_bytes,
-                    }
-                ))
+                if let Some(hash_bytes) = pw_hash.hash {
+                    Ok(Some(
+                        User {
+                            id: new_user_id,
+                            session_auth_hash: hash_bytes.as_bytes().to_owned(),
+                        }
+                    ))
+                } else {
+                    Err(AppError::InternalError("Password hash/digest empty?".to_string()))
+                }
+
             }
         }
 
@@ -286,7 +290,7 @@ cfg_if! {
                 if let Ok(()) = verify_hash(&creds.password, &user.pw_hash) {
                     Ok(Some(user.to_user().await?))
                 } else {
-                    Err(Self::Error::InternalError("wrong pw".to_string()))
+                    Ok(None)
                 }
             }
 

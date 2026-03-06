@@ -149,12 +149,12 @@ pub fn Proxmox() -> impl IntoView {
                                 <button
                                     class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                                     on:click=move |_| {
-                                        let base_url = base_url.get();
-                                        let api_path = api_path.get();
-                                        let templates_pool_id = templates_pool_id.get();
-                                        let node = node.get();
-                                        let api_token = api_token.get();
-                                        let auth_type = auth_type.get();
+                                        let base_url = base_url.get_untracked();
+                                        let api_path = api_path.get_untracked();
+                                        let templates_pool_id = templates_pool_id.get_untracked();
+                                        let node = node.get_untracked();
+                                        let api_token = api_token.get_untracked();
+                                        let auth_type = auth_type.get_untracked();
                                         spawn_local(async move {
                                             let api_path = if api_path.is_empty() { "/api2/json".to_string() } else { api_path };
                                             if let Ok(ApiResult { result, details }) = test_proxmox(ProxmoxArgs {
@@ -188,12 +188,12 @@ pub fn Proxmox() -> impl IntoView {
                                     text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
                                     bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                                     on:click=move |_| {
-                                        let base_url = base_url.get();
-                                        let api_path = api_path.get();
-                                        let templates_pool_id = templates_pool_id.get();
-                                        let node = node.get();
-                                        let api_token = api_token.get();
-                                        let auth_type = auth_type.get();
+                                        let base_url = base_url.get_untracked();
+                                        let api_path = api_path.get_untracked();
+                                        let templates_pool_id = templates_pool_id.get_untracked();
+                                        let node = node.get_untracked();
+                                        let api_token = api_token.get_untracked();
+                                        let auth_type = auth_type.get_untracked();
                                         spawn_local(async move {
                                             let api_path = if api_path.is_empty() { "/api2/json".to_string() } else { api_path };
                                             if let Ok(ApiResult { result, details }) = update_proxmox(ProxmoxArgs {

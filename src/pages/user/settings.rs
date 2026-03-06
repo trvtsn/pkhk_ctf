@@ -5,7 +5,6 @@ use leptos_use::{ColorMode};
 /// Default Home Page
 #[component]
 pub fn Settings() -> impl IntoView {
-
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let old_password = RwSignal::new("".to_string());
@@ -26,8 +25,8 @@ pub fn Settings() -> impl IntoView {
             }
         }
     });
-    let color_mode = use_context::<Signal<ColorMode>>().unwrap();
-    let set_color_mode = use_context::<WriteSignal<ColorMode>>().unwrap();
+    let color_mode = use_context::<Signal<ColorMode>>().unwrap_or_default();
+    let set_color_mode = expect_context::<WriteSignal<ColorMode>>();
     let changing_password = RwSignal::new(false);
 
     let old_password_hidden = RwSignal::new(true);
@@ -69,7 +68,7 @@ pub fn Settings() -> impl IntoView {
                         hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         disabled=move || new_username.get().is_empty()
                         on:click=move |_| {
-                            let new_username = new_username.get();
+                            let new_username = new_username.get_untracked();
                             if !new_username.is_empty() {
                                 spawn_local(async move {
                                     if edit_username(new_username).await.is_ok() {
@@ -92,7 +91,7 @@ pub fn Settings() -> impl IntoView {
                         rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
                         hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            if changing_password.get() {
+                            if changing_password.get_untracked() {
                                 changing_password.set(false)
                             } else {
                                 changing_password.set(true)
@@ -163,7 +162,7 @@ pub fn Settings() -> impl IntoView {
                             <div class=r#"flex gap-3 mt-2 pt-2"#>
                                 <button
                                     class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
-                                    on:click=move |_| { changing_password.set(false) }
+                                    on:click=move |_| changing_password.set(false)
                                 >
                                     "Cancel"
                                 </button>
@@ -191,8 +190,14 @@ pub fn Settings() -> impl IntoView {
                             if !uploaded_avatar.get() {
                                 return;
                             } else {
-                                let target = ev.target().unwrap().unchecked_into::<HtmlFormElement>();
-                                let fd = FormData::new_with_form(&target).unwrap();
+                                let form = match ev.target() {
+                                    Some(target) => target.unchecked_into::<HtmlFormElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
+                                let fd = match FormData::new_with_form(&form) {
+                                    Ok(fd) => fd,
+                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
                                 spawn_local(async move {
                                     if let Ok(_) = edit_avatar(fd.into()).await {
                                         push_new_toast(ToastMessageType::AvatarEdited);
@@ -209,7 +214,10 @@ pub fn Settings() -> impl IntoView {
                             name="file"
                             required
                             on:change=move |ev: Event| {
-                                let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                                let input = match ev.target() {
+                                    Some(target) => target.unchecked_into::<HtmlInputElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
                                 if input.files().is_some() {
                                     uploaded_avatar.set(true);
                                 }

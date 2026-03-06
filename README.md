@@ -25,7 +25,7 @@ cargo leptos watch
 ### Functionality
 - [ ] Mitigate any unnecessary hydration/data-processing loops or cycles (to save resources)
 - [ ] Clean up code for better readability, get rid of placeholder code
-- [ ] Properly handle all errors, remove all .unwrap()'s where necessary
+- [x] Properly handle all errors, remove all .unwrap()'s where necessary
 - [x] Actually make dark mode work
 - [x] Add "group" column to DB in "users" table
 - [x] Filter challenges and leaderboard by user group

@@ -225,8 +225,8 @@ pub fn ChallengePopup(
                         class=move || button_classes.get()
                         disabled=move || solved.get() || incorrect.get()
                         on:click=move |_| {
-                            let flag = flag_signal.get();
-                            let challenge = cwa.get().challenge;
+                            let flag = flag_signal.get_untracked();
+                            let challenge = cwa.get_untracked().challenge;
                             check_flag_action.dispatch((flag, challenge));
                         }
                     >
@@ -325,7 +325,7 @@ pub fn ChallengePopup(
                                                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                         disabled=move || start_vm_action.pending().get()
                                                         on:click=move |_| {
-                                                            let challenge = cwa.get().challenge;
+                                                            let challenge = cwa.get_untracked().challenge;
                                                             start_vm_action.dispatch((template.id, challenge));
                                                         }
                                                     >

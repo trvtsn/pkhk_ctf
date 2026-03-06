@@ -137,8 +137,8 @@ pub fn Challenge(
                     class=move || button_classes.get()
                     disabled=move || solved.get() || incorrect.get()
                     on:click=move |_| {
-                        let flag = flag_signal.get();
-                        let challenge = cwa.get().challenge;
+                        let flag = flag_signal.get_untracked();
+                        let challenge = cwa.get_untracked().challenge;
                         check_flag_action.dispatch((flag, challenge));
                     }
                 >

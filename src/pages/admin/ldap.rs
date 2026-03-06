@@ -1,4 +1,4 @@
-use crate::{components::utils::{ComponentSize, HidePasswordButton, Spinner}, server::{admin::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, server::{admin::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local, web_sys::{FormData}};
 use leptos_icons::Icon;
@@ -224,20 +224,29 @@ pub fn Ldap() -> impl IntoView {
                                         type="button"
                                         class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                                         on:click=move |_| {
-                                            let certificate_ref = certificate_ref.get();
+                                            let certificate_ref = certificate_ref.get_untracked();
 
-                                            let url = ldap_url.get();
-                                            let bind_dn = bind_dn.get();
-                                            let bind_pw = bind_pw.get();
-                                            let base_dn = base_dn.get();
-                                            let enabled = enabled.get();
+                                            let url = ldap_url.get_untracked();
+                                            let bind_dn = bind_dn.get_untracked();
+                                            let bind_pw = bind_pw.get_untracked();
+                                            let base_dn = base_dn.get_untracked();
+                                            let enabled = enabled.get_untracked();
                                             spawn_local(async move {
                                                 if let Some(cert_el) = certificate_ref {
                                                     if let Some(files) = cert_el.files() {
                                                         if files.length() > 0 {
-                                                            let file = files.get(0).unwrap();
-                                                            let fd = FormData::new().unwrap();
-                                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                            let file = match files.get(0) {
+                                                                Some(file) => file,
+                                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            };
+                                                            let fd = match FormData::new() {
+                                                                Ok(fd) => fd,
+                                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            };
+                                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                                Ok(_) => {},
+                                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            }
 
                                                             if let Ok(api_result) = upload_certificate(fd.into()).await {
                                                                 certificate.set(Some(api_result.details));
@@ -274,20 +283,29 @@ pub fn Ldap() -> impl IntoView {
                                         text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
                                         bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                                         on:click=move |_| {
-                                            let certificate_ref = certificate_ref.get();
+                                            let certificate_ref = certificate_ref.get_untracked();
 
-                                            let url = ldap_url.get();
-                                            let bind_dn = bind_dn.get();
-                                            let bind_pw = bind_pw.get();
-                                            let base_dn = base_dn.get();
-                                            let enabled = enabled.get();
+                                            let url = ldap_url.get_untracked();
+                                            let bind_dn = bind_dn.get_untracked();
+                                            let bind_pw = bind_pw.get_untracked();
+                                            let base_dn = base_dn.get_untracked();
+                                            let enabled = enabled.get_untracked();
                                             spawn_local(async move {
                                                 if let Some(cert_el) = certificate_ref {
                                                     if let Some(files) = cert_el.files() {
                                                         if files.length() > 0 {
-                                                            let file = files.get(0).unwrap();
-                                                            let fd = FormData::new().unwrap();
-                                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                            let file = match files.get(0) {
+                                                                Some(file) => file,
+                                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            };
+                                                            let fd = match FormData::new() {
+                                                                Ok(fd) => fd,
+                                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            };
+                                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                                Ok(_) => {},
+                                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            }
 
                                                             if let Ok(api_result) = upload_certificate(fd.into()).await {
                                                                 certificate.set(Some(api_result.details));

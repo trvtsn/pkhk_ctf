@@ -69,7 +69,7 @@ pub fn NavBar() -> impl IntoView {
                             <a
                                 class=r#"inline-flex gap-2 items-center m-1 cursor-pointer"#
                                 on:click=move |_| {
-                                    open.set(!open.get());
+                                    open.set(!open.get_untracked());
                                 }
                             >
                                 <Icon icon=i::LuUser />

@@ -4,6 +4,8 @@ use leptos::{prelude::*, wasm_bindgen::JsCast};
 use leptos::server::codee::string::FromToStringCodec;
 use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
 
+use crate::components::toast::{ToastMessageType, push_new_toast};
+
 /// Default Home Page
 #[component]
 pub fn Log() -> impl IntoView {
@@ -39,17 +41,19 @@ pub fn Log() -> impl IntoView {
                 rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                 on:click=move |_| {
-                    let text = logs.get().join("");
+                    let text = logs.get_untracked().join("");
                     let current_datetime = Local::now().format("%d_%m_%Y-%H_%M_%S");
                     let file_name = format!("pkhkctf-logs-{}.txt", current_datetime);
                     let b64 = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
                     let href = format!("data:text/plain;charset=utf-8;base64,{}", b64);
-                    let window = leptos::web_sys::window().unwrap();
-                    let document = window.document().unwrap();
-                    let a = document
-                        .create_element("a")
-                        .unwrap()
-                        .unchecked_into::<leptos::web_sys::HtmlAnchorElement>();
+                    let document = match leptos::web_sys::window().and_then(|window| window.document()) {
+                        Some(document) => document,
+                        None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                    };
+                    let a = match document.create_element("a") {
+                        Ok(el) => el.unchecked_into::<leptos::web_sys::HtmlAnchorElement>(),
+                        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                    };
                     a.set_href(&href);
                     a.set_download(&file_name);
                     a.click();

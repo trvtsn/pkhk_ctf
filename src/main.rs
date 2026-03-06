@@ -74,7 +74,19 @@ async fn main() {
     tracing::info!(app = "tracing-sse-logs", version = "0.1.0", "server starting");
     tracing::debug!(details = "this is debug detail", "startup debug");
 
-    let session_store = MySqlStore::new(pool.clone()).with_schema_name("ctfpkhk").unwrap().with_table_name("sessions").unwrap();
+    let session_store = match MySqlStore::new(pool.clone()).with_schema_name("ctfpkhk") {
+        Ok(store) => match store.with_table_name("sessions") {
+            Ok(store) => store,
+            Err(e) => {
+                tracing::error!("Failed to create MySqlStore with table name: \"sessions\": {e}");
+                return
+            }
+        },
+        Err(e) => {
+            tracing::error!("Failed to create MySqlStore with schema name: \"ctfpkhk\": {e}");
+            return
+        }
+    };
     _ = session_store.migrate().await;
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false)
@@ -87,7 +99,13 @@ async fn main() {
     )
     .build();
 
-    let conf = get_configuration(None).unwrap();
+    let conf = match get_configuration(None) {
+        Ok(conf) => conf,
+        Err(e) => {
+            tracing::error!("Failed get_configuration: {e}");
+            return
+        }
+    };
     let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
     // Generate the list of routes in your Leptos App
@@ -121,11 +139,21 @@ async fn main() {
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    log!("listening on http://{}", &addr);
-    axum::serve(listener, app.into_make_service())
-        .await
-        .unwrap();
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(listener) => listener,
+        Err(e) => { 
+            tracing::error!("Failed to bind TcpListener on {addr:?}: {e}");
+            return
+        }
+    };
+    log!("Listening on http://{}", &addr);
+    match axum::serve(listener, app.into_make_service()).await {
+        Ok(_) => {},
+        Err(e) => {
+            tracing::error!("Failed to serve app on TcpListener: {e}");
+            return
+        }
+    }
 }
 
 #[cfg(not(feature = "ssr"))]

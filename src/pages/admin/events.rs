@@ -42,7 +42,7 @@ pub fn Events() -> impl IntoView {
                         <button
                             class=r#"py-1 px-3 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                             on:click=move |_| {
-                                if creating.get() {
+                                if creating.get_untracked() {
                                     creating.set(false);
                                     section.set(Actions::None);
                                 } else {
@@ -107,7 +107,10 @@ pub fn Events() -> impl IntoView {
                                     name="visible_to_groups"
                                     multiple=true
                                     on:change=move |ev: Event| {
-                                        let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                        let sel = match ev.target() {
+                                            Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                            None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                        };
                                         let selected = sel.selected_options();
                                         let mut picked: Vec<String> = Vec::new();
 
@@ -131,7 +134,9 @@ pub fn Events() -> impl IntoView {
                                                 key=|group: &String| group.clone()
                                                 let(group)
                                             >
-                                                <option value={group}>{group.clone()}</option>
+                                                <option value=group>
+                                                    {group.clone()}
+                                                </option>
                                             </For>
                                         }
                                     }}
@@ -179,7 +184,7 @@ pub fn Events() -> impl IntoView {
                                                     <button 
                                                         class="cursor-pointer"
                                                         on:click=move |_| {
-                                                            let remove_at = index.get();
+                                                            let remove_at = index.get_untracked();
 
                                                             attachments.update(|a| {
                                                                 a.get_or_insert_default().remove(remove_at);
@@ -268,7 +273,7 @@ pub fn Events() -> impl IntoView {
                                 <button
                                     type="button"
                                     class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
-                                    on:click=move |_| { section.set(Actions::None) }
+                                    on:click=move |_| section.set(Actions::None)
                                 >
                                     "Cancel"
                                 </button>
@@ -278,21 +283,34 @@ pub fn Events() -> impl IntoView {
                                     text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
                                     bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                                     on:click=move |_| {
-                                        let name = name_signal.get();
-                                        let description = description_signal.get();
-                                        let start_at = html_local_to_datetime(start_at_signal.get());
-                                        let end_at = html_local_to_datetime(end_at_signal.get());
-                                        let visible_to_groups = visible_to_groups_signal.get().join(",");
+                                        let name = name_signal.get_untracked();
+                                        let description = description_signal.get_untracked();
+                                        let start_at = html_local_to_datetime(start_at_signal.get_untracked());
+                                        let end_at = html_local_to_datetime(end_at_signal.get_untracked());
+                                        let visible_to_groups = visible_to_groups_signal.get_untracked().join(",");
+
+                                        let attachments_ref = attachments_ref.get_untracked();
+                                        let illustration_ref = illustration_ref.get_untracked();
+
                                         spawn_local(async move {
                                             tracing::debug!("creating event...");
 
-                                            if let Some(att_el) = attachments_ref.get() {
+                                            if let Some(att_el) = attachments_ref {
                                                 if let Some(files) = att_el.files() {
                                                     if files.length() > 0 {
-                                                        let fd = FormData::new().unwrap();
+                                                        let fd = match FormData::new() {
+                                                            Ok(fd) => fd,
+                                                            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                        };
                                                         for i in 0..files.length() {
-                                                            let file = files.get(i).unwrap();
-                                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                            let file = match files.get(i) {
+                                                                Some(file) => file,
+                                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            };
+                                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                                Ok(_) => {},
+                                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                            }
                                                         }
 
                                                         if let Ok(api_result) = upload_files(fd.into()).await {
@@ -302,12 +320,21 @@ pub fn Events() -> impl IntoView {
                                                 }
                                             }
 
-                                            if let Some(illustr_el) = illustration_ref.get() {
+                                            if let Some(illustr_el) = illustration_ref {
                                                 if let Some(files) = illustr_el.files() {
                                                     if files.length() > 0 {
-                                                        let file = files.get(0).unwrap();
-                                                        let fd = FormData::new().unwrap();
-                                                        fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                        let file = match files.get(0) {
+                                                            Some(file) => file,
+                                                            None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                        };
+                                                        let fd = match FormData::new() {
+                                                            Ok(fd) => fd,
+                                                            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                        };
+                                                        match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                            Ok(_) => {},
+                                                            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                        }
 
                                                         if let Ok(api_result) = upload_illustration(fd.into()).await {
                                                             illustration.set(Some(api_result.details))

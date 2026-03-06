@@ -89,7 +89,7 @@ pub fn Admin() -> impl IntoView {
 
 #[component]
 pub fn AdminNavBar() -> impl IntoView {
-    let selected = use_context::<RwSignal<AdminSections>>().expect("to have found the setter provided");
+    let selected = expect_context::<RwSignal<AdminSections>>();
 
     view! {
         <nav class=r#"flex flex-col col-start-1 col-end-1 gap-2 p-4 bg-background-secondary text-text rounded-lg shadow-sm"#>

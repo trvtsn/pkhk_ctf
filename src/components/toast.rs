@@ -29,6 +29,7 @@ pub enum ToastMessageType {
     ChallengeDeleteFail,
     ChallengeEdited,
     ChallengeEditFail,
+    ErrorOccurred,
     FileRenamed,
     FileRenameFail,
     InvalidCredentials,
@@ -72,6 +73,7 @@ impl std::fmt::Display for ToastMessageType {
             ToastMessageType::ChallengeDeleteFail => write!(f, "Failed to delete challenge"),
             ToastMessageType::ChallengeEdited => write!(f, "Successfully edited challenge"),
             ToastMessageType::ChallengeEditFail => write!(f, "Failed to edit challenge"),
+            ToastMessageType::ErrorOccurred => write!(f, "An error occurred"),
             ToastMessageType::FileRenamed => write!(f, "Successfully renamed file"),
             ToastMessageType::FileRenameFail => write!(f, "Failed to rename file"),
             ToastMessageType::InvalidCredentials => write!(f, "Invalid credentials"),
@@ -176,4 +178,3 @@ pub fn push_new_toast(message_type: ToastMessageType) {
         appear: RwSignal::new(true) 
     }));
 }
-

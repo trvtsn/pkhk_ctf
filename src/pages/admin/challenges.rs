@@ -120,7 +120,7 @@ pub fn Challenges() -> impl IntoView {
             <button
                 class=r#"py-1 px-3 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                 on:click=move |_| {
-                    if creating.get() {
+                    if creating.get_untracked() {
                         creating.set(false);
                     } else {
                         creating.set(true);
@@ -155,9 +155,7 @@ pub fn Challenges() -> impl IntoView {
                                         key=|e: &db::structs::Event| e.id.clone()
                                         let(e: db::structs::Event)
                                     >
-                                        <option value=e
-                                            .id
-                                            .clone()>
+                                        <option value=e.id>
                                             {e.name.clone()} " (ID: " {e.id.clone()} ")"
                                         </option>
                                     </For>
@@ -198,12 +196,18 @@ pub fn Challenges() -> impl IntoView {
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         name="category"
                         on:change=move |ev: Event| {
-                            let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                            let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                            let new_input = doc
-                                .get_element_by_id("action_create_category_input")
-                                .unwrap()
-                                .unchecked_into::<HtmlInputElement>();
+                            let sel = match ev.target() {
+                                Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                            };
+                            let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
+                                Some(doc) => doc,
+                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                            };
+                            let new_input = match doc.get_element_by_id("action_create_category_input") {
+                                Some(el) => el.unchecked_into::<HtmlInputElement>(),
+                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                            };
                             if sel.value() == "__new__" {
                                 let _ = sel.remove_attribute("name");
                                 let _ = new_input.set_attribute("name", "category");
@@ -221,8 +225,6 @@ pub fn Challenges() -> impl IntoView {
                             view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
-                                let categories = categories_resource.get().unwrap_or_default();
-                                categories_signal.set(categories.clone());
                                 view! {
                                     <For
                                         each=move || categories_signal.get()
@@ -330,7 +332,7 @@ pub fn Challenges() -> impl IntoView {
                                     key=|group: &String| group.clone()
                                     let(group)
                                 >
-                                    <option value={group.clone()}>{group.clone()}</option>
+                                    <option value=group>{group.clone()}</option>
                                 </For>
                             }
                         }}
@@ -345,7 +347,10 @@ pub fn Challenges() -> impl IntoView {
                         name="vm_ids"
                         multiple=true
                         on:change=move |ev: Event| {
-                            let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                            let sel = match ev.target() {
+                                Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                            };
                             let selected = sel.selected_options();
                             let mut picked: Vec<String> = Vec::new();
 
@@ -372,7 +377,9 @@ pub fn Challenges() -> impl IntoView {
                                         key=|template: &ProxmoxVMTemplate| template.id
                                         let(template)
                                     >
-                                        <option value={template.id}>{format!("{} (VM ID: {})", template.name, template.id)}</option>
+                                        <option value=template.id>
+                                            {format!("{} (VM ID: {})", template.name, template.id)}
+                                        </option>
                                     </For>
                                 }
                             }}
@@ -414,8 +421,8 @@ pub fn Challenges() -> impl IntoView {
                                         on:click=move |_| {
                                             hints.update(|vec| {
                                                 let vec = vec.get_or_insert_with(Vec::new);
-                                                next_hint_id.set(next_hint_id.get() + 1);
-                                                vec.push(Hint::new(next_hint_id.get().to_string(), ""));
+                                                next_hint_id.set(next_hint_id.get_untracked() + 1);
+                                                vec.push(Hint::new(next_hint_id.get_untracked().to_string(), ""));
                                             });
                                         }
                                     >
@@ -427,7 +434,7 @@ pub fn Challenges() -> impl IntoView {
                                                 <button 
                                                     class="cursor-pointer"
                                                     on:click=move |_| {
-                                                        let remove_at = index.get();
+                                                        let remove_at = index.get_untracked();
 
                                                         hints.update(|vec| {
                                                             let vec = vec.get_or_insert_with(Vec::new);
@@ -491,7 +498,7 @@ pub fn Challenges() -> impl IntoView {
                                         <button 
                                             class="cursor-pointer"
                                             on:click=move |_| {
-                                                let remove_at = index.get();
+                                                let remove_at = index.get_untracked();
 
                                                 attachments.update(|a| {
                                                     a.get_or_insert_default().remove(remove_at);
@@ -592,42 +599,64 @@ pub fn Challenges() -> impl IntoView {
                         text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
                         bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            let event_id = event_id.get();
-                            let name = name.get();
-                            let description = description.get().unwrap_or_default();
-                            let category = category.get().unwrap_or_default();
-                            let difficulty = difficulty.get();
-                            let points = points.get();
-                            let flag = flag.get();
-                            let visible_to_groups = visible_to_groups.get().join(",");
-                            let vm_ids = vm_ids.get();
-                            let hints = hints.get().unwrap_or_default().into_iter().map(|h| Into::<DbHint>::into(h)).collect::<Vec<DbHint>>();
+                            let event_id = event_id.get_untracked();
+                            let name = name.get_untracked();
+                            let description = description.get_untracked().unwrap_or_default();
+                            let category = category.get_untracked().unwrap_or_default();
+                            let difficulty = difficulty.get_untracked();
+                            let points = points.get_untracked();
+                            let flag = flag.get_untracked();
+                            let visible_to_groups = visible_to_groups.get_untracked().join(",");
+                            let vm_ids = vm_ids.get_untracked();
+                            let hints = hints.get_untracked().unwrap_or_default().into_iter().map(|h| Into::<DbHint>::into(h)).collect::<Vec<DbHint>>();
+
+                            let attachments_ref = attachments_ref.get_untracked();
+                            let illustration_ref = illustration_ref.get_untracked();
+
                             spawn_local(async move {
-                                if let Some(att_el) = attachments_ref.get() {
+                                if let Some(att_el) = attachments_ref {
                                     if let Some(files) = att_el.files() {
                                         if files.length() > 0 {
-                                            let fd = FormData::new().unwrap();
+                                            let fd = match FormData::new() {
+                                                Ok(fd) => fd,
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
                                             for i in 0..files.length() {
-                                                let file = files.get(i).unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                let file = match files.get(i) {
+                                                    Some(file) => file,
+                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                };
+                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                    Ok(_) => {},
+                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                }
                                             }
 
                                             if let Ok(api_result) = upload_files(fd.into()).await {
-                                                attachments.set(Some(api_result.details.clone()))
+                                                attachments.set(Some(api_result.details))
                                             }
                                         }
                                     }
                                 }
 
-                                if let Some(illustr_el) = illustration_ref.get() {
+                                if let Some(illustr_el) = illustration_ref {
                                     if let Some(files) = illustr_el.files() {
                                         if files.length() > 0 {
-                                            let file = files.get(0).unwrap();
-                                            let fd = FormData::new().unwrap();
-                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            let file = match files.get(0) {
+                                                Some(file) => file,
+                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
+                                            let fd = match FormData::new() {
+                                                Ok(fd) => fd,
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
+                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                Ok(_) => {},
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            }
 
                                             if let Ok(api_result) = upload_illustration(fd.into()).await {
-                                                illustration.set(Some(api_result.details.clone()));
+                                                illustration.set(Some(api_result.details));
                                             }
                                         }
                                     }
@@ -679,6 +708,9 @@ pub fn Challenges() -> impl IntoView {
 
                     let user_groups = groups_resource.get().unwrap_or_default();
                     user_groups_signal.set(user_groups);
+
+                    let categories = categories_resource.get().unwrap_or_default();
+                    categories_signal.set(categories.clone());
 
                     let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
                     for ch in cwa_resource.get().unwrap_or_default().into_iter() {

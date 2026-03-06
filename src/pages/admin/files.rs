@@ -1,4 +1,4 @@
-use crate::{components::{admin::file::File, utils::{ComponentSize, Spinner}}, server::{admin::{get_all_files, upload_files}, db}};
+use crate::{components::{admin::file::File, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, Spinner}}, server::{admin::{get_all_files, upload_files}, db}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{FormData, HtmlFormElement, HtmlInputElement, SubmitEvent}};
 
 /// Default Home Page
@@ -18,8 +18,14 @@ pub fn Files() -> impl IntoView {
                 if !has_files_signal.get() {
                     return;
                 } else {
-                    let target = ev.target().unwrap().unchecked_into::<HtmlFormElement>();
-                    let fd = FormData::new_with_form(&target).unwrap();
+                    let form = match ev.target() {
+                        Some(target) => target.unchecked_into::<HtmlFormElement>(),
+                        None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                    };
+                    let fd = match FormData::new_with_form(&form) {
+                        Ok(fd) => fd,
+                        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                    };
                     spawn_local(async move {
                         if let Ok(_) = upload_files(fd.into()).await {
                             refresh.update(|n| *n += 1);
@@ -34,7 +40,10 @@ pub fn Files() -> impl IntoView {
                 multiple 
                 required
                 on:change=move |ev| {
-                    let input = ev.target().unwrap().unchecked_into::<HtmlInputElement>();
+                    let input = match ev.target() {
+                        Some(target) => target.unchecked_into::<HtmlInputElement>(),
+                        None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                    };
                     if input.files().is_some() {
                         has_files_signal.set(true);
                     }

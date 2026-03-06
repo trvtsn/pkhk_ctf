@@ -188,12 +188,18 @@ pub fn Challenge(
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             name="category"
                             on:change=move |ev: Event| {
-                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                                let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                                let new_input = doc
-                                    .get_element_by_id("action_create_category_input")
-                                    .unwrap()
-                                    .unchecked_into::<HtmlInputElement>();
+                                let sel = match ev.target() {
+                                    Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
+                                let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
+                                    Some(doc) => doc,
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
+                                let new_input = match doc.get_element_by_id("action_create_category_input") {
+                                    Some(el) => el.unchecked_into::<HtmlInputElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
                                 if sel.value() == "__new__" {
                                     let _ = sel.remove_attribute("name");
                                     let _ = new_input.set_attribute("name", "category");
@@ -224,19 +230,18 @@ pub fn Challenge(
                             />
                             <option value="__new__">"-- Add New --"</option>
                         </select>
-                        <Show when=move || category_add_new_selected.get()>
-                            <input
-                                class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                type="text"
-                                id="action_create_category_input"
-                                value=""
-                                on:change=move |ev: Event| {
-                                    let value = event_target_value(&ev);
-                                    category_edit.set(Some(value));
-                                }
-                            />
-                        </Show>
+                        <input
+                            class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                            hidden=move || !category_add_new_selected.get()
+                            type="text"
+                            id="action_create_category_input"
+                            value=""
+                            on:change=move |ev: Event| {
+                                let value = event_target_value(&ev);
+                                category_edit.set(Some(value));
+                            }
+                        />
                     </div>
 
                     <div class="grid">
@@ -289,7 +294,10 @@ pub fn Challenge(
                             name="visible_to_groups"
                             multiple=true
                             on:change=move |ev: Event| {
-                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let sel = match ev.target() {
+                                    Some(sel) => sel.unchecked_into::<HtmlSelectElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
                                 let selected = sel.selected_options();
                                 let mut picked: Vec<String> = Vec::new();
 
@@ -352,7 +360,10 @@ pub fn Challenge(
                             name="vm_ids"
                             multiple=true
                             on:change=move |ev: Event| {
-                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let sel = match ev.target() {
+                                    Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                    None => return
+                                };
                                 let selected = sel.selected_options();
                                 let mut picked: Vec<String> = Vec::new();
 
@@ -383,7 +394,7 @@ pub fn Challenge(
 
                                             view! {
                                                 <option 
-                                                    value={template.id}
+                                                    value=template.id
                                                     selected=selected
                                                 >
                                                     {format!("{} (VM ID: {})", template.name, template.id)}
@@ -445,8 +456,8 @@ pub fn Challenge(
                                                     class="cursor-pointer"
                                                     on:click=move |_| {
                                                         hints_edit.update(|vec| {
-                                                            next_hint_id.set(next_hint_id.get() + 1);
-                                                            vec.push(Hint::new(next_hint_id.get().to_string(), ""));
+                                                            next_hint_id.set(next_hint_id.get_untracked() + 1);
+                                                            vec.push(Hint::new(next_hint_id.get_untracked().to_string(), ""));
                                                         });
                                                     }
                                                 >
@@ -458,7 +469,7 @@ pub fn Challenge(
                                                             <button 
                                                                 class="cursor-pointer"
                                                                 on:click=move |_| {
-                                                                    let remove_at = index.get();
+                                                                    let remove_at = index.get_untracked();
 
                                                                     hints_edit.update(|vec| {
                                                                         vec.remove(remove_at);
@@ -521,7 +532,7 @@ pub fn Challenge(
                                             <button 
                                                 class="cursor-pointer"
                                                 on:click=move |_| {
-                                                    let remove_at = index.get();
+                                                    let remove_at = index.get_untracked();
 
                                                     attachments_edit.update(|a| {
                                                         a.remove(remove_at);
@@ -628,34 +639,43 @@ pub fn Challenge(
                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                         on:click=move |_| {
-                            let challenge_id = id_signal.get();
-                            let event_id = event_id_edit.get();
-                            let name = name_edit.get();
-                            let description = description_edit.get();
-                            let category = category_edit.get();
-                            let difficulty = difficulty_edit.get();
-                            let points = points_edit.get();
-                            let flag = flag_edit.get();
-                            let visible_to_groups = visible_to_groups_edit.get();
-                            let vm_ids = proxmox_vm_id_edit.get();
-                            let hints = hints_edit.get().into_iter().map(|h| {
+                            let challenge_id = id_signal.get_untracked();
+                            let event_id = event_id_edit.get_untracked();
+                            let name = name_edit.get_untracked();
+                            let description = description_edit.get_untracked();
+                            let category = category_edit.get_untracked();
+                            let difficulty = difficulty_edit.get_untracked();
+                            let points = points_edit.get_untracked();
+                            let flag = flag_edit.get_untracked();
+                            let visible_to_groups = visible_to_groups_edit.get_untracked();
+                            let vm_ids = proxmox_vm_id_edit.get_untracked();
+                            let hints = hints_edit.get_untracked().into_iter().map(|h| {
                                 let mut hint = Into::<DbHint>::into(h); 
                                 hint.challenge_id = challenge_id.clone(); 
                                 hint
                             }).collect::<Vec<DbHint>>();
 
-                            let attachments_ref = attachments_ref.get();
-                            let illustration_ref = illustration_ref.get();
+                            let attachments_ref = attachments_ref.get_untracked();
+                            let illustration_ref = illustration_ref.get_untracked();
 
                             if editing.get() {
                                 spawn_local(async move {
                                     if let Some(att_el) = attachments_ref {
                                         if let Some(files) = att_el.files() {
                                             if files.length() > 0 {
-                                                let fd = FormData::new().unwrap();
+                                                let fd = match FormData::new() {
+                                                    Ok(fd) => fd,
+                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                };
                                                 for i in 0..files.length() {
-                                                    let file = files.get(i).unwrap();
-                                                    fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                    let file = match files.get(i) {
+                                                        Some(file) => file,
+                                                        None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                    };
+                                                    match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                        Ok(_) => {},
+                                                        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                    }
                                                 }
 
                                                 if let Ok(api_result) = upload_files(fd.into()).await {
@@ -668,9 +688,18 @@ pub fn Challenge(
                                     if let Some(illustr_el) = illustration_ref {
                                         if let Some(files) = illustr_el.files() {
                                             if files.length() > 0 {
-                                                let file = files.get(0).unwrap();
-                                                let fd = FormData::new().unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                let file = match files.get(0) {
+                                                    Some(file) => file,
+                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                };
+                                                let fd = match FormData::new() {
+                                                    Ok(fd) => fd,
+                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                };
+                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                    Ok(_) => {},
+                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                }
 
                                                 if let Ok(api_result) = upload_illustration(fd.into()).await {
                                                     illustration_edit.set(Some(api_result.details))
@@ -735,7 +764,7 @@ pub fn Challenge(
                         focus:ring-yale-blue-500"#
                         on:click=move |_| {
                             if deleting.get() {
-                                let challenge_id = id_signal.get();
+                                let challenge_id = id_signal.get_untracked();
                                 spawn_local(async move {
                                     tracing::debug!("deleting challenge ID: {challenge_id}");
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Delete {
@@ -767,7 +796,7 @@ pub fn Challenge(
                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                         on:click=move |_| {
-                            if !editing.get() {
+                            if !editing.get_untracked() {
                                 editing.set(true)
                             }
                         }
@@ -780,7 +809,7 @@ pub fn Challenge(
                         bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            if !deleting.get() {
+                            if !deleting.get_untracked() {
                                 deleting.set(true);
                             }
                         }

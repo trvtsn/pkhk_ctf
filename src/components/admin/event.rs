@@ -168,7 +168,10 @@ pub fn Event(
                             name="visible_to_groups"
                             multiple=true
                             on:change=move |ev: Event| {
-                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
+                                let sel = match ev.target() {
+                                    Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
                                 let selected = sel.selected_options();
                                 let mut picked: Vec<String> = Vec::new();
 
@@ -264,7 +267,7 @@ pub fn Event(
                                             <button 
                                                 class="cursor-pointer"
                                                 on:click=move |_| {
-                                                    let remove_at = index.get();
+                                                    let remove_at = index.get_untracked();
 
                                                     attachments_edit.update(|a| {
                                                         a.remove(remove_at);
@@ -368,27 +371,36 @@ pub fn Event(
                     rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                     bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                     on:click=move |_| {
-                        let event_id = id_signal.get();
-                        let name = name_edit.get();
-                        let description = description_edit.get();
-                        let start_at = start_at_edit.get();
-                        let end_at = end_at_edit.get();
-                        let visible_to_groups = visible_to_groups_edit.get();
+                        let event_id = id_signal.get_untracked();
+                        let name = name_edit.get_untracked();
+                        let description = description_edit.get_untracked();
+                        let start_at = start_at_edit.get_untracked();
+                        let end_at = end_at_edit.get_untracked();
+                        let visible_to_groups = visible_to_groups_edit.get_untracked();
 
-                        let attachments_ref = attachments_ref.get();
-                        let illustration_ref = illustration_ref.get();
+                        let attachments_ref = attachments_ref.get_untracked();
+                        let illustration_ref = illustration_ref.get_untracked();
 
-                        if editing.get() {
+                        if editing.get_untracked() {
                             spawn_local(async move {
-                                tracing::debug!("editing event: {}", id_signal.get());
+                                tracing::debug!("editing event: {}", id_signal.get_untracked());
 
                                 if let Some(att_el) = attachments_ref {
                                     if let Some(files) = att_el.files() {
                                         if files.length() > 0 {
-                                            let fd = FormData::new().unwrap();
+                                            let fd = match FormData::new() {
+                                                Ok(fd) => fd,
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
                                             for i in 0..files.length() {
-                                                let file = files.get(i).unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                let file = match files.get(i) {
+                                                    Some(file) => file,
+                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                };
+                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                    Ok(_) => {},
+                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                }
                                             }
 
                                             if let Ok(api_result) = upload_files(fd.into()).await {
@@ -401,9 +413,18 @@ pub fn Event(
                                 if let Some(illustr_el) = illustration_ref {
                                     if let Some(files) = illustr_el.files() {
                                         if files.length() > 0 {
-                                            let file = files.get(0).unwrap();
-                                            let fd = FormData::new().unwrap();
-                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            let file = match files.get(0) {
+                                                Some(file) => file,
+                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
+                                            let fd = match FormData::new() {
+                                                Ok(fd) => fd,
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
+                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                Ok(_) => {},
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            }
 
                                             if let Ok(api_result) = upload_illustration(fd.into()).await {
                                                 illustration_edit.set(Some(api_result.details))
@@ -459,7 +480,7 @@ pub fn Event(
                     bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
                     focus:ring-yale-blue-500"#
                     on:click=move |_| {
-                        if deleting.get() {
+                        if deleting.get_untracked() {
                             let event_id = ewa.event.id.clone();
                             spawn_local(async move {
                                 tracing::debug!("deleting event: {event_id}");

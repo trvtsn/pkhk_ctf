@@ -183,12 +183,18 @@ pub fn User(
                             name="group"
                             multiple=true
                             on:change=move |ev: Event| {
-                                let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                                let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                                let new_input = doc
-                                    .get_element_by_id("action_create_group_input")
-                                    .unwrap()
-                                    .unchecked_into::<HtmlInputElement>();
+                                let sel = match ev.target() {
+                                    Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
+                                let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
+                                    Some(doc) => doc,
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
+                                let new_input = match doc.get_element_by_id("action_create_group_input") {
+                                    Some(el) => el.unchecked_into::<HtmlInputElement>(),
+                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                };
                                 if sel.value() == "__new__" {
                                     let _ = sel.remove_attribute("name");
                                     let _ = new_input.set_attribute("name", "group");
@@ -374,30 +380,39 @@ pub fn User(
                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                         on:click=move |_| {
-                            let user_id = id_signal.get();
-                            let username = username_edit.get();
-                            let email = email_edit.get();
-                            let password = new_password_edit.get();
-                            let confirm_password = confirm_new_password_edit.get();
-                            let points = points_edit.get();
-                            let role = role_edit.get();
-                            let groups = groups_edit.get();
+                            let user_id = id_signal.get_untracked();
+                            let username = username_edit.get_untracked();
+                            let email = email_edit.get_untracked();
+                            let password = new_password_edit.get_untracked();
+                            let confirm_password = confirm_new_password_edit.get_untracked();
+                            let points = points_edit.get_untracked();
+                            let role = role_edit.get_untracked();
+                            let groups = groups_edit.get_untracked();
 
-                            let avatar_ref = avatar_ref.get();
+                            let avatar_ref = avatar_ref.get_untracked();
 
-                            if editing.get() {
+                            if editing.get_untracked() {
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
 
                                     if let Some(avatar_el) = avatar_ref {
                                         if let Some(files) = avatar_el.files() {
                                             if files.length() > 0 {
-                                                let file = files.get(0).unwrap();
-                                                let fd = FormData::new().unwrap();
-                                                fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                                let file = match files.get(0) {
+                                                    Some(file) => file,
+                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                };
+                                                let fd = match FormData::new() {
+                                                    Ok(fd) => fd,
+                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                };
+                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                    Ok(_) => {},
+                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                                }
 
                                                 if let Ok(api_result) = upload_avatar(fd.into()).await {
-                                                    avatar_edit.set(Some(api_result.details.clone()));
+                                                    avatar_edit.set(Some(api_result.details));
                                                 }
                                             }
                                         }
@@ -453,15 +468,15 @@ pub fn User(
                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                         on:click=move |_| {
-                            if editing_password.get() {
+                            if editing_password.get_untracked() {
                                 spawn_local(async move {
                                     tracing::debug!(
-                                        "editing user password: {}", id_signal.get()
+                                        "editing user password: {}", id_signal.get_untracked()
                                     );
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::EditPassword {
-                                            id: id_signal.get(),
-                                            password: new_password_edit.get(),
-                                            confirm_password: confirm_new_password_edit.get(),
+                                            id: id_signal.get_untracked(),
+                                            password: new_password_edit.get_untracked(),
+                                            confirm_password: confirm_new_password_edit.get_untracked(),
                                         })
                                         .await && result == ResultStatus::Success
                                     {
@@ -486,8 +501,8 @@ pub fn User(
                         bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            let id = id_signal.get();
-                            if deleting.get() {
+                            let id = id_signal.get_untracked();
+                            if deleting.get_untracked() {
                                 spawn_local(async move {
                                     tracing::debug!("deleting user: {id}");
                                     if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Delete {

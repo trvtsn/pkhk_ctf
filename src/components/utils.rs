@@ -38,7 +38,7 @@ pub fn TruncatedDesc(description: RwSignal<Option<String>>) -> impl IntoView {
                 type="button"
                 class=r#"ml-2 text-base text-blue-600 underline cursor-pointer"#
                 on:click=move |_| {
-                    desc_expanded.set(!desc_expanded.get());
+                    desc_expanded.set(!desc_expanded.get_untracked());
                 }
             >
                 {show_more_less_text.get()}

@@ -43,7 +43,7 @@ pub fn Users() -> impl IntoView {
             <button
                 class=r#"py-1 px-3 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                 on:click=move |_| {
-                    if creating.get() {
+                    if creating.get_untracked() {
                         creating.set(false);
                         section.set(Actions::None);
                     } else {
@@ -146,12 +146,18 @@ pub fn Users() -> impl IntoView {
                         name="group"
                         multiple=true
                         on:change=move |ev: Event| {
-                            let sel = ev.target().unwrap().unchecked_into::<HtmlSelectElement>();
-                            let doc = leptos::web_sys::window().unwrap().document().unwrap();
-                            let new_input = doc
-                                .get_element_by_id("action_create_group_input")
-                                .unwrap()
-                                .unchecked_into::<HtmlInputElement>();
+                            let sel = match ev.target() {
+                                Some(target) => target.unchecked_into::<HtmlSelectElement>(),
+                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                            };
+                            let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
+                                Some(doc) => doc,
+                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                            };
+                            let new_input = match doc.get_element_by_id("action_create_group_input") {
+                                Some(el) => el.unchecked_into::<HtmlInputElement>(),
+                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                            };
                             if sel.value() == "__new__" {
                                 let _ = sel.remove_attribute("name");
                                 let _ = new_input.set_attribute("name", "group");
@@ -181,14 +187,15 @@ pub fn Users() -> impl IntoView {
                             view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
-                                let user_groups = user_groups_resource.get().unwrap_or_default();
                                 view! {
                                     <For
-                                        each=move || user_groups.clone()
+                                        each=move || user_groups_signal.get()
                                         key=|group: &String| group.clone()
                                         let(group)
                                     >
-                                        <option value={group}>{group.clone()}</option>
+                                        <option value=group>
+                                            {group.clone()}
+                                        </option>
                                     </For>
                                 }
                             }}
@@ -271,7 +278,7 @@ pub fn Users() -> impl IntoView {
                     <button
                         type="button"
                         class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
-                        on:click=move |_| { section.set(Actions::None) }
+                        on:click=move |_| section.set(Actions::None)
                     >
                         "Cancel"
                     </button>
@@ -281,21 +288,33 @@ pub fn Users() -> impl IntoView {
                         text-white rounded-md shadow-sm focus:ring-2 focus:outline-none 
                         bg-yale-blue-600 hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            let username = username_signal.get();
-                            let email = email_signal.get();
-                            let password = password_signal.get();
-                            let confirm_password = confirm_password_signal.get();
-                            let role = role_signal.get().into();
-                            let groups = groups_signal.get();
+                            let username = username_signal.get_untracked();
+                            let email = email_signal.get_untracked();
+                            let password = password_signal.get_untracked();
+                            let confirm_password = confirm_password_signal.get_untracked();
+                            let role = role_signal.get_untracked().into();
+                            let groups = groups_signal.get_untracked();
+
+                            let avatar_ref = avatar_ref.get_untracked();
+
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
                                 
-                                if let Some(avatar_el) = avatar_ref.get() {
+                                if let Some(avatar_el) = avatar_ref {
                                     if let Some(files) = avatar_el.files() {
                                         if files.length() > 0 {
-                                            let file = files.get(0).unwrap();
-                                            let fd = FormData::new().unwrap();
-                                            fd.append_with_blob_and_filename("file", &file, &file.name()).unwrap();
+                                            let file = match files.get(0) {
+                                                Some(file) => file,
+                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
+                                            let fd = match FormData::new() {
+                                                Ok(fd) => fd,
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            };
+                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+                                                Ok(_) => {},
+                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                            }
 
                                             if let Ok(api_result) = upload_avatar(fd.into()).await {
                                                 avatar_signal.set(Some(api_result.details));
