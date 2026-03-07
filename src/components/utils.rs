@@ -128,3 +128,23 @@ pub fn Spinner(component_size: ComponentSize) -> impl IntoView {
         </div>
     }
 }
+
+#[component]
+pub fn Difficulty(difficulty: i8) -> impl IntoView {
+    view! {
+        {move || {
+            view! {
+                <div
+                    class=r#"difficulty"#
+                    role="img"
+                    aria-label=format!("Difficulty: {} of 5", difficulty)
+                >
+                    <span class=r#"label"#>
+                        <b class=r#"text-lg/8"#>"Difficulty: "</b>
+                        {"⭐".repeat(difficulty as usize)}
+                    </span>
+                </div>
+            }
+        }}
+    }
+}

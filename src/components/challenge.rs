@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::app::RefreshUser;
 use crate::components::toast::{ToastMessageType, push_new_toast};
-use crate::components::utils::TruncatedDesc;
+use crate::components::utils::{Difficulty, TruncatedDesc};
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
@@ -164,25 +164,5 @@ pub fn Challenge(
                 </div>
             </div>
         </div>
-    }
-}
-
-#[component]
-pub fn Difficulty(difficulty: i8) -> impl IntoView {
-    view! {
-        {move || {
-            view! {
-                <div
-                    class=r#"difficulty"#
-                    role="img"
-                    aria-label=format!("Difficulty: {} of 5", difficulty)
-                >
-                    <span class=r#"label"#>
-                        <b class=r#"text-lg/8"#>"Difficulty: "</b>
-                        {"⭐".repeat(difficulty as usize)}
-                    </span>
-                </div>
-            }
-        }}
     }
 }

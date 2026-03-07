@@ -13,6 +13,7 @@ use http::StatusCode;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
+use std::collections::{HashMap, HashSet};
 use tracing::instrument;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -99,7 +100,9 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::ChallengeId(new_challenge_id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
+                                        tokio::spawn(async {
+                                            _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
+                                        });
                                         Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
                                     },
                                     Err(e) => {
@@ -111,7 +114,9 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                         None => {
                             tx.commit().await?;
-                            _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
+                            tokio::spawn(async {
+                                _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
+                            });
                             Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
                         }
                     }
@@ -146,7 +151,9 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     match db::structs::Challenge::delete(&id, &mut *tx).await {
                         Ok(_) => {
                             tx.commit().await?;
-                            _ = build_and_broadcast(AdminEventPayloadKind::ChallengeDeleted).await;
+                            tokio::spawn(async {
+                                _ = build_and_broadcast(AdminEventPayloadKind::ChallengeDeleted).await;
+                            });
                             Ok(ApiResult { result: ResultStatus::Success, details: "deleted challenge".to_string() })
                         },
                         Err(e) => {
@@ -157,10 +164,8 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
                 }
                 ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
-                    let mut flag_hash = "".to_string();
-                    if !flag.is_empty() {
-                        flag_hash = hash_string(&flag)?;
-                    }
+                    let flag_hash = if flag.is_empty() { String::new() } else { hash_string(&flag)? };
+
                     let mut tx = pool.begin().await?;
                     if let Err(e) = db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
                         tx.rollback().await?;
@@ -169,7 +174,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
 
                     let all_challenge_attachment_ids = match AttachmentWithoutBlob::get_all(&Some(db::enums::AttachmentIdentifier::ChallengeId(id.clone())), &mut *tx).await {
-                        Ok(all_attachments) => all_attachments.iter().map(|a| a.id.clone()).collect::<Vec<String>>(),
+                        Ok(all_attachments) => all_attachments.into_iter().map(|a| a.id.clone()).collect::<Vec<String>>(),
                         Err(e) => {
                             tx.rollback().await?;
                             tracing::error!(error = ?e);
@@ -187,7 +192,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
 
-                    let new_attachment_ids = attachments.unwrap_or_default().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                    let new_attachment_ids = attachments.unwrap_or_default().into_iter().map(|h| h.id).collect::<HashSet<String>>();
                     for existing_attachment_id in all_challenge_attachment_ids {
                         if !new_attachment_ids.contains(&existing_attachment_id) {
                             if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id), &mut *tx).await {
@@ -200,7 +205,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
 
                     if let Some(hints) = hints {
                         let all_challenge_hint_ids = match DbHint::get_all_from_challenge(&id, &mut *tx).await {
-                            Ok(all_hints) => all_hints.iter().map(|h| h.id.clone()).collect::<Vec<String>>(),
+                            Ok(all_hints) => all_hints.into_iter().map(|h| h.id).collect::<HashSet<String>>(),
                             Err(e) => {
                                 tx.rollback().await?;
                                 tracing::error!(error = ?e);
@@ -208,7 +213,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             }
                         };
                         
-                        let new_hints_ids = hints.iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                        let new_hints_ids = hints.iter().map(|h| h.id.clone()).collect::<HashSet<String>>();
                         for hint in hints {
                             if !hint.hint.is_empty() && !all_challenge_hint_ids.contains(&hint.id) {
                                 if let Err(e) = DbHint::add(&hint.hint, &id, &hint.points_penalty, &mut *tx).await {
@@ -247,7 +252,9 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
                                 Ok(_) => {
                                     tx.commit().await?;
-                                    _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                    tokio::spawn(async {
+                                        _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                    });
                                     Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
                                 },
                                 Err(e) => {
@@ -273,7 +280,9 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                                 match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                        tokio::spawn(async {
+                                            _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                        });
                                         return Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() });
                                     },
                                     Err(e) => {
@@ -285,7 +294,9 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             }
 
                             tx.commit().await?;
-                            _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                            tokio::spawn(async {
+                                _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                            });
                             Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
                         }
                     }
@@ -358,7 +369,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::EventId(new_event_id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                                        tokio::spawn(async {
+                                            _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                                        });
                                         Ok(ApiResult { result: ResultStatus::Success, details: "created event".to_string() })
                                     },
                                     Err(e) => {
@@ -370,7 +383,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                         }
                         None => {
                             tx.commit().await?;
-                            _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                            tokio::spawn(async {
+                                _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                            });
                             Ok(ApiResult { result: ResultStatus::Success, details: "created event".to_string() })
                         }
                     }
@@ -378,7 +393,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                 EventAction::Delete { id } => {
                     match db::structs::Event::delete(&id, &pool).await {
                         Ok(_) => {
-                            _ = build_and_broadcast(AdminEventPayloadKind::EventDeleted).await;
+                            tokio::spawn(async {
+                                _ = build_and_broadcast(AdminEventPayloadKind::EventDeleted).await;
+                            });
                             Ok(ApiResult { result: ResultStatus::Success, details: "deleted event".to_string() })
                         },
                         Err(e) => {
@@ -396,7 +413,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                     }
 
                     let all_event_attachment_ids = match AttachmentWithoutBlob::get_all(&Some(db::enums::AttachmentIdentifier::EventId(id.clone())), &mut *tx).await {
-                        Ok(all_attachments) => all_attachments.iter().map(|a| a.id.clone()).collect::<Vec<String>>(),
+                        Ok(all_attachments) => all_attachments.into_iter().map(|a| a.id.clone()).collect::<Vec<String>>(),
                         Err(e) => {
                             tx.rollback().await?;
                             tracing::error!(error = ?e);
@@ -414,7 +431,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                         }
                     }
 
-                    let new_attachment_ids = attachments.unwrap_or_default().iter().map(|h| h.id.clone()).collect::<Vec<String>>();
+                    let new_attachment_ids = attachments.unwrap_or_default().into_iter().map(|h| h.id).collect::<HashSet<String>>();
                     for existing_attachment_id in all_event_attachment_ids {
                         if !new_attachment_ids.contains(&existing_attachment_id) {
                             if let Err(e) = AttachmentWithoutBlob::delete(&AttachmentIdentifier::Id(existing_attachment_id), &mut *tx).await {
@@ -429,7 +446,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::EventId(id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                                        tokio::spawn(async {
+                                            _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                                        });
                                         Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() })
                                     },
                                     Err(e) => {
@@ -455,7 +474,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                                 match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::EventId(id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                        tokio::spawn(async {
+                                            _ = build_and_broadcast(AdminEventPayloadKind::EventEdited).await;
+                                        });
                                         return Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() });
                                     },
                                     Err(e) => {
@@ -467,7 +488,9 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                             }
 
                             tx.commit().await?;
-                            _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                            tokio::spawn(async {
+                                _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                            });
                             Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() })
                         }
                     }
@@ -554,13 +577,27 @@ pub async fn get_all_events_with_attachments() -> Result<Vec<EventWithAttachment
                 }
             };
 
-            let mut ewa = Vec::<EventWithAttachments>::new();
-            for event in events {
-                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::EventId(event.id.clone())), &pool).await?
-                    .into_iter().filter(|a| a.file_type == FileType::Attachment).collect::<Vec<AttachmentWithoutBlob>>();
-                let illustration = AttachmentWithoutBlob::get_illustration(&AttachmentIdentifier::EventId(event.id.clone()), &pool).await?;
-                ewa.push(EventWithAttachments { event, attachments, illustration });
+            let all_attachments = db::structs::AttachmentWithoutBlob::get_all(&None, &pool).await?;
+
+            let mut attachments_by_event = HashMap::<String, Vec<AttachmentWithoutBlob>>::new();
+            let mut illustrations_by_event = HashMap::<String, AttachmentWithoutBlob>::new();
+
+            for att in all_attachments {
+                if let Some(event_id) = &att.event_id {
+                    if att.file_type == FileType::Illustration {
+                        illustrations_by_event.insert(event_id.clone(), att);
+                    } else if att.file_type == FileType::Attachment {
+                        attachments_by_event.entry(event_id.clone()).or_default().push(att);
+                    }
+                }
             }
+
+            let ewa = events.into_iter().map(|event| {
+                let attachments = attachments_by_event.remove(&event.id).unwrap_or_default();
+                let illustration = illustrations_by_event.remove(&event.id);
+                EventWithAttachments { event, attachments, illustration }
+            }).collect();
+
             Ok(ewa)
         } else {
             Err(AppError::NoServerConnection)
@@ -1152,8 +1189,8 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
 
-            if username.is_some() {
-                match DbUser::get(&UserIdentifier::Username(username.unwrap_or_default()), &pool).await {
+            if let Some(username) = username {
+                match DbUser::get(&UserIdentifier::Username(username), &pool).await {
                     Ok(user) => Ok(user),
                     Err(e) => {
                         tracing::error!(error = ?e);

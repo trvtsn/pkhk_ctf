@@ -106,6 +106,12 @@ lto = true
 codegen-units = 1
 panic = "abort"
 
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
 [package.metadata.leptos]
 # The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name
 output-name = "pkhk_ctf"

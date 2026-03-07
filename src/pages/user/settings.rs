@@ -91,11 +91,7 @@ pub fn Settings() -> impl IntoView {
                         rounded-md shadow-sm focus:ring-2 focus:outline-none bg-yale-blue-600 
                         hover:bg-yale-blue-500 focus:ring-yale-blue-500"#
                         on:click=move |_| {
-                            if changing_password.get_untracked() {
-                                changing_password.set(false)
-                            } else {
-                                changing_password.set(true)
-                            }
+                            changing_password.update(|c| *c = !*c);
                         }
                     >
                         "Change Password"
@@ -209,7 +205,7 @@ pub fn Settings() -> impl IntoView {
                         }
                     >
                         <input
-                            class=r#"p-2 rounded-lg shadow-sm bg-background-secondary"#
+                            class=r#"p-2 rounded-lg shadow-sm bg-background-secondary cursor-pointer"#
                             type="file"
                             name="file"
                             required

@@ -120,11 +120,7 @@ pub fn Challenges() -> impl IntoView {
             <button
                 class=r#"py-1 px-3 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                 on:click=move |_| {
-                    if creating.get_untracked() {
-                        creating.set(false);
-                    } else {
-                        creating.set(true);
-                    }
+                    creating.update(|c| *c = !*c);
                 }
             >
                 "Create"
@@ -369,8 +365,6 @@ pub fn Challenges() -> impl IntoView {
                             view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
-                                let templates = challenge_templates_resource.get().unwrap_or_default();
-                                templates_signal.set(templates);
                                 view! {
                                     <For
                                         each=move || templates_signal.get()
@@ -711,6 +705,9 @@ pub fn Challenges() -> impl IntoView {
 
                     let categories = categories_resource.get().unwrap_or_default();
                     categories_signal.set(categories.clone());
+
+                    let templates = challenge_templates_resource.get().unwrap_or_default();
+                    templates_signal.set(templates);
 
                     let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
                     for ch in cwa_resource.get().unwrap_or_default().into_iter() {

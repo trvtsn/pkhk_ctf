@@ -12,7 +12,7 @@ use password_hash::SaltString;
 use password_hash::rand_core::OsRng;
 #[cfg(feature = "ssr")]
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 use tracing::instrument;
 
 #[cfg(feature = "ssr")]
@@ -98,27 +98,25 @@ cfg_if! {
                 // a let-binding outside of the macro or the compiler complains.
                 let pw_hash_str = pw_hash.to_string();
 
+                let username_prefix = email.split_once("@").map(|(l, _)| l).unwrap_or(email);
+                let taken = DbUser::get_taken_usernames(username_prefix, &self.pool)
+                    .await?
+                    .into_iter()
+                    .collect::<HashSet<String>>();
+
                 let mut rng = SmallRng::from_os_rng();
-                let username_prefix = email.split_once("@").map(|(l, _)| l.to_string()).unwrap_or(email.clone());
-                // let username = username_prefix;
-                let mut username = "".to_string();
-                while username.is_empty() {
-                    let username_suffix = rng.random_range(1000..9999);
-                    let possible_username = format!("{username_prefix}{username_suffix}");
-                    match DbUser::is_username_available(&possible_username, &self.pool).await {
-                        Ok(result) => {
-                            if result {
-                                username = possible_username;
-                            } else {
-                                continue;
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!("db query error (DbUser::is_username_available): {}", e);
-                            continue
-                        },
+                let mut username = String::new();
+                for _ in 0..100 {
+                    let candidate = format!("{username_prefix}{}", rng.random_range(1000..9999));
+                    if !taken.contains(&candidate) {
+                        username = candidate;
+                        break;
                     }
                 }
+                if username.is_empty() {
+                    return Err(AppError::InternalError("Could not generate unique username".to_string()));
+                }
+
                 let new_user = DbUser { 
                     id: "".to_string(), 
                     username, 

@@ -67,6 +67,7 @@ async fn main() {
     init_tracing();
     init_env();
     _ = db::init_db().await;
+    _ = server::proxmox::init_reqwest_client();
     _ = server::proxmox::create_user_role().await;
     _ = server::proxmox::create_realm().await;
     let pool = get_db();

@@ -119,7 +119,7 @@ pub fn Event(
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             name="description"
                             prop:value=move || description_signal.get()
-                            on:input=move |ev: Event| {
+                            on:change=move |ev: Event| {
                                 let value = event_target_value(&ev);
                                 description_edit.set(Some(value));
                             }

@@ -12,8 +12,10 @@ use leptos::{prelude::{use_context}, server, server_fn::codec::{MultipartData, M
 use leptos_axum::ResponseOptions;
 use tracing::instrument;
 use std::collections::{BTreeSet, HashMap};
-use std::net::{TcpStream, ToSocketAddrs};
-use std::time::{Duration, Instant};
+#[cfg(feature = "ssr")]
+use tokio::net::TcpStream;
+use std::net::ToSocketAddrs;
+use std::time::Duration;
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
 #[cfg(feature = "ssr")]
@@ -159,22 +161,33 @@ pub async fn get_all_challenges_with_attachments() -> Result<Vec<ChallengeWithAt
                 Err(e) => Err(e)?
             };
 
+            let user_groups_vec = db_user.groups.split(',').map(|g| g.trim().to_string()).collect::<Vec<String>>();
+
+            let all_attachments = AttachmentWithoutBlob::get_all(&None, &pool).await?;
+
+            let mut attachments_by_challenge = HashMap::<String, Vec<AttachmentWithoutBlob>>::new();
+            let mut illustration_by_challenge = HashMap::<String, AttachmentWithoutBlob>::new();
+
+            for att in all_attachments {
+                if let Some(event_id) = &att.challenge_id {
+                    if att.file_type == FileType::Illustration {
+                        illustration_by_challenge.insert(event_id.clone(), att);
+                    } else if att.file_type == FileType::Attachment {
+                        attachments_by_challenge.entry(event_id.clone()).or_default().push(att);
+                    }
+                }
+            }
+
             let mut cwa: Vec<ChallengeWithAttachments> = Vec::new();
             for challenge in challenges {
-                let attachments = db::structs::AttachmentWithoutBlob::get_all(&Some(AttachmentIdentifier::ChallengeId(challenge.id.clone())), &pool).await?
-                    .into_iter().filter(|a| a.file_type == FileType::Attachment).collect::<Vec<AttachmentWithoutBlob>>();
-                let illustration = AttachmentWithoutBlob::get_illustration(&AttachmentIdentifier::ChallengeId(challenge.id.clone()), &pool).await?;
-
                 let visible_to_groups_vec = challenge.visible_to_groups.split(",").map(|v| v.to_string()).collect::<Vec<String>>();
-                let user_groups_vec = db_user.groups.split(',').map(|g| g.trim().to_string()).collect::<Vec<String>>();
-                for group in visible_to_groups_vec {
-                    if user_groups_vec.contains(&group) || db_user.role == UserRole::Admin || group == "all" {
-                        cwa.push(ChallengeWithAttachments { 
-                            challenge: challenge.clone(), 
-                            attachments: attachments.clone(), 
-                            illustration: illustration.clone() 
-                        });
-                    }
+                let is_visible = db_user.role == UserRole::Admin
+                    || visible_to_groups_vec.iter().any(|g| g == "all" || user_groups_vec.contains(g));
+
+                if is_visible {
+                    let attachments = attachments_by_challenge.remove(&challenge.id).unwrap_or_default();
+                    let illustration = illustration_by_challenge.remove(&challenge.id);
+                    cwa.push(ChallengeWithAttachments { challenge, attachments, illustration });
                 }
             }
             Ok(cwa)
@@ -252,7 +265,7 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                 .fetch_all(&pool)
                 .await?;
 
-                let users: Vec<String> = solves.iter().map(|r| r.username.clone()).collect();
+                let users: Vec<String> = solves.iter().map(|r| r.username.clone()).collect::<BTreeSet<_>>().into_iter().collect();
 
                 let mut timestamps = BTreeSet::new();
 
@@ -273,30 +286,29 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
                     });
                 }
 
-                let mut times: Vec<DateTime<Local>> = timestamps.into_iter().collect();
-                times.sort();
+                let times = timestamps.into_iter().collect::<Vec<DateTime<Local>>>();
 
-                let mut user_cumulative: HashMap<String, f64> = users.iter().map(|u| (u.clone(), 0.0)).collect();
-                let mut solves_by_ts: HashMap<DateTime<Local>, Vec<&Solve>> = HashMap::new();
+                let mut solves_by_ts = HashMap::<DateTime<Local>, Vec<&Solve>>::new();
                 for s in &solves_parsed {
                     solves_by_ts.entry(s.ts).or_default().push(s);
                 }
 
-                let mut rows: Vec<PivotRow> = Vec::new();
+                let user_index = users.iter().enumerate().map(|(i, u)| (u.as_str(), i)).collect::<HashMap<&str, usize>>();
+                let mut cumulative = vec![0.0_f64; users.len()];
+                let mut rows = Vec::<PivotRow>::with_capacity(times.len());
+
                 for ts in times {
                     if let Some(slist) = solves_by_ts.get(&ts) {
                         for s in slist {
-                            if let Some(v) = user_cumulative.get_mut(&s.username) {
-                                *v += s.points;
-                            } else {
-                                user_cumulative.insert(s.username.clone(), s.points);
+                            if let Some(&idx) = user_index.get(s.username.as_str()) {
+                                cumulative[idx] += s.points;
                             }
                         }
                     }
-                    let mut values = HashMap::new();
-                    for u in &users {
-                        values.insert(u.clone(), *user_cumulative.get(u).unwrap_or(&0.0_f64));
-                    }
+
+                    let values = users.iter().enumerate()
+                        .map(|(i, u)| (u.clone(), cumulative[i]))
+                        .collect::<HashMap<String, f64>>();
                     rows.push(PivotRow { ts, values });
                 }
 
@@ -558,7 +570,7 @@ pub async fn edit_avatar(avatar: MultipartData) -> Result<ApiResult<String>, App
                 }
 
                 while let Ok(Some(chunk)) = field.chunk().await {
-                    file_blob.append(&mut chunk.to_vec());
+                    file_blob.extend_from_slice(&chunk);
                 }
             }
 
@@ -1172,32 +1184,15 @@ pub async fn is_host_reachable(url: &String) -> Result<bool, AppError> {
     let port = url.port().unwrap_or_default();
     let timeout = Duration::from_millis(1000);
     let addrs = (host, port).to_socket_addrs()?;
-    let start = Instant::now();
-    let mut reachable = false;
 
     for addr in addrs {
-        let elapsed = start.elapsed();
-        if elapsed >= timeout {
-            reachable = false;
-        }
-        let remaining = timeout - elapsed;
-
-        match TcpStream::connect_timeout(&addr, remaining) {
-            Ok(stream) => {
-                let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-                let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
-                reachable = true;
-            }
-            Err(_e) => {
-                continue;
-            }
+        match tokio::time::timeout(timeout, TcpStream::connect(addr)).await {
+            Ok(Ok(_)) => return Ok(true),
+            _ => continue,
         }
     }
 
-    match reachable {
-        true => Ok(true),
-        false => Err(AppError::NetworkError("host not reachable".to_string()))
-    }
+    Err(AppError::NetworkError("host unreachable".to_string()))
 }
 
 #[cfg(feature = "ssr")]

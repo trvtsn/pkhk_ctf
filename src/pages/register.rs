@@ -86,7 +86,7 @@ pub fn Register() -> impl IntoView {
                 <div class="flex gap-2">
                     <input
                         class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                        ocus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         type=move || if password_hidden.get() { "password" } else { "text" }
                         name="password"
                         required

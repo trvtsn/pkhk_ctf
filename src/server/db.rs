@@ -10,6 +10,8 @@ use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 use leptos::prelude::ServerFnError;
+use std::collections::BTreeSet;
+use std::time::Duration;
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
@@ -84,7 +86,10 @@ cfg_if! {
 
         async fn connect() -> Result<MySqlPool, sqlx::Error> {
             let pool = MySqlPoolOptions::new()
-                .max_connections(20)
+                .max_connections(50)
+                .max_lifetime(Duration::from_secs(1800))
+                .idle_timeout(Duration::from_secs(600))
+                .acquire_timeout(Duration::from_secs(10))
                 .connect(&constants::config::DATABASE_URL)
                 .await
                 .map_err(|e| {
@@ -1009,28 +1014,18 @@ cfg_if! {
                 }
             }
 
-            pub async fn is_username_available(username: &String, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
-                match sqlx::query!(
+            pub async fn get_taken_usernames(prefix: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
+                let pattern = format!("{prefix}%");
+                sqlx::query_scalar!(
                     "
                     SELECT username
                     FROM users
-                    WHERE username = ?
+                    WHERE username LIKE ?
                     ",
-                    username
+                    pattern
                 )
-                    .fetch_optional(executor)
-                    .await {
-                        Ok(row) => {
-                            match row {
-                                Some(_) => Ok(false),
-                                None => Ok(true)
-                            }
-                        },
-                        Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
-                        }
-                    }
+                    .fetch_all(executor)
+                    .await
             }
 
             pub async fn is_user_available(email: &String, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
@@ -1395,14 +1390,13 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => {
-                            let mut categories = Vec::<String>::new();
-                            for row in rows.iter() {
-                                let category = row.category.clone().unwrap_or_default().clone();
-                                if !category.is_empty() {
-                                    categories.push(category);
-                                }
-                            }
-                            categories.dedup();
+                            let categories: Vec<String> = rows.into_iter()
+                                .filter_map(|row| row.category)
+                                .filter(|c| !c.is_empty())
+                                .collect::<BTreeSet<_>>()
+                                .into_iter()
+                                .collect();
+                        
                             Ok(categories)
                         },
                         Err(e) => {
@@ -1873,11 +1867,7 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => {
-                            let mut filenames = Vec::<String>::new();
-                            for row in rows.iter() {
-                                filenames.push(row.file_name.clone());
-                            }
-                            Ok(filenames)
+                            Ok(rows.into_iter().map(|row| row.file_name).collect())
                         },
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
@@ -1900,11 +1890,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -1924,11 +1910,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -1948,11 +1930,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -1972,11 +1950,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -1997,11 +1971,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -2486,11 +2456,7 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => {
-                            let mut filenames = Vec::<String>::new();
-                            for row in rows.iter() {
-                                filenames.push(row.file_name.clone());
-                            }
-                            Ok(filenames)
+                            Ok(rows.into_iter().map(|row| row.file_name).collect())
                         },
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
@@ -2551,11 +2517,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -2575,11 +2537,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -2599,11 +2557,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -2623,11 +2577,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");
@@ -2648,11 +2598,7 @@ cfg_if! {
                             .fetch_all(executor)
                             .await {
                                 Ok(rows) => {
-                                    let mut filenames = Vec::<String>::new();
-                                    for row in rows.iter() {
-                                        filenames.push(row.file_name.clone());
-                                    }
-                                    Ok(filenames)
+                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
                                     //log::error!("Failed to get user (ID: {id}): {e}");

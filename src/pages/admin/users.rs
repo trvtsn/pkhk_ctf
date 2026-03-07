@@ -73,7 +73,7 @@ pub fn Users() -> impl IntoView {
                     <label class=r#"block mb-1 text-sm font-medium text-text"#>"E-mail"</label>
                     <input
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                        focus:ring-2 focus:outline-none focus:ring--500"#
+                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         name="email"
                         value=move || email_signal.get()
                         bind:value=email_signal

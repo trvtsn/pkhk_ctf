@@ -1,6 +1,6 @@
 use crate::app::RefreshUser;
 use crate::components::toast::{ToastMessageType, push_new_toast};
-use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize};
+use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize, Difficulty};
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
 use crate::server::{add_vm_time, destroy_vm, get_hint, restart_vm, start_vm};
@@ -30,7 +30,7 @@ pub fn ChallengePopup(
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     
     let solved = Memo::new(move |_| {
-        if solved_challenges.get().contains(&cwa.get().challenge.id) { true } else { false }
+        solved_challenges.get().contains(&cwa.get().challenge.id)
     });
 
     let active_vm_origin_ids = Memo::new(move |_| {
@@ -406,25 +406,5 @@ pub fn ChallengePopup(
                 }}
             </div>
         </div>
-    }
-}
-
-#[component]
-pub fn Difficulty(difficulty: i8) -> impl IntoView {
-    view! {
-        {move || {
-            view! {
-                <div
-                    class=r#"difficulty"#
-                    role="img"
-                    aria-label=format!("Difficulty: {} of 5", difficulty)
-                >
-                    <span class=r#"label"#>
-                        <b class=r#"text-lg/8"#>"Difficulty: "</b>
-                        {"⭐".repeat(difficulty as usize)}
-                    </span>
-                </div>
-            }
-        }}
     }
 }
