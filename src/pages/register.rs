@@ -8,7 +8,9 @@ pub fn Register() -> impl IntoView {
     let email = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
     let confirm_password = RwSignal::new("".to_string());
-    let password_confirm_matches = RwSignal::new(false);
+    let password_confirm_matches = Memo::new(move |_| {
+        password.get() == confirm_password.get()
+    });
 
     let password_hidden = RwSignal::new(true);
     let confirm_password_hidden = RwSignal::new(true);
@@ -110,10 +112,9 @@ pub fn Register() -> impl IntoView {
                     <HidePasswordButton hidden=confirm_password_hidden />
                 </div>
 
-                {move || if password.get() != confirm_password.get() {
+                {move || if !password_confirm_matches.get() {
                     "Confirmation must match"
                 } else {
-                    password_confirm_matches.set(true);
                     ""
                 }}
 

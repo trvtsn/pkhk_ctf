@@ -10,17 +10,12 @@ pub fn NavBar() -> impl IntoView {
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     let logout = ServerAction::<LogoutUser>::new();
 
-    let role = Memo::new(move |_| {
-        if let Some(user) = user.get() { user.role } else { UserRole::Competitor }
-    });
-
-    let username = Memo::new(move |_| {
-        if let Some(user) = user.get() { user.username } else { "".to_string() }
-    });
-
-    let points = Memo::new(move |_| {
-        if let Some(user) = user.get() { user.points } else { 0 }
-    });
+    let (role, username, points) = {
+        let role = Memo::new(move |_| user.get().map(|u| u.role).unwrap_or(UserRole::Competitor));
+        let username = Memo::new(move |_| user.get().map(|u| u.username).unwrap_or_default());
+        let points = Memo::new(move |_| user.get().map(|u| u.points).unwrap_or(0));
+        (role, username, points)
+    };
 
     Effect::new(move || {
         if let Some(Ok(_)) = logout.value().get() {

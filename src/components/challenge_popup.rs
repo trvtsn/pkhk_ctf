@@ -6,6 +6,7 @@ use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
 use crate::server::{add_vm_time, destroy_vm, get_hint, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
+use leptos::task::spawn_local;
 use leptos::{prelude::*};
 use leptos_icons::Icon;
 use std::collections::HashMap;
@@ -24,6 +25,7 @@ pub fn ChallengePopup(
     refresh_solved_challenges: RwSignal<i32>,
     refresh_user_vms: RwSignal<i32>
 ) -> impl IntoView {
+    let checking_flag = RwSignal::new(false);
     let flag_signal = RwSignal::new("".to_string());
 
     let incorrect = RwSignal::new(false);
@@ -65,7 +67,7 @@ pub fn ChallengePopup(
 
     Effect::new(move |_| {
         if incorrect.get() {
-            set_timeout(move || incorrect.set(false), Duration::from_secs(2));
+            set_timeout(move || {incorrect.set(false); checking_flag.set(false)}, Duration::from_secs(2));
         }
     });
 
@@ -73,14 +75,18 @@ pub fn ChallengePopup(
         let flag = flag.clone();
         let challenge = challenge.clone();
         let challenge_points = challenge.clone().points;
+        checking_flag.set(true);
         async move {
             if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
                 if result == ResultStatus::Fail && details == "incorrect solution" {
-                    incorrect.set(true);
+                    incorrect.set(true); 
                 } else if result == ResultStatus::Success {
-                    push_new_toast(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
+                    spawn_local(async move {
+                        push_new_toast(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
+                    });
                     refresh_user.update(|r| r.iteration += 1);
                     refresh_solved_challenges.update(|r| *r += 1);
+                    checking_flag.set(false);
                 }
             }
         }
@@ -120,10 +126,7 @@ pub fn ChallengePopup(
                 }}
 
                 <p class=r#"text-lg/8 mt-2 whitespace-pre-wrap"#>
-                    {move || {
-                        let description = RwSignal::new(cwa.get().challenge.description);
-                        view! { <TruncatedDesc description /> }
-                    }}
+                    <TruncatedDesc description=Signal::derive(move || cwa.get().challenge.description) />
                 </p>
 
                 {move || {
@@ -223,7 +226,7 @@ pub fn ChallengePopup(
                     />
                     <button
                         class=move || button_classes.get()
-                        disabled=move || solved.get() || incorrect.get()
+                        disabled=move || solved.get() || incorrect.get() || checking_flag.get()
                         on:click=move |_| {
                             let flag = flag_signal.get_untracked();
                             let challenge = cwa.get_untracked().challenge;
@@ -257,9 +260,10 @@ pub fn ChallengePopup(
                         let all_templates = all_templates.get();
                         let challenge = cwa.get().challenge;
                         let challenge_vm_ids = challenge.clone().vm_ids;
-                        let template_ids = match challenge_vm_ids.is_some() {
-                            true => challenge_vm_ids.unwrap_or_default().split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>(),
-                            false => Vec::<u32>::new()
+                        let template_ids = if let Some(challenge_vm_ids) = challenge_vm_ids {
+                            challenge_vm_ids.split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>()
+                        } else {
+                            Vec::<u32>::new()
                         };
                         let templates = all_templates.into_iter().filter(|t| template_ids.contains(&t.id)).collect::<Vec<ProxmoxVMTemplate>>();
                         view! {
@@ -274,10 +278,14 @@ pub fn ChallengePopup(
                                             let challenge = challenge.clone();
                                             async move {
                                                 if let Ok(result) = start_vm(template_id, challenge).await {
-                                                    push_new_toast(ToastMessageType::Custom(result.details));
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::Custom(result.details));
+                                                    });
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    push_new_toast(ToastMessageType::VMStartFail);
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::VMStartFail);
+                                                    });
                                                 }
                                             }
                                         });
@@ -285,10 +293,14 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(result) = restart_vm(template_id).await {
-                                                    push_new_toast(ToastMessageType::Custom(result.details));
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::Custom(result.details));
+                                                    });
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    push_new_toast(ToastMessageType::VMRestartFail);
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::VMRestartFail);
+                                                    });
                                                 }
                                             }
                                         });
@@ -296,10 +308,14 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(result) = add_vm_time(template_id).await {
-                                                    push_new_toast(ToastMessageType::Custom(result.details));
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::Custom(result.details));
+                                                    });
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    push_new_toast(ToastMessageType::VMAddTimeFail);
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::VMAddTimeFail);
+                                                    });
                                                 }
                                             }
                                         });
@@ -307,10 +323,14 @@ pub fn ChallengePopup(
                                             let template_id = template_id.clone();
                                             async move {
                                                 if let Ok(result) = destroy_vm(template_id).await {
-                                                    push_new_toast(ToastMessageType::Custom(result.details));
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::Custom(result.details));
+                                                    });
                                                     refresh_user_vms.update(|n| *n += 1);
                                                 } else {
-                                                    push_new_toast(ToastMessageType::VMDestroyFail);
+                                                    spawn_local(async move {
+                                                        push_new_toast(ToastMessageType::VMDestroyFail);
+                                                    });
                                                 }
                                             }
                                         });

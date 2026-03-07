@@ -1,7 +1,6 @@
-use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
-use icondata as i;
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
-use leptos_icons::Icon;
+use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::{HidePasswordButton, FileTooltip}}, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
+use crate::utils::{action_btn_text, build_single_file_form_data, collect_selected_options, csv_contains};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 
 #[component]
 pub fn User(
@@ -45,15 +44,9 @@ pub fn User(
         let user_avatars = user_avatars.get();
         user_avatars.into_iter().find(|u| u.clone().user_id.unwrap_or_default() == user_id)
     });
-    let delete_submit_btn_text = Memo::new(move |_| {
-        if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
-    });
-    let edit_submit_btn_text = Memo::new(move |_| {
-        if editing.get() { "Confirm Edit".to_string() } else { "Edit".to_string() }
-    });
-    let edit_password_submit_btn_text = Memo::new(move |_| {
-        if editing.get() { "Confirm Edit".to_string() } else { "Edit Password".to_string() }
-    });
+    let delete_submit_btn_text = action_btn_text(move || deleting.get(), "Confirm Delete", "Delete");
+    let edit_submit_btn_text = action_btn_text(move || editing.get(), "Confirm Edit", "Edit");
+    let edit_password_submit_btn_text = action_btn_text(move || editing.get(), "Confirm Edit", "Edit Password");
 
     let any_changes_made = Memo::new(move |_| {
         if username_signal.get() == username_edit.get() &&
@@ -70,8 +63,7 @@ pub fn User(
     view! {
         <div class=r#"content-center p-4 rounded-lg bg-card hover:bg-card-hover text-text break-all"#>
             {move || {
-                let user_avatar = user_avatar.get();
-                if let Some(user_avatar) = user_avatar {
+                if let Some(user_avatar) = user_avatar.get() {
                     avatar_edit.set(Some(user_avatar.clone()));
                     view! {
                         <div class="h-48 w-48 flex justify-center m-auto">
@@ -187,36 +179,13 @@ pub fn User(
                                     Some(target) => target.unchecked_into::<HtmlSelectElement>(),
                                     None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                                 };
-                                let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
-                                    Some(doc) => doc,
-                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                };
-                                let new_input = match doc.get_element_by_id("action_create_group_input") {
-                                    Some(el) => el.unchecked_into::<HtmlInputElement>(),
-                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                };
-                                if sel.value() == "__new__" {
-                                    let _ = sel.remove_attribute("name");
-                                    let _ = new_input.set_attribute("name", "group");
+                                let picked = collect_selected_options(&sel);
+                                if picked.contains(&"__new__".to_string()) {
                                     group_add_new_selected.set(true);
                                 } else {
-                                    let _ = sel.set_attribute("name", "group");
-                                    let _ = new_input.remove_attribute("name");
                                     group_add_new_selected.set(false);
+                                    groups_edit.set(picked.join(","));
                                 }
-
-                                let selected = sel.selected_options();
-                                let mut picked: Vec<String> = Vec::new();
-
-                                for i in 0..selected.length() {
-                                    if let Some(item) = selected.item(i) {
-                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                            picked.push(opt.value());
-                                        }
-                                    }
-                                }
-
-                                groups_edit.set(picked.join(","));
                             }
                         >
                             <option value="__new__">"-- Add New --"</option>
@@ -226,11 +195,7 @@ pub fn User(
                                         each=move || groups.get()
                                         key=|group: &String| group.clone()
                                         children=move |group| {
-                                            let selected = groups_edit.get()
-                                                .split(",")
-                                                .map(String::from)
-                                                .collect::<Vec<String>>()
-                                                .contains(&group);
+                                            let selected = csv_contains(&groups_edit.get(), &group);
                                             
                                             view! {
                                                 <option 
@@ -265,44 +230,13 @@ pub fn User(
                             {move || {
                                 let user_avatar = avatar_edit.get();
                                 if let Some(user_avatar) = user_avatar {
-                                    let show_tooltip = RwSignal::new(false);
-                                    let id = user_avatar.attachment_id.clone();
                                     view! {
-                                        <div class="flex gap-2 items-center">
-                                            <span
-                                                class="relative inline-block"
-                                                on:mouseenter=move |_| show_tooltip.set(true)
-                                                on:mouseleave=move |_| show_tooltip.set(false)
-                                                on:focus=move |_| show_tooltip.set(true)
-                                                on:blur=move |_| show_tooltip.set(false)
-                                                tabindex="0"
-                                            >
-                                                {move || user_avatar.file_name.clone()}
-                                                <Show when=move || show_tooltip.get()>
-                                                    <div
-                                                        role="tooltip"
-                                                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
-                                                    >
-                                                        {format!("ID: {}", user_avatar.attachment_id)}
-                                                    </div>
-                                                </Show>
-                                            </span>
-                                            <a
-                                                download
-                                                href=move || format!("/file/{}", id)
-                                            >
-                                                <Icon icon=i::LuDownload />
-                                            </a>
-                                            <button 
-                                                class="cursor-pointer"
-                                                on:click=move |_| {
-                                                    avatar_edit.set(None);
-                                                } 
-                                            >
-                                                <Icon icon=i::LuX />
-                                            </button>
-                                        </div>
+                                        <FileTooltip
+                                            file_name=user_avatar.file_name.clone()
+                                            id=user_avatar.attachment_id.clone()
+                                            on_download=format!("/file/{}", user_avatar.attachment_id)
+                                            on_remove=Callback::new(move |_| avatar_edit.set(None))
+                                        />
                                     }.into_any()
                                 } else {
                                     "".into_any()
@@ -346,15 +280,14 @@ pub fn User(
                         bind:value=confirm_new_password_edit
                     />
                     <HidePasswordButton hidden=confirm_new_password_hidden />
+                    {move || {
+                        if new_password_edit.get() != confirm_new_password_edit.get() {
+                            "Confirmation must match"
+                        } else {
+                            ""
+                        }
+                    }}
                 </div>
-
-                {move || {
-                    if new_password_signal.get() != confirm_new_password_signal.get() {
-                        "Confirmation must match"
-                    } else {
-                        ""
-                    }
-                }}
             </Show>
 
             // dont show edit and delete buttons for admin users
@@ -395,26 +328,9 @@ pub fn User(
                                 spawn_local(async move {
                                     tracing::debug!("editing user: {}", user_id.clone());
 
-                                    if let Some(avatar_el) = avatar_ref {
-                                        if let Some(files) = avatar_el.files() {
-                                            if files.length() > 0 {
-                                                let file = match files.get(0) {
-                                                    Some(file) => file,
-                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                };
-                                                let fd = match FormData::new() {
-                                                    Ok(fd) => fd,
-                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                };
-                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                    Ok(_) => {},
-                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                }
-
-                                                if let Ok(api_result) = upload_avatar(fd.into()).await {
-                                                    avatar_edit.set(Some(api_result.details));
-                                                }
-                                            }
+                                    if let Some(fd) = build_single_file_form_data(avatar_ref) {
+                                        if let Ok(api_result) = upload_avatar(fd.into()).await {
+                                            avatar_edit.set(Some(api_result.details));
                                         }
                                     }
 

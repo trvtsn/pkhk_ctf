@@ -1,5 +1,6 @@
 use crate::components::toast::{ToastMessageType, push_new_toast};
-use crate::components::utils::ComponentSize;
+use crate::components::utils::{ComponentSize, FileTooltip};
+use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options};
 use crate::server::admin::{get_all_challenge_templates, get_all_hints, get_all_user_groups, upload_illustration};
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbHint};
 use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
@@ -9,7 +10,7 @@ use crate::{components::{admin::challenge::Challenge, utils::Spinner}, server::{
 use gloo_timers::future::sleep;
 use icondata as i;
 use leptos::prelude::*;
-use leptos::{web_sys::{FormData, HtmlInputElement, Event, HtmlSelectElement, HtmlOptionElement}, wasm_bindgen::JsCast, task::spawn_local};
+use leptos::{web_sys::{Event, HtmlSelectElement}, wasm_bindgen::JsCast, task::spawn_local};
 use leptos_icons::Icon;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
@@ -33,13 +34,13 @@ impl Hint {
     }
 }
 
-impl Into<crate::server::db::structs::Hint> for Hint {
-    fn into(self) -> crate::server::db::structs::Hint {
-        crate::server::db::structs::Hint {
-            id: self.id,
-            hint: self.value.get(),
+impl From<Hint> for crate::server::db::structs::Hint {
+    fn from(hint: Hint) -> Self {
+        Self {
+            id: hint.id,
+            hint: hint.value.get(),
             challenge_id: "".to_string(),
-            points_penalty: self.points_penalty.get().unwrap_or(0)
+            points_penalty: hint.points_penalty.get().unwrap_or(0)
         }
     }
 }
@@ -63,7 +64,7 @@ pub fn Challenges() -> impl IntoView {
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     let vm_ids = RwSignal::new(None);
-    let hints = RwSignal::new(Some(vec![Hint::new("0".to_string(), "")]));
+    let create_hints = RwSignal::new(Some(vec![Hint::new("0".to_string(), "")]));
     let next_hint_id = RwSignal::new(1_usize);
 
     let refresh = RwSignal::new(0);
@@ -88,8 +89,8 @@ pub fn Challenges() -> impl IntoView {
         get_all_challenge_templates().await.unwrap_or_default()
     });
 
-    let hints_signal = RwSignal::new(vec![]);
-    let hints_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let all_hints_signal = RwSignal::new(vec![]);
+    let all_hints_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_hints().await.unwrap_or_default()
     });
 
@@ -143,8 +144,6 @@ pub fn Challenges() -> impl IntoView {
                             view! { <Spinner component_size=ComponentSize::Small /> }
                         }>
                             {move || {
-                                let events = events_resource.get().unwrap_or_default();
-                                events_signal.set(events);
                                 view! {
                                     <For
                                         each=move || events_signal.get()
@@ -192,28 +191,13 @@ pub fn Challenges() -> impl IntoView {
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         name="category"
                         on:change=move |ev: Event| {
-                            let sel = match ev.target() {
-                                Some(target) => target.unchecked_into::<HtmlSelectElement>(),
-                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                            };
-                            let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
-                                Some(doc) => doc,
-                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                            };
-                            let new_input = match doc.get_element_by_id("action_create_category_input") {
-                                Some(el) => el.unchecked_into::<HtmlInputElement>(),
-                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                            };
-                            if sel.value() == "__new__" {
-                                let _ = sel.remove_attribute("name");
-                                let _ = new_input.set_attribute("name", "category");
+                            let value = event_target_value(&ev);
+                            if value == "__new__" {
                                 category_add_new_selected.set(true);
                             } else {
-                                let _ = sel.set_attribute("name", "category");
-                                let _ = new_input.remove_attribute("name");
                                 category_add_new_selected.set(false);
+                                category.set(Some(value));
                             }
-                            category.set(Some(sel.value()))
                         }
                     >
                         <option value="">"-- Select Category --"</option>
@@ -304,19 +288,7 @@ pub fn Challenges() -> impl IntoView {
                                 },
                                 None => return
                             };
-
-                            let selected = select.selected_options();
-                            let mut picked: Vec<String> = Vec::new();
-
-                            for i in 0..selected.length() {
-                                if let Some(item) = selected.item(i) {
-                                    if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                        picked.push(opt.value());
-                                    }
-                                }
-                            }
-
-                            visible_to_groups.set(picked);
+                            visible_to_groups.set(collect_selected_options(&select));
                         }
                     >
                         <option value="all">"All"</option>
@@ -347,18 +319,7 @@ pub fn Challenges() -> impl IntoView {
                                 Some(target) => target.unchecked_into::<HtmlSelectElement>(),
                                 None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                             };
-                            let selected = sel.selected_options();
-                            let mut picked: Vec<String> = Vec::new();
-
-                            for i in 0..selected.length() {
-                                if let Some(item) = selected.item(i) {
-                                    if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                        picked.push(opt.value());
-                                    }
-                                }
-                            }
-
-                            vm_ids.set(Some(picked.join(",")));
+                            vm_ids.set(Some(collect_selected_options(&sel).join(",")));
                         }
                     >
                         <Suspense fallback=move || {
@@ -383,8 +344,8 @@ pub fn Challenges() -> impl IntoView {
 
                 <div class="grid">
                     <label class=r#"block mb-1 text-sm font-medium text-text"#>"Hints"</label>
-                    <ForEnumerate 
-                        each=move || hints.get().unwrap_or_default()
+                    <ForEnumerate
+                        each=move || create_hints.get().unwrap_or_default()
                         key=|hint: &Hint| hint.id.clone()
                         children={move |index, hint| {
                             view! {
@@ -413,7 +374,7 @@ pub fn Challenges() -> impl IntoView {
                                     <button 
                                         class="cursor-pointer"
                                         on:click=move |_| {
-                                            hints.update(|vec| {
+                                            create_hints.update(|vec| {
                                                 let vec = vec.get_or_insert_with(Vec::new);
                                                 next_hint_id.set(next_hint_id.get_untracked() + 1);
                                                 vec.push(Hint::new(next_hint_id.get_untracked().to_string(), ""));
@@ -430,7 +391,7 @@ pub fn Challenges() -> impl IntoView {
                                                     on:click=move |_| {
                                                         let remove_at = index.get_untracked();
 
-                                                        hints.update(|vec| {
+                                                        create_hints.update(|vec| {
                                                             let vec = vec.get_or_insert_with(Vec::new);
                                                             vec.remove(remove_at);
                                                         });
@@ -458,50 +419,20 @@ pub fn Challenges() -> impl IntoView {
                             each=move || attachments.get().unwrap_or_default()
                             key=|a: &AttachmentWithoutBlob| a.id.clone()
                             children={move |index, a| {
-                                let show_tooltip = RwSignal::new(false);
                                 let id = a.id.clone();
                                 let file_name = a.file_name.clone();
-                                view! {  
-                                    <div class="flex gap-2 items-center">
-                                        <span
-                                            class="relative inline-block"
-                                            on:mouseenter=move |_| show_tooltip.set(true)
-                                            on:mouseleave=move |_| show_tooltip.set(false)
-                                            // keyboard focus
-                                            on:focus=move |_| show_tooltip.set(true)
-                                            on:blur=move |_| show_tooltip.set(false)
-                                            tabindex="0"
-                                        >
-                                            {file_name}
-                                            <Show when=move || show_tooltip.get()>
-                                                <div
-                                                    role="tooltip"
-                                                    class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                        rounded p-1 text-xs bg-card shadow-sm z-1"#
-                                                >
-                                                    {format!("ID: {}", a.id)}
-                                                </div>
-                                            </Show>
-                                        </span>
-                                        <a
-                                            download
-                                            href=move || format!("/file/{}", id)
-                                        >
-                                            <Icon icon=i::LuDownload />
-                                        </a>
-                                        <button 
-                                            class="cursor-pointer"
-                                            on:click=move |_| {
-                                                let remove_at = index.get_untracked();
-
-                                                attachments.update(|a| {
-                                                    a.get_or_insert_default().remove(remove_at);
-                                                });
-                                            } 
-                                        >
-                                            <Icon icon=i::LuX />
-                                        </button>
-                                    </div>
+                                view! {
+                                    <FileTooltip
+                                        file_name=file_name
+                                        id=a.id.clone()
+                                        on_download=format!("/file/{}", id)
+                                        on_remove=Callback::new(move |()| {
+                                            let remove_at = index.get_untracked();
+                                            attachments.update(|a| {
+                                                a.get_or_insert_default().remove(remove_at);
+                                            });
+                                        })
+                                    />
                                 }
                             }}
                         />
@@ -525,45 +456,16 @@ pub fn Challenges() -> impl IntoView {
                         {move || {
                             let illustration_signal_value = illustration.get();
                             if let Some(illustr) = illustration_signal_value {
-                                let show_tooltip = RwSignal::new(false);
                                 let id = illustr.id.clone();
                                 view! {
-                                    <div class="flex gap-2 items-center">
-                                        <span
-                                            class="relative inline-block"
-                                            on:mouseenter=move |_| show_tooltip.set(true)
-                                            on:mouseleave=move |_| show_tooltip.set(false)
-                                            on:focus=move |_| show_tooltip.set(true)
-                                            on:blur=move |_| show_tooltip.set(false)
-                                            tabindex="0"
-                                        >
-                                            {move || illustr.file_name.clone()}
-                                            <Show when=move || show_tooltip.get()>
-                                                <div
-                                                    role="tooltip"
-                                                    class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                        rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
-                                                >
-                                                    {format!("ID: {}", illustr.id)}
-                                                </div>
-                                            </Show>
-                                        </span>
-                                        
-                                        <a
-                                            download
-                                            href=move || format!("/file/{}", id)
-                                        >
-                                            <Icon icon=i::LuDownload />
-                                        </a>
-                                        <button 
-                                            class="cursor-pointer"
-                                            on:click=move |_| {
-                                                illustration.set(None);
-                                            } 
-                                        >
-                                            <Icon icon=i::LuX />
-                                        </button>
-                                    </div>
+                                    <FileTooltip
+                                        file_name=illustr.file_name.clone()
+                                        id=illustr.id.clone()
+                                        on_download=format!("/file/{}", id)
+                                        on_remove=Callback::new(move |()| {
+                                            illustration.set(None);
+                                        })
+                                    />
                                 }.into_any()
                             } else {
                                 "".into_any()
@@ -602,57 +504,21 @@ pub fn Challenges() -> impl IntoView {
                             let flag = flag.get_untracked();
                             let visible_to_groups = visible_to_groups.get_untracked().join(",");
                             let vm_ids = vm_ids.get_untracked();
-                            let hints = hints.get_untracked().unwrap_or_default().into_iter().map(|h| Into::<DbHint>::into(h)).collect::<Vec<DbHint>>();
+                            let hints = create_hints.get_untracked().unwrap_or_default().into_iter().map(DbHint::from).collect::<Vec<DbHint>>();
 
                             let attachments_ref = attachments_ref.get_untracked();
                             let illustration_ref = illustration_ref.get_untracked();
 
                             spawn_local(async move {
-                                if let Some(att_el) = attachments_ref {
-                                    if let Some(files) = att_el.files() {
-                                        if files.length() > 0 {
-                                            let fd = match FormData::new() {
-                                                Ok(fd) => fd,
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            for i in 0..files.length() {
-                                                let file = match files.get(i) {
-                                                    Some(file) => file,
-                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                };
-                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                    Ok(_) => {},
-                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                }
-                                            }
-
-                                            if let Ok(api_result) = upload_files(fd.into()).await {
-                                                attachments.set(Some(api_result.details))
-                                            }
-                                        }
+                                if let Some(fd) = build_multi_file_form_data(attachments_ref) {
+                                    if let Ok(api_result) = upload_files(fd.into()).await {
+                                        attachments.set(Some(api_result.details))
                                     }
                                 }
 
-                                if let Some(illustr_el) = illustration_ref {
-                                    if let Some(files) = illustr_el.files() {
-                                        if files.length() > 0 {
-                                            let file = match files.get(0) {
-                                                Some(file) => file,
-                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            let fd = match FormData::new() {
-                                                Ok(fd) => fd,
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                Ok(_) => {},
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            }
-
-                                            if let Ok(api_result) = upload_illustration(fd.into()).await {
-                                                illustration.set(Some(api_result.details));
-                                            }
-                                        }
+                                if let Some(fd) = build_single_file_form_data(illustration_ref) {
+                                    if let Ok(api_result) = upload_illustration(fd.into()).await {
+                                        illustration.set(Some(api_result.details));
                                     }
                                 }
 
@@ -697,8 +563,11 @@ pub fn Challenges() -> impl IntoView {
                 view! { <Spinner component_size=ComponentSize::Big /> }
             }>
                 {move || {
-                    let hints = hints_resource.get().unwrap_or_default();
-                    hints_signal.set(hints);
+                    let events = events_resource.get().unwrap_or_default();
+                    events_signal.set(events);
+
+                    let all_hints = all_hints_resource.get().unwrap_or_default();
+                    all_hints_signal.set(all_hints);
 
                     let user_groups = groups_resource.get().unwrap_or_default();
                     user_groups_signal.set(user_groups);
@@ -750,7 +619,7 @@ pub fn Challenges() -> impl IntoView {
                                                 categories=categories_signal
                                                 events=events_signal
                                                 templates=templates_signal
-                                                hints=hints_signal.clone()
+                                                hints=all_hints_signal
                                                 user_groups=user_groups_signal
                                             />
                                         </div>

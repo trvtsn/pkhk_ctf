@@ -1,9 +1,10 @@
-use crate::{components::utils::{ComponentSize, Spinner}, server::{admin::{get_proxmox_conf, test_proxmox, update_proxmox}, db::{enums::ProxmoxAuthType, structs::ProxmoxArgs}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::utils::{ComponentSize, HidePasswordButton, Spinner}, server::{admin::{get_proxmox_conf, test_proxmox, update_proxmox}, db::{enums::ProxmoxAuthType, structs::ProxmoxArgs}, enums::ResultStatus, structs::ApiResult}};
 use leptos::{prelude::*, task::spawn_local};
 
 /// Default Home Page
 #[component]
 pub fn Proxmox() -> impl IntoView {
+    let api_token_hidden = RwSignal::new(true);
     let auth_status_ui = RwSignal::new("".to_string());
     let auth_success = RwSignal::new(false);
 
@@ -15,37 +16,7 @@ pub fn Proxmox() -> impl IntoView {
     let auth_type = RwSignal::new(ProxmoxAuthType::default());
 
     let proxmox_resource = Resource::new(move || (), move |_| async move {
-        let proxmox_args = get_proxmox_conf().await.unwrap_or_default().unwrap_or_default();
-        let test_args  = proxmox_args.clone();
-
-        let base_url = test_args.base_url;
-        let api_path = test_args.api_path;
-        let templates_pool_id = test_args.templates_pool_id;
-        let node = test_args.node;
-        let api_token = test_args.api_token;
-        let auth_type = test_args.auth_type;
-        spawn_local(async move {
-            if let Ok(ApiResult { result, .. }) = test_proxmox(ProxmoxArgs {
-                    base_url,
-                    api_path,
-                    templates_pool_id,
-                    node,
-                    username: None,
-                    password: None,
-                    api_token,
-                    auth_type
-                })
-                .await
-            {
-                if result == ResultStatus::Success {
-                    auth_success.set(true);
-                } else {
-                    auth_success.set(false);
-                }
-            }
-        });
-
-        proxmox_args
+        get_proxmox_conf().await.unwrap_or_default().unwrap_or_default()
     });
 
     let auth_status_classes = Memo::new(move |_| {
@@ -57,21 +28,39 @@ pub fn Proxmox() -> impl IntoView {
         }
     });
 
+    // really don't like using Effect for this, but it makes more sense than putting this into the Resource
+    Effect::new(move |_| {
+        if let Some(proxmox_args) = proxmox_resource.get() {
+            api_path.set(proxmox_args.api_path.clone());
+            api_token.set(proxmox_args.api_token.clone());
+            auth_type.set(proxmox_args.auth_type.clone());
+            base_url.set(proxmox_args.base_url.clone());
+            node.set(proxmox_args.node.clone());
+            templates_pool_id.set(proxmox_args.templates_pool_id.clone());
+            spawn_local(async move {
+                if let Ok(ApiResult { result, .. }) = test_proxmox(ProxmoxArgs {
+                        base_url: proxmox_args.base_url,
+                        api_path: proxmox_args.api_path,
+                        templates_pool_id: proxmox_args.templates_pool_id,
+                        node: proxmox_args.node,
+                        username: None,
+                        password: None,
+                        api_token: proxmox_args.api_token,
+                        auth_type: proxmox_args.auth_type,
+                    })
+                    .await
+                {
+                    auth_success.set(result == ResultStatus::Success);
+                }
+            });
+        }
+    });
+
     view! {
         <Suspense fallback=move || {
             view! { <Spinner component_size=ComponentSize::Big /> }
         }>
             {move || {
-                let proxmox_args = proxmox_resource.get();
-                if let Some(proxmox_args) = proxmox_args {
-                    api_path.set(proxmox_args.api_path);
-                    api_token.set(proxmox_args.api_token);
-                    auth_type.set(proxmox_args.auth_type);
-                    base_url.set(proxmox_args.base_url);
-                    node.set(proxmox_args.node);
-                    templates_pool_id.set(proxmox_args.templates_pool_id);
-                }
-
                 view! {
                     <div class="grid gap-2">
                         <div class="flex gap-2 items-center">
@@ -88,6 +77,7 @@ pub fn Proxmox() -> impl IntoView {
                                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="base_url"
+                                    placeholder="e.g. https://192.168.1.21:8006"
                                     value=move || base_url.get()
                                     bind:value=base_url
                                 />
@@ -131,17 +121,21 @@ pub fn Proxmox() -> impl IntoView {
                             <Show when=move || auth_type.get() == ProxmoxAuthType::ApiToken>
                                 <div class="grid">
                                     <label class=r#"block mb-1 text-sm font-medium text-text"#>"API Token"</label>
-                                    <input
-                                        class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
-                                        focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                                        name="api_token"
-                                        placeholder="user@realm!token_id=uuid_secret"
-                                        value=move || api_token.get().unwrap_or_default()
-                                        on:change=move |ev| {
-                                            let value = event_target_value(&ev);
-                                            api_token.set(Some(value));
-                                        }
-                                    />
+                                    <div class="flex gap-2">
+                                        <input
+                                            class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                            focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
+                                            type=move || if api_token_hidden.get() { "password" } else { "text" }
+                                            name="api_token"
+                                            placeholder="user@realm!token_id=uuid_secret"
+                                            value=move || api_token.get().unwrap_or_default()
+                                            on:change=move |ev| {
+                                                let value = event_target_value(&ev);
+                                                api_token.set(Some(value));
+                                            }
+                                        />
+                                        <HidePasswordButton hidden=api_token_hidden />
+                                    </div>
                                 </div>
                             </Show>
 

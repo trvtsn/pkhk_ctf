@@ -34,7 +34,7 @@ pub struct ProxmoxVMTemplate {
     pub name: String
 }
 
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ProxmoxVMInstance {
     pub id: u32,
     pub challenge_id: String,

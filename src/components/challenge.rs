@@ -7,6 +7,7 @@ use crate::server::db::structs::{Challenge, ChallengeWithAttachments};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use leptos_icons::Icon;
 
 #[component]
@@ -17,8 +18,11 @@ pub fn Challenge(
     cwa_popup: RwSignal<Option<ChallengeWithAttachments>>,
     refresh_solved_challenges: RwSignal<i32>
 ) -> impl IntoView {
+    let checking_flag = RwSignal::new(false);
     let flag_signal = RwSignal::new("".to_string());
-    let solved = RwSignal::new(false);
+    let solved = Memo::new(move |_| {
+        solved_challenges.get().contains(&cwa.get().challenge.id)
+    });
     let incorrect = RwSignal::new(false);
 
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
@@ -39,8 +43,7 @@ pub fn Challenge(
     });
 
     let submit_btn_text = Memo::new(move |_| {
-        if solved_challenges.get().contains(&cwa.get().challenge.id) { 
-            solved.set(true);
+        if solved.get() { 
             "Solved" 
         } else if incorrect.get() { 
             "Incorrect"
@@ -51,22 +54,26 @@ pub fn Challenge(
 
     Effect::new(move |_| {
         if incorrect.get() {
-            set_timeout(move || incorrect.set(false), Duration::from_secs(2));
+            set_timeout(move || {incorrect.set(false); checking_flag.set(false)}, Duration::from_secs(2));
         }
     });
 
     let check_flag_action = Action::new(move |(flag, challenge): &(String, Challenge)| {
         let flag = flag.clone();
         let challenge = challenge.clone();
-        let challenge_points = challenge.clone().points;
+        let challenge_points = challenge.points.clone();
+        checking_flag.set(true);
         async move {
             if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
                 if result == ResultStatus::Fail && details == "incorrect solution" {
                     incorrect.set(true);
                 } else if result == ResultStatus::Success {
-                    push_new_toast(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
+                    spawn_local(async move {
+                        push_new_toast(ToastMessageType::Custom(format!("Solved challenge +{challenge_points}p")));
+                    });
                     refresh_user.update(|r| r.iteration += 1);
                     refresh_solved_challenges.update(|r| *r += 1);
+                    checking_flag.set(false);
                 }
             }
         }
@@ -105,10 +112,7 @@ pub fn Challenge(
             }}
 
             <p class=r#"text-lg/8 mt-2 whitespace-pre-wrap"#>
-                {move || {
-                    let description = RwSignal::new(cwa.get().challenge.description);
-                    view! { <TruncatedDesc description /> }
-                }}
+                <TruncatedDesc description=Signal::derive(move || cwa.get().challenge.description) />
             </p>
 
             {move || {
@@ -135,7 +139,7 @@ pub fn Challenge(
                 />
                 <button
                     class=move || button_classes.get()
-                    disabled=move || solved.get() || incorrect.get()
+                    disabled=move || solved.get() || incorrect.get() || checking_flag.get()
                     on:click=move |_| {
                         let flag = flag_signal.get_untracked();
                         let challenge = cwa.get_untracked().challenge;

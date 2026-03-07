@@ -48,11 +48,21 @@ pub mod structs {
 pub mod enums {
     use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
     #[serde(rename_all = "camelCase")]
     pub enum AuthType {
         Normal,
         Ldap
+    }
+
+    impl std::fmt::Display for AuthType {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let s = match self {
+                AuthType::Normal => "normal",
+                AuthType::Ldap => "ldap",
+            };
+            write!(f, "{s}")
+        }
     }
 }
 

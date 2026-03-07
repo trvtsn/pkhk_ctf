@@ -1,10 +1,8 @@
+use crate::{components::toast::{ToastMessageType, push_new_toast}, error_template::AppError};
 use std::any::type_name;
-
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc, offset::LocalResult};
-use leptos::prelude::use_context;
+use leptos::{prelude::*, web_sys::FormData, wasm_bindgen::JsCast, web_sys::{HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
 use time::OffsetDateTime;
-
-use crate::error_template::AppError;
 
 pub fn offset_to_naive(offset_dt: OffsetDateTime) -> NaiveDateTime {
     let offset_dt_secs = offset_dt.unix_timestamp();
@@ -43,4 +41,71 @@ pub fn get_context<T: 'static + Clone>() -> Result<T, AppError> {
         Some(val) => Ok(val),
         None => Err(AppError::InternalError(format!("Failed to extract {type_name_short} from context")))
     }
+}
+
+pub fn csv_contains(csv: &str, value: &str) -> bool {
+    csv.split(',').any(|s| s == value)
+}
+
+pub fn collect_selected_options(select: &HtmlSelectElement) -> Vec<String> {
+    let selected = select.selected_options();
+    let mut picked = Vec::new();
+    for i in 0..selected.length() {
+        if let Some(item) = selected.item(i) {
+            if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
+                picked.push(opt.value());
+            }
+        }
+    }
+    picked
+}
+
+pub fn build_single_file_form_data(node_ref: Option<HtmlInputElement>) -> Option<FormData> {
+    let el = node_ref?;
+    let files = el.files()?;
+    if files.length() == 0 { return None; }
+    let file = match files.get(0) {
+        Some(f) => f,
+        None => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    };
+    let fd = match FormData::new() {
+        Ok(fd) => fd,
+        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    };
+    match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+        Ok(_) => {},
+        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    }
+    Some(fd)
+}
+
+pub fn action_btn_text(
+    signal: impl Fn() -> bool + Send + Sync + 'static,
+    active_text: &'static str,
+    inactive_text: &'static str,
+) -> Memo<String> {
+    Memo::new(move |_| {
+        if signal() { active_text.to_string() } else { inactive_text.to_string() }
+    })
+}
+
+pub fn build_multi_file_form_data(node_ref: Option<HtmlInputElement>) -> Option<FormData> {
+    let el = node_ref?;
+    let files = el.files()?;
+    if files.length() == 0 { return None; }
+    let fd = match FormData::new() {
+        Ok(fd) => fd,
+        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    };
+    for i in 0..files.length() {
+        let file = match files.get(i) {
+            Some(f) => f,
+            None => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+        };
+        match fd.append_with_blob_and_filename("file", &file, &file.name()) {
+            Ok(_) => {},
+            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+        }
+    }
+    Some(fd)
 }

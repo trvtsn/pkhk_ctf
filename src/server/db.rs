@@ -129,14 +129,15 @@ pub mod structs {
         pub auth_type: String
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
     pub struct UserWithoutPII {
         pub username: String,
         pub created_at: DateTime<Local>,
         pub last_active_at: DateTime<Local>,
         pub role: UserRole,
         pub points: u32,
-        pub groups: String
+        pub groups: String,
+        pub auth_type: String
     }
 
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default, Eq)]
@@ -768,7 +769,7 @@ cfg_if! {
                     .fetch_all(executor)
                     .await {
                         Ok(rows) => {
-                            let groups = rows.into_iter()
+                            let groups: Vec<String> = rows.into_iter()
                                 .flat_map(|row| {
                                     row.groups
                                         .split(",")
@@ -777,7 +778,9 @@ cfg_if! {
                                         .map(String::from)
                                         .collect::<Vec<String>>()
                                 })
-                                .collect::<Vec<String>>();
+                                .collect::<BTreeSet<_>>()
+                                .into_iter()
+                                .collect();
 
                             Ok(groups)
                         },
@@ -1154,7 +1157,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE id = ?
                             ", 
@@ -1173,7 +1176,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE email = ?
                             ", 
@@ -1193,7 +1196,7 @@ cfg_if! {
                         match sqlx::query_as!(
                             Self,
                             "
-                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`
+                            SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
                             FROM users 
                             WHERE username = ?
                             ", 

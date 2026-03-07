@@ -1,47 +1,40 @@
 use icondata as i;
-use leptos::{prelude::*};
+use leptos::prelude::*;
 use leptos_icons::Icon;
 
-/// Default Home Page
 #[component]
-pub fn TruncatedDesc(description: RwSignal<Option<String>>) -> impl IntoView {
-    let description = Memo::new(move |_| {
-        description.get().unwrap_or_default()
-    });
+pub fn TruncatedDesc(
+    #[prop(into)] 
+    description: Signal<Option<String>>
+) -> impl IntoView {
+    const MAX_LEN: usize = 200;
+    let expanded = RwSignal::new(false);
 
-    let desc_max_len = 200usize;
-    let desc_expanded = RwSignal::new(false);
-
-    let needs_truncate =  Memo::new(move |_| {
-        description.get().chars().count() > desc_max_len
-    });
-    let truncated_desc = Memo::new(move |_| {
-        if needs_truncate.get() && !desc_expanded.get() {
-            format!("{}...", description.get().chars().take(desc_max_len).collect::<String>())
+    let display_text = Memo::new(move |_| {
+        let desc = description.get().unwrap_or_default();
+        if !expanded.get() && desc.chars().count() > MAX_LEN {
+            format!("{}...", desc.chars().take(MAX_LEN).collect::<String>())
         } else {
-            description.get()
+            desc
         }
     });
-    let show_more_less_text = Memo::new(move |_| {
-        if desc_expanded.get() { "Show Less" } else { "Show More" }
+
+    let needs_truncate = Memo::new(move |_| {
+        description.get().unwrap_or_default().chars().count() > MAX_LEN
     });
 
     view! {
-        <Show when=move || desc_expanded.get() || !needs_truncate.get()>{description.get()}</Show>
-
-        <Show when=move || {
-            !desc_expanded.get() && needs_truncate.get()
-        }>{truncated_desc.get()}</Show>
+        {move || display_text.get()}
 
         <Show when=move || needs_truncate.get()>
             <button
                 type="button"
                 class=r#"ml-2 text-base text-blue-600 underline cursor-pointer"#
                 on:click=move |_| {
-                    desc_expanded.set(!desc_expanded.get_untracked());
+                    expanded.set(!expanded.get_untracked());
                 }
             >
-                {show_more_less_text.get()}
+                {move || if expanded.get() { "Show Less" } else { "Show More" }}
             </button>
         </Show>
     }
@@ -146,5 +139,50 @@ pub fn Difficulty(difficulty: i8) -> impl IntoView {
                 </div>
             }
         }}
+    }
+}
+
+#[component]
+pub fn FileTooltip(
+    file_name: String,
+    id: String,
+    #[prop(into)] on_download: String,
+    on_remove: Callback<()>,
+) -> impl IntoView {
+    let show_tooltip = RwSignal::new(false);
+    view! {
+        <div class="flex gap-2 items-center">
+            <span
+                class="relative inline-block"
+                on:mouseenter=move |_| show_tooltip.set(true)
+                on:mouseleave=move |_| show_tooltip.set(false)
+                on:focus=move |_| show_tooltip.set(true)
+                on:blur=move |_| show_tooltip.set(false)
+                tabindex="0"
+            >
+                {file_name}
+                <Show when=move || show_tooltip.get()>
+                    <div
+                        role="tooltip"
+                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap
+                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                    >
+                        {format!("ID: {}", id)}
+                    </div>
+                </Show>
+            </span>
+            <a
+                download
+                href=on_download
+            >
+                <Icon icon=i::LuDownload />
+            </a>
+            <button
+                class="cursor-pointer"
+                on:click=move |_| on_remove.run(())
+            >
+                <Icon icon=i::LuX />
+            </button>
+        </div>
     }
 }

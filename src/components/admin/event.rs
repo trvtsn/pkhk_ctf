@@ -1,8 +1,7 @@
-use crate::{components::toast::{ToastMessageType, push_new_toast}, server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::FileTooltip}, server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::utils::{action_btn_text, build_multi_file_form_data, build_single_file_form_data, collect_selected_options, csv_contains};
 use chrono::DateTime;
-use icondata as i;
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlOptionElement, HtmlSelectElement}};
-use leptos_icons::Icon;
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 
 #[component]
 pub fn Event(
@@ -33,12 +32,8 @@ pub fn Event(
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
 
-    let delete_submit_btn_text = Memo::new(move |_| {
-        if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
-    });
-    let edit_submit_btn_text = Memo::new(move |_| {
-        if editing.get() { "Confirm Edit".to_string() } else { "Edit".to_string() }
-    });
+    let delete_submit_btn_text = action_btn_text(move || deleting.get(), "Confirm Delete", "Delete");
+    let edit_submit_btn_text = action_btn_text(move || editing.get(), "Confirm Edit", "Edit");
 
     let any_changes_made = Memo::new(move |_| {
         if name_signal.get() == name_edit.get() &&
@@ -172,29 +167,13 @@ pub fn Event(
                                     Some(target) => target.unchecked_into::<HtmlSelectElement>(),
                                     None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                                 };
-                                let selected = sel.selected_options();
-                                let mut picked: Vec<String> = Vec::new();
-
-                                for i in 0..selected.length() {
-                                    if let Some(item) = selected.item(i) {
-                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                            picked.push(opt.value());
-                                        }
-                                    }
-                                }
-
+                                let picked = collect_selected_options(&sel);
                                 visible_to_groups_edit.set(picked.join(","));
                             }
                         >
                             <option 
                                 value="all"
-                                selected=move || {
-                                    visible_to_groups_edit
-                                        .get().split(",")
-                                        .map(String::from)
-                                        .collect::<Vec<String>>()
-                                        .contains(&"all".to_string())
-                                }
+                                selected=move || csv_contains(&visible_to_groups_edit.get(), "all")
                             >
                                 "All"
                             </option>
@@ -204,11 +183,7 @@ pub fn Event(
                                         each=move || user_groups.get()
                                         key=|group: &String| group.clone()
                                         children=move |group| {
-                                            let selected = visible_to_groups_edit
-                                                .get().split(",")
-                                                .map(String::from)
-                                                .collect::<Vec<String>>()
-                                                .contains(&group);
+                                            let selected = csv_contains(&visible_to_groups_edit.get(), &group);
 
                                             view! {
                                                 <option 
@@ -232,51 +207,17 @@ pub fn Event(
                                 each=move || attachments_edit.get()
                                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                                 children={move |index, a| {
-                                    let show_tooltip = RwSignal::new(false);
                                     let id = a.id.clone();
-                                    let file_name = a.file_name.clone();
-                                    view! {  
-                                        <div class="flex gap-2 items-center">
-                                            <span
-                                                class="relative inline-block"
-                                                on:mouseenter=move |_| show_tooltip.set(true)
-                                                on:mouseleave=move |_| show_tooltip.set(false)
-                                                // keyboard focus
-                                                on:focus=move |_| show_tooltip.set(true)
-                                                on:blur=move |_| show_tooltip.set(false)
-                                                tabindex="0"
-                                            >
-                                                {file_name}
-                                                <Show when=move || show_tooltip.get()>
-                                                    <div
-                                                        role="tooltip"
-                                                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
-                                                    >
-                                                        {format!("ID: {}", a.id)}
-                                                    </div>
-                                                </Show>
-                                            </span>
-                                            
-                                            <a
-                                                download
-                                                href=move || format!("/file/{}", id)
-                                            >
-                                                <Icon icon=i::LuDownload />
-                                            </a>
-                                            <button 
-                                                class="cursor-pointer"
-                                                on:click=move |_| {
-                                                    let remove_at = index.get_untracked();
-
-                                                    attachments_edit.update(|a| {
-                                                        a.remove(remove_at);
-                                                    });
-                                                } 
-                                            >
-                                                <Icon icon=i::LuX />
-                                            </button>
-                                        </div>
+                                    view! {
+                                        <FileTooltip
+                                            file_name=a.file_name.clone()
+                                            id=a.id.clone()
+                                            on_download=format!("/file/{}", id)
+                                            on_remove=Callback::new(move |_| {
+                                                let remove_at = index.get_untracked();
+                                                attachments_edit.update(|a| { a.remove(remove_at); });
+                                            })
+                                        />
                                     }
                                 }}
                             />
@@ -296,46 +237,14 @@ pub fn Event(
                         <label class=r#"block mb-1 text-sm font-medium"#>"Illustration"</label>
                         <div class="grid gap-2">
                             {move || {
-                                if let Some(illustration) = illustration_edit.get() {
-                                    let show_tooltip = RwSignal::new(false);
-                                    let id = illustration.id.clone();
+                                if let Some(illustr) = illustration_edit.get() {
                                     view! {
-                                        <div class="flex gap-2 items-center">
-                                            <span
-                                                class="relative inline-block"
-                                                on:mouseenter=move |_| show_tooltip.set(true)
-                                                on:mouseleave=move |_| show_tooltip.set(false)
-                                                on:focus=move |_| show_tooltip.set(true)
-                                                on:blur=move |_| show_tooltip.set(false)
-                                                tabindex="0"
-                                            >
-                                                {move || illustration.file_name.clone()}
-                                                <Show when=move || show_tooltip.get()>
-                                                    <div
-                                                        role="tooltip"
-                                                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
-                                                    >
-                                                        {format!("ID: {}", illustration.id)}
-                                                    </div>
-                                                </Show>
-                                            </span>
-                                            
-                                            <a
-                                                download
-                                                href=move || format!("/file/{}", id)
-                                            >
-                                                <Icon icon=i::LuDownload />
-                                            </a>
-                                            <button 
-                                                class="cursor-pointer"
-                                                on:click=move |_| {
-                                                    illustration_edit.set(None);
-                                                } 
-                                            >
-                                                <Icon icon=i::LuX />
-                                            </button>
-                                        </div>
+                                        <FileTooltip
+                                            file_name=illustr.file_name.clone()
+                                            id=illustr.id.clone()
+                                            on_download=format!("/file/{}", illustr.id)
+                                            on_remove=Callback::new(move |_| illustration_edit.set(None))
+                                        />
                                     }.into_any()
                                 } else {
                                     "".into_any()
@@ -385,51 +294,15 @@ pub fn Event(
                             spawn_local(async move {
                                 tracing::debug!("editing event: {}", id_signal.get_untracked());
 
-                                if let Some(att_el) = attachments_ref {
-                                    if let Some(files) = att_el.files() {
-                                        if files.length() > 0 {
-                                            let fd = match FormData::new() {
-                                                Ok(fd) => fd,
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            for i in 0..files.length() {
-                                                let file = match files.get(i) {
-                                                    Some(file) => file,
-                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                };
-                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                    Ok(_) => {},
-                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                }
-                                            }
-
-                                            if let Ok(api_result) = upload_files(fd.into()).await {
-                                                attachments_edit.set(api_result.details);
-                                            }
-                                        }
+                                if let Some(fd) = build_multi_file_form_data(attachments_ref) {
+                                    if let Ok(api_result) = upload_files(fd.into()).await {
+                                        attachments_edit.set(api_result.details);
                                     }
                                 }
 
-                                if let Some(illustr_el) = illustration_ref {
-                                    if let Some(files) = illustr_el.files() {
-                                        if files.length() > 0 {
-                                            let file = match files.get(0) {
-                                                Some(file) => file,
-                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            let fd = match FormData::new() {
-                                                Ok(fd) => fd,
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                Ok(_) => {},
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            }
-
-                                            if let Ok(api_result) = upload_illustration(fd.into()).await {
-                                                illustration_edit.set(Some(api_result.details))
-                                            }
-                                        }
+                                if let Some(fd) = build_single_file_form_data(illustration_ref) {
+                                    if let Ok(api_result) = upload_illustration(fd.into()).await {
+                                        illustration_edit.set(Some(api_result.details));
                                     }
                                 }
 

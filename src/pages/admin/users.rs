@@ -1,7 +1,6 @@
-use crate::{components::{admin::user::User, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
-use icondata as i;
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
-use leptos_icons::Icon;
+use crate::{components::{admin::user::User, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, FileTooltip, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::{get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, get_all_user_avatar_ids, structs::ApiResult}};
+use crate::utils::{build_single_file_form_data, collect_selected_options};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 
 /// Default Home Page
 #[component]
@@ -64,7 +63,6 @@ pub fn Users() -> impl IntoView {
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         name="username"
-                        value=move || username_signal.get()
                         bind:value=username_signal
                     />
                 </div>
@@ -75,7 +73,6 @@ pub fn Users() -> impl IntoView {
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                         name="email"
-                        value=move || email_signal.get()
                         bind:value=email_signal
                     />
                 </div>
@@ -88,7 +85,6 @@ pub fn Users() -> impl IntoView {
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             type=move || if password_hidden.get() { "password" } else { "text" }
                             name="password"
-                            value=move || password_signal.get()
                             bind:value=password_signal
                         />
                         <HidePasswordButton hidden=password_hidden />
@@ -105,11 +101,17 @@ pub fn Users() -> impl IntoView {
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             type=move || if confirm_password_hidden.get() { "password" } else { "text" }
                             name="confirm_password"
-                            value=move || confirm_password_signal.get()
                             bind:value=confirm_password_signal
                         />
                         <HidePasswordButton hidden=confirm_password_hidden />
                     </div>
+                    {move || {
+                        if password_signal.get() != confirm_password_signal.get() {
+                            "Confirmation must match"
+                        } else {
+                            ""
+                        }
+                    }}
                 </div>
 
                 <div class="grid">
@@ -117,7 +119,7 @@ pub fn Users() -> impl IntoView {
                     <select
                         class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                        name="event_id"
+                        name="role"
                         bind:value=role_signal
                     >
                         <option value="">"-- Select Role --"</option>
@@ -129,13 +131,6 @@ pub fn Users() -> impl IntoView {
                             <option value=role.to_string()>{role.to_string()}</option>
                         </For>
                     </select>
-                    {move || {
-                        if password_signal.get() != confirm_password_signal.get() {
-                            "Confirmation must match"
-                        } else {
-                            ""
-                        }
-                    }}
                 </div>
 
                 <div class="grid">
@@ -150,36 +145,13 @@ pub fn Users() -> impl IntoView {
                                 Some(target) => target.unchecked_into::<HtmlSelectElement>(),
                                 None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                             };
-                            let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
-                                Some(doc) => doc,
-                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                            };
-                            let new_input = match doc.get_element_by_id("action_create_group_input") {
-                                Some(el) => el.unchecked_into::<HtmlInputElement>(),
-                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                            };
-                            if sel.value() == "__new__" {
-                                let _ = sel.remove_attribute("name");
-                                let _ = new_input.set_attribute("name", "group");
+                            let picked = collect_selected_options(&sel);
+                            if picked.contains(&"__new__".to_string()) {
                                 group_add_new_selected.set(true);
                             } else {
-                                let _ = sel.set_attribute("name", "group");
-                                let _ = new_input.remove_attribute("name");
                                 group_add_new_selected.set(false);
+                                groups_signal.set(picked.join(","));
                             }
-
-                            let selected = sel.selected_options();
-                            let mut picked: Vec<String> = Vec::new();
-
-                            for i in 0..selected.length() {
-                                if let Some(item) = selected.item(i) {
-                                    if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                        picked.push(opt.value());
-                                    }
-                                }
-                            }
-
-                            groups_signal.set(picked.join(","));
                         }
                     >
                         <option value="">"-- Select Group --"</option>
@@ -222,44 +194,13 @@ pub fn Users() -> impl IntoView {
                         {move || {
                             let user_avatar = avatar_signal.get();
                             if let Some(user_avatar) = user_avatar {
-                                let show_tooltip = RwSignal::new(false);
-                                let id = user_avatar.attachment_id.clone();
                                 view! {
-                                    <div class="flex gap-2 items-center">
-                                        <span
-                                            class="relative inline-block"
-                                            on:mouseenter=move |_| show_tooltip.set(true)
-                                            on:mouseleave=move |_| show_tooltip.set(false)
-                                            on:focus=move |_| show_tooltip.set(true)
-                                            on:blur=move |_| show_tooltip.set(false)
-                                            tabindex="0"
-                                        >
-                                            {move || user_avatar.file_name.clone()}
-                                            <Show when=move || show_tooltip.get()>
-                                                <div
-                                                    role="tooltip"
-                                                    class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                        rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
-                                                >
-                                                    {format!("ID: {}", id)}
-                                                </div>
-                                            </Show>
-                                        </span>
-                                        <a
-                                            download
-                                            href=move || format!("/file/{}", user_avatar.attachment_id)
-                                        >
-                                            <Icon icon=i::LuDownload />
-                                        </a>
-                                        <button 
-                                            class="cursor-pointer"
-                                            on:click=move |_| {
-                                                avatar_signal.set(None);
-                                            } 
-                                        >
-                                            <Icon icon=i::LuX />
-                                        </button>
-                                    </div>
+                                    <FileTooltip
+                                        file_name=user_avatar.file_name.clone()
+                                        id=user_avatar.attachment_id.clone()
+                                        on_download=format!("/file/{}", user_avatar.attachment_id)
+                                        on_remove=Callback::new(move |_| avatar_signal.set(None))
+                                    />
                                 }.into_any()
                             } else {
                                 "".into_any()
@@ -300,26 +241,9 @@ pub fn Users() -> impl IntoView {
                             spawn_local(async move {
                                 tracing::debug!("creating user...");
                                 
-                                if let Some(avatar_el) = avatar_ref {
-                                    if let Some(files) = avatar_el.files() {
-                                        if files.length() > 0 {
-                                            let file = match files.get(0) {
-                                                Some(file) => file,
-                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            let fd = match FormData::new() {
-                                                Ok(fd) => fd,
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            };
-                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                Ok(_) => {},
-                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                            }
-
-                                            if let Ok(api_result) = upload_avatar(fd.into()).await {
-                                                avatar_signal.set(Some(api_result.details));
-                                            }
-                                        }
+                                if let Some(fd) = build_single_file_form_data(avatar_ref) {
+                                    if let Ok(api_result) = upload_avatar(fd.into()).await {
+                                        avatar_signal.set(Some(api_result.details));
                                     }
                                 }
 

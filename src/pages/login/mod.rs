@@ -1,7 +1,7 @@
 pub mod ldap;
 
 use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user}};
-use leptos::prelude::*;
+use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 
 /// Default Home Page
@@ -18,7 +18,9 @@ pub fn Login() -> impl IntoView {
         async move {
             if let Err(e) = login_user(email, password, crate::server::backend::enums::AuthType::Normal).await 
             && e == AppError::BadRequest("invalid credentials".to_string()) {
-                push_new_toast(ToastMessageType::InvalidCredentials);
+                spawn_local(async move {
+                    push_new_toast(ToastMessageType::InvalidCredentials);
+                });
             }
         }
     });

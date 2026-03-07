@@ -1,8 +1,7 @@
-use crate::{components::{admin::event::Event, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
-use icondata as i;
+use crate::{components::{admin::event::Event, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, FileTooltip, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options};
 use leptos::{prelude::*, task:: spawn_local};
-use leptos::{web_sys::{FormData, HtmlSelectElement, HtmlOptionElement, Event}, wasm_bindgen::JsCast};
-use leptos_icons::Icon;
+use leptos::{web_sys::{HtmlSelectElement, Event}, wasm_bindgen::JsCast};
 
 /// Default Home Page
 #[component]
@@ -26,6 +25,7 @@ pub fn Events() -> impl IntoView {
     let ewa_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_events_with_attachments().await.unwrap_or_default()
     });
+    
     let groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
@@ -111,18 +111,7 @@ pub fn Events() -> impl IntoView {
                                             Some(target) => target.unchecked_into::<HtmlSelectElement>(),
                                             None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                                         };
-                                        let selected = sel.selected_options();
-                                        let mut picked: Vec<String> = Vec::new();
-
-                                        for i in 0..selected.length() {
-                                            if let Some(item) = selected.item(i) {
-                                                if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                                    picked.push(opt.value());
-                                                }
-                                            }
-                                        }
-
-                                        visible_to_groups_signal.set(picked);
+                                        visible_to_groups_signal.set(collect_selected_options(&sel));
                                     }
                                 >
                                     <option value="all">"All"</option>
@@ -150,50 +139,17 @@ pub fn Events() -> impl IntoView {
                                         each=move || attachments.get().unwrap_or_default()
                                         key=|a: &AttachmentWithoutBlob| a.id.clone()
                                         children={move |index, a| {
-                                            let show_tooltip = RwSignal::new(false);
                                             let id = a.id.clone();
-                                            let file_name = a.file_name.clone();
-                                            view! {  
-                                                <div class="flex gap-2 items-center">
-                                                    <span
-                                                        class="relative inline-block"
-                                                        on:mouseenter=move |_| show_tooltip.set(true)
-                                                        on:mouseleave=move |_| show_tooltip.set(false)
-                                                        // keyboard focus
-                                                        on:focus=move |_| show_tooltip.set(true)
-                                                        on:blur=move |_| show_tooltip.set(false)
-                                                        tabindex="0"
-                                                    >
-                                                        {file_name}
-                                                        <Show when=move || show_tooltip.get()>
-                                                            <div
-                                                                role="tooltip"
-                                                                class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                                    rounded p-1 text-xs bg-card shadow-sm z-1"#
-                                                            >
-                                                                {format!("ID: {}", a.id)}
-                                                            </div>
-                                                        </Show>
-                                                    </span>
-                                                    <a
-                                                        download
-                                                        href=move || format!("/file/{}", id)
-                                                    >
-                                                        <Icon icon=i::LuDownload />
-                                                    </a>
-                                                    <button 
-                                                        class="cursor-pointer"
-                                                        on:click=move |_| {
-                                                            let remove_at = index.get_untracked();
-
-                                                            attachments.update(|a| {
-                                                                a.get_or_insert_default().remove(remove_at);
-                                                            });
-                                                        } 
-                                                    >
-                                                        <Icon icon=i::LuX />
-                                                    </button>
-                                                </div>
+                                            view! {
+                                                <FileTooltip
+                                                    file_name=a.file_name.clone()
+                                                    id=a.id.clone()
+                                                    on_download=format!("/file/{}", id)
+                                                    on_remove=Callback::new(move |_| {
+                                                        let remove_at = index.get_untracked();
+                                                        attachments.update(|a| { a.get_or_insert_default().remove(remove_at); });
+                                                    })
+                                                />
                                             }
                                         }}
                                     />
@@ -215,44 +171,13 @@ pub fn Events() -> impl IntoView {
                                     {move || {
                                         let illustration_signal_value = illustration.get();
                                         if let Some(illustr) = illustration_signal_value {
-                                            let show_tooltip = RwSignal::new(false);
-                                            let id = illustr.id.clone();
                                             view! {
-                                                <div class="flex gap-2 items-center">
-                                                    <span
-                                                        class="relative inline-block"
-                                                        on:mouseenter=move |_| show_tooltip.set(true)
-                                                        on:mouseleave=move |_| show_tooltip.set(false)
-                                                        on:focus=move |_| show_tooltip.set(true)
-                                                        on:blur=move |_| show_tooltip.set(false)
-                                                        tabindex="0"
-                                                    >
-                                                        {move || illustr.file_name.clone()}
-                                                        <Show when=move || show_tooltip.get()>
-                                                            <div
-                                                                role="tooltip"
-                                                                class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                                    rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
-                                                            >
-                                                                {format!("ID: {}", illustr.id)}
-                                                            </div>
-                                                        </Show>
-                                                    </span>
-                                                    <a
-                                                        download
-                                                        href=move || format!("/file/{}", id)
-                                                    >
-                                                        <Icon icon=i::LuDownload />
-                                                    </a>
-                                                    <button 
-                                                        class="cursor-pointer"
-                                                        on:click=move |_| {
-                                                            illustration.set(None);
-                                                        } 
-                                                    >
-                                                        <Icon icon=i::LuX />
-                                                    </button>
-                                                </div>
+                                                <FileTooltip
+                                                    file_name=illustr.file_name.clone()
+                                                    id=illustr.id.clone()
+                                                    on_download=format!("/file/{}", illustr.id)
+                                                    on_remove=Callback::new(move |_| illustration.set(None))
+                                                />
                                             }.into_any()
                                         } else {
                                             "".into_any()
@@ -295,51 +220,15 @@ pub fn Events() -> impl IntoView {
                                         spawn_local(async move {
                                             tracing::debug!("creating event...");
 
-                                            if let Some(att_el) = attachments_ref {
-                                                if let Some(files) = att_el.files() {
-                                                    if files.length() > 0 {
-                                                        let fd = match FormData::new() {
-                                                            Ok(fd) => fd,
-                                                            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                        };
-                                                        for i in 0..files.length() {
-                                                            let file = match files.get(i) {
-                                                                Some(file) => file,
-                                                                None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                            };
-                                                            match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                                Ok(_) => {},
-                                                                Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                            }
-                                                        }
-
-                                                        if let Ok(api_result) = upload_files(fd.into()).await {
-                                                            attachments.set(Some(api_result.details));
-                                                        }
-                                                    }
+                                            if let Some(fd) = build_multi_file_form_data(attachments_ref) {
+                                                if let Ok(api_result) = upload_files(fd.into()).await {
+                                                    attachments.set(Some(api_result.details));
                                                 }
                                             }
 
-                                            if let Some(illustr_el) = illustration_ref {
-                                                if let Some(files) = illustr_el.files() {
-                                                    if files.length() > 0 {
-                                                        let file = match files.get(0) {
-                                                            Some(file) => file,
-                                                            None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                        };
-                                                        let fd = match FormData::new() {
-                                                            Ok(fd) => fd,
-                                                            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                        };
-                                                        match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                            Ok(_) => {},
-                                                            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                        }
-
-                                                        if let Ok(api_result) = upload_illustration(fd.into()).await {
-                                                            illustration.set(Some(api_result.details))
-                                                        }
-                                                    }
+                                            if let Some(fd) = build_single_file_form_data(illustration_ref) {
+                                                if let Ok(api_result) = upload_illustration(fd.into()).await {
+                                                    illustration.set(Some(api_result.details));
                                                 }
                                             }
 

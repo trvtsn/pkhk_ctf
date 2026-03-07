@@ -1,4 +1,4 @@
-use crate::{components::toast::{ToastMessageType, push_new_toast}, server::{db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::toast::{ToastMessageType, push_new_toast}, server::{db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult}, utils::action_btn_text};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 use leptos_icons::Icon;
@@ -26,12 +26,8 @@ pub fn File(
     );
     let deleting = RwSignal::new(false);
     let renaming = RwSignal::new(false);
-    let rename_submit_btn_text = Memo::new(move |_| {
-        if deleting.get() { "Confirm Rename".to_string() } else { "Rename".to_string() }
-    });
-    let delete_submit_btn_text = Memo::new(move |_| {
-        if deleting.get() { "Confirm Delete".to_string() } else { "Delete".to_string() }
-    });
+    let rename_submit_btn_text = action_btn_text(move || renaming.get(), "Confirm Rename", "Rename");
+    let delete_submit_btn_text = action_btn_text(move || deleting.get(), "Confirm Delete", "Delete");
 
     view! {
         <div class=r#"grid content-center p-4 rounded-lg bg-card hover:bg-card-hover break-all"#>

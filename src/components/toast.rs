@@ -137,7 +137,7 @@ pub fn Toast(
                 class=move || parent_classes.get()
             >
                 <div 
-                    class="flex bg-toast rounded px-8 py-4 text-text transition-all duration-1000 ease-in-out shadow-sm cursor-pointer z-50 pointer-events-auto"
+                    class="flex bg-toast rounded px-8 py-4 text-text transition-all duration-1000 ease-in-out shadow-sm cursor-pointer pointer-events-auto"
                     on:click=move |_| {
                         toast_message.appear.set(false);
                     }
@@ -155,7 +155,7 @@ pub fn Toasts() -> impl IntoView {
 
     view! {
         <Show when=move || !toast_messages.get().is_empty()>
-            <div class="flex flex-col gap-4 top-10 right-8 fixed h-full items-center">
+            <div class="flex flex-col gap-4 top-10 right-8 fixed h-full items-end z-50">
                 <For
                     each=move || toast_messages.get()
                     key=|toast_message: &ToastMessage| toast_message.id

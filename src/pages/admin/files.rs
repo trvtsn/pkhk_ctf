@@ -27,7 +27,7 @@ pub fn Files() -> impl IntoView {
                         Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                     };
                     spawn_local(async move {
-                        if let Ok(_) = upload_files(fd.into()).await {
+                        if upload_files(fd.into()).await.is_ok() {
                             refresh.update(|n| *n += 1);
                         }
                     });

@@ -1,6 +1,5 @@
 use crate::components::navbar::NavBar;
 use leptos::prelude::*;
-//use thaw::*;
 
 /// Default Home Page
 #[component]

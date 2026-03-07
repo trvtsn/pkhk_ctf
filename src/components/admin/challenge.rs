@@ -1,12 +1,13 @@
 use crate::components::toast::{ToastMessageType, push_new_toast};
-use crate::components::utils::TruncatedDesc;
+use crate::components::utils::{TruncatedDesc, FileTooltip, Difficulty};
 use crate::pages::admin::challenges::Hint;
 use crate::server::admin::upload_illustration;
 use crate::server::db::structs::DbHint;
 use crate::server::proxmox::ProxmoxVMTemplate;
 use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
+use crate::utils::{action_btn_text, build_multi_file_form_data, build_single_file_form_data, collect_selected_options, csv_contains};
 use icondata as i;
-use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlInputElement, HtmlSelectElement, HtmlOptionElement}};
+use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 use leptos_icons::Icon;
 
 #[component]
@@ -56,17 +57,20 @@ pub fn Challenge(
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
 
+    let delete_submit_btn_text = action_btn_text(move || deleting.get(), "Confirm Delete", "Delete");
+    let edit_submit_btn_text = action_btn_text(move || editing.get(), "Confirm Edit", "Edit");
+
     let any_changes_made = Memo::new(move |_| {
         let challenge_id = id_signal.get();
         
         let hints_edit = hints_edit.get().into_iter().map(|h| {
-            let mut hint = Into::<DbHint>::into(h); 
+            let mut hint = DbHint::from(h); 
             hint.challenge_id = challenge_id.clone(); 
             hint
         }).collect::<Vec<DbHint>>();
 
         let initial_hints_value = vec![Hint::new("1".to_string(), "")].into_iter().map(|h| {
-            let mut hint = Into::<DbHint>::into(h); 
+            let mut hint = DbHint::from(h); 
             hint.challenge_id = challenge_id.clone(); 
             hint
         }).collect::<Vec<DbHint>>();
@@ -77,7 +81,7 @@ pub fn Challenge(
             category_signal.get() == category_edit.get() &&
             difficulty_signal.get() == difficulty_edit.get() &&
             points_signal.get() == points_edit.get() &&
-            "" == flag_edit.get() &&
+            flag_edit.get().is_empty() &&
             visible_to_groups_signal.get() == visible_to_groups_edit.get() &&
             proxmox_vm_id_signal.get() == proxmox_vm_id_edit.get() &&
             initial_hints_value == hints_edit &&
@@ -115,7 +119,7 @@ pub fn Challenge(
                 <p class=r#"text-lg/8 whitespace-pre-wrap"#>
                     <TruncatedDesc description=description_signal />
                 </p>
-                <Difficulty rating=difficulty_signal.get() />
+                <Difficulty difficulty=difficulty_signal.get() />
                 <p class=r#"text-lg/8"#>
                     <b>"Points: "</b>
                     {points_signal.get()}
@@ -188,28 +192,13 @@ pub fn Challenge(
                             focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                             name="category"
                             on:change=move |ev: Event| {
-                                let sel = match ev.target() {
-                                    Some(target) => target.unchecked_into::<HtmlSelectElement>(),
-                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                };
-                                let doc = match leptos::web_sys::window().and_then(|window| window.document()) {
-                                    Some(doc) => doc,
-                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                };
-                                let new_input = match doc.get_element_by_id("action_create_category_input") {
-                                    Some(el) => el.unchecked_into::<HtmlInputElement>(),
-                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                };
-                                if sel.value() == "__new__" {
-                                    let _ = sel.remove_attribute("name");
-                                    let _ = new_input.set_attribute("name", "category");
+                                let value = event_target_value(&ev);
+                                if value == "__new__" {
                                     category_add_new_selected.set(true);
                                 } else {
-                                    let _ = sel.set_attribute("name", "category");
-                                    let _ = new_input.remove_attribute("name");
                                     category_add_new_selected.set(false);
+                                    category_edit.set(Some(value));
                                 }
-                                category_edit.set(Some(sel.value()));
                             }
                         >
                             <option value="">"-- Select Category --"</option>
@@ -298,29 +287,14 @@ pub fn Challenge(
                                     Some(sel) => sel.unchecked_into::<HtmlSelectElement>(),
                                     None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                                 };
-                                let selected = sel.selected_options();
-                                let mut picked: Vec<String> = Vec::new();
-
-                                for i in 0..selected.length() {
-                                    if let Some(item) = selected.item(i) {
-                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                            picked.push(opt.value());
-                                        }
-                                    }
-                                }
+                                let picked = collect_selected_options(&sel);
 
                                 visible_to_groups_edit.set(picked.join(","));
                             }
                         >
                             <option 
                                 value="all"
-                                selected=move || {
-                                    visible_to_groups_edit
-                                        .get().split(",")
-                                        .map(String::from)
-                                        .collect::<Vec<String>>()
-                                        .contains(&"all".to_string())
-                                }
+                                selected=move || csv_contains(&visible_to_groups_edit.get(), "all")
                             >
                                 "All"
                             </option>
@@ -331,11 +305,7 @@ pub fn Challenge(
                                         each=move || groups.clone()
                                         key=|group: &String| group.clone()
                                         children=move |group| {
-                                            let selected = visible_to_groups_edit
-                                                .get().split(",")
-                                                .map(String::from)
-                                                .collect::<Vec<String>>()
-                                                .contains(&group);
+                                            let selected = csv_contains(&visible_to_groups_edit.get(), &group);
 
                                             view! {
                                                 <option 
@@ -364,16 +334,7 @@ pub fn Challenge(
                                     Some(target) => target.unchecked_into::<HtmlSelectElement>(),
                                     None => return
                                 };
-                                let selected = sel.selected_options();
-                                let mut picked: Vec<String> = Vec::new();
-
-                                for i in 0..selected.length() {
-                                    if let Some(item) = selected.item(i) {
-                                        if let Ok(opt) = item.dyn_into::<HtmlOptionElement>() {
-                                            picked.push(opt.value());
-                                        }
-                                    }
-                                }
+                                let picked = collect_selected_options(&sel);
 
                                 proxmox_vm_id_edit.set(Some(picked.join(",")));
                             }
@@ -498,50 +459,20 @@ pub fn Challenge(
                                 each=move || attachments_edit.get()
                                 key=|a: &AttachmentWithoutBlob| a.id.clone()
                                 children={move |index, a| {
-                                    let show_tooltip = RwSignal::new(false);
                                     let id = a.id.clone();
                                     let file_name = a.file_name.clone();
-                                    view! {  
-                                        <div class="flex gap-2 items-center">
-                                            <span
-                                                class="relative inline-block"
-                                                on:mouseenter=move |_| show_tooltip.set(true)
-                                                on:mouseleave=move |_| show_tooltip.set(false)
-                                                // keyboard focus
-                                                on:focus=move |_| show_tooltip.set(true)
-                                                on:blur=move |_| show_tooltip.set(false)
-                                                tabindex="0"
-                                            >
-                                                {file_name}
-                                                <Show when=move || show_tooltip.get()>
-                                                    <div
-                                                        role="tooltip"
-                                                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
-                                                    >
-                                                        {format!("ID: {}", a.id)}
-                                                    </div>
-                                                </Show>
-                                            </span>
-                                            <a
-                                                download
-                                                href=move || format!("/file/{}", id)
-                                            >
-                                                <Icon icon=i::LuDownload />
-                                            </a>
-                                            <button 
-                                                class="cursor-pointer"
-                                                on:click=move |_| {
-                                                    let remove_at = index.get_untracked();
-
-                                                    attachments_edit.update(|a| {
-                                                        a.remove(remove_at);
-                                                    });
-                                                } 
-                                            >
-                                                <Icon icon=i::LuX />
-                                            </button>
-                                        </div>
+                                    view! {
+                                        <FileTooltip
+                                            file_name=file_name
+                                            id=a.id.clone()
+                                            on_download=format!("/file/{}", id)
+                                            on_remove=Callback::new(move |()| {
+                                                let remove_at = index.get_untracked();
+                                                attachments_edit.update(|a| {
+                                                    a.remove(remove_at);
+                                                });
+                                            })
+                                        />
                                     }
                                 }}
                             />
@@ -563,44 +494,16 @@ pub fn Challenge(
                             {move || {
                                 let illustration = illustration_edit.get();
                                 if let Some(illustration) = illustration {
-                                    let show_tooltip = RwSignal::new(false);
                                     let id = illustration.id.clone();
                                     view! {
-                                        <div class="flex gap-2 items-center">
-                                            <span
-                                                class="relative inline-block"
-                                                on:mouseenter=move |_| show_tooltip.set(true)
-                                                on:mouseleave=move |_| show_tooltip.set(false)
-                                                on:focus=move |_| show_tooltip.set(true)
-                                                on:blur=move |_| show_tooltip.set(false)
-                                                tabindex="0"
-                                            >
-                                                {move || illustration.file_name.clone()}
-                                                <Show when=move || show_tooltip.get()>
-                                                    <div
-                                                        role="tooltip"
-                                                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap 
-                                                            rounded p-1 text-xs bg-card shadow-sm z-1"#
-                                                    >
-                                                        {format!("ID: {}", illustration.id)}
-                                                    </div>
-                                                </Show>
-                                            </span>
-                                            <a
-                                                download
-                                                href=move || format!("/file/{}", id)
-                                            >
-                                                <Icon icon=i::LuDownload />
-                                            </a>
-                                            <button 
-                                                class="cursor-pointer"
-                                                on:click=move |_| {
-                                                    illustration_edit.set(None);
-                                                } 
-                                            >
-                                                <Icon icon=i::LuX />
-                                            </button>
-                                        </div>
+                                        <FileTooltip
+                                            file_name=illustration.file_name.clone()
+                                            id=illustration.id.clone()
+                                            on_download=format!("/file/{}", id)
+                                            on_remove=Callback::new(move |()| {
+                                                illustration_edit.set(None);
+                                            })
+                                        />
                                     }.into_any()
                                 } else {
                                     "".into_any()
@@ -622,19 +525,17 @@ pub fn Challenge(
                     <button
                         class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                         on:click=move |_| {
-                            spawn_local(async move {
-                                editing.set(false);
-                                deleting.set(false);
-                            });
+                            editing.set(false);
+                            deleting.set(false);
                         }
                     >
                         "Cancel"
                     </button>
                 </Show>
-                <Show when=move || editing.get()>
-                    <button
-                        type="button"
-                        hidden=move || deleting.get()
+
+                <button
+                    type="button"
+                    hidden=move || deleting.get()
                         class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
                         rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
                         bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
@@ -650,7 +551,7 @@ pub fn Challenge(
                             let visible_to_groups = visible_to_groups_edit.get_untracked();
                             let vm_ids = proxmox_vm_id_edit.get_untracked();
                             let hints = hints_edit.get_untracked().into_iter().map(|h| {
-                                let mut hint = Into::<DbHint>::into(h); 
+                                let mut hint = DbHint::from(h); 
                                 hint.challenge_id = challenge_id.clone(); 
                                 hint
                             }).collect::<Vec<DbHint>>();
@@ -660,51 +561,15 @@ pub fn Challenge(
 
                             if editing.get() {
                                 spawn_local(async move {
-                                    if let Some(att_el) = attachments_ref {
-                                        if let Some(files) = att_el.files() {
-                                            if files.length() > 0 {
-                                                let fd = match FormData::new() {
-                                                    Ok(fd) => fd,
-                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                };
-                                                for i in 0..files.length() {
-                                                    let file = match files.get(i) {
-                                                        Some(file) => file,
-                                                        None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                    };
-                                                    match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                        Ok(_) => {},
-                                                        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                    }
-                                                }
-
-                                                if let Ok(api_result) = upload_files(fd.into()).await {
-                                                    attachments_edit.set(api_result.details);
-                                                }
-                                            }
+                                    if let Some(fd) = build_multi_file_form_data(attachments_ref) {
+                                        if let Ok(api_result) = upload_files(fd.into()).await {
+                                            attachments_edit.set(api_result.details);
                                         }
                                     }
 
-                                    if let Some(illustr_el) = illustration_ref {
-                                        if let Some(files) = illustr_el.files() {
-                                            if files.length() > 0 {
-                                                let file = match files.get(0) {
-                                                    Some(file) => file,
-                                                    None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                };
-                                                let fd = match FormData::new() {
-                                                    Ok(fd) => fd,
-                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                };
-                                                match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-                                                    Ok(_) => {},
-                                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
-                                                }
-
-                                                if let Ok(api_result) = upload_illustration(fd.into()).await {
-                                                    illustration_edit.set(Some(api_result.details))
-                                                }
-                                            }
+                                    if let Some(fd) = build_single_file_form_data(illustration_ref) {
+                                        if let Ok(api_result) = upload_illustration(fd.into()).await {
+                                            illustration_edit.set(Some(api_result.details))
                                         }
                                     }
 
@@ -753,85 +618,40 @@ pub fn Challenge(
                             }
                         }
                     >
-                        "Confirm Edit"
+                        {move || edit_submit_btn_text.get()}
                     </button>
-                </Show>
-                <Show when=move || deleting.get()>
-                    <button
-                        hidden=move || editing.get()
-                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
-                        bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
-                        on:click=move |_| {
-                            if deleting.get() {
-                                let challenge_id = id_signal.get_untracked();
-                                spawn_local(async move {
-                                    tracing::debug!("deleting challenge ID: {challenge_id}");
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Delete {
-                                            id: challenge_id,
-                                        })
-                                        .await && result == ResultStatus::Success
-                                    {
-                                        push_new_toast(ToastMessageType::ChallengeDeleted);
-                                        deleting.set(false);
-                                        deleted.set(true);
-                                        refresh.update(|n| *n += 1);
-                                    } else {
-                                        push_new_toast(ToastMessageType::ChallengeDeleteFail);
-                                    }
-                                });
-                            } else {
-                                deleting.set(true);
-                            }
+
+                <button
+                    hidden=move || editing.get()
+                    class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white
+                    bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none
+                    focus:ring-yale-blue-500"#
+                    on:click=move |_| {
+                        if deleting.get_untracked() {
+                            let challenge_id = id_signal.get_untracked();
+                            spawn_local(async move {
+                                tracing::debug!("deleting challenge ID: {challenge_id}");
+                                if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Delete {
+                                        id: challenge_id,
+                                    })
+                                    .await && result == ResultStatus::Success
+                                {
+                                    push_new_toast(ToastMessageType::ChallengeDeleted);
+                                    deleting.set(false);
+                                    deleted.set(true);
+                                    refresh.update(|n| *n += 1);
+                                } else {
+                                    push_new_toast(ToastMessageType::ChallengeDeleteFail);
+                                }
+                            });
+                        } else {
+                            deleting.set(true);
                         }
-                    >
-                        "Confirm Delete"
-                    </button>
-                </Show>
-                <Show when=move || !editing.get() && !deleting.get()>
-                    <button
-                        type="button"
-                        hidden=move || deleting.get()
-                        class=r#"inline-flex gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                        rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                        bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                        on:click=move |_| {
-                            if !editing.get_untracked() {
-                                editing.set(true)
-                            }
-                        }
-                    >
-                        "Edit"
-                    </button>
-                    <button
-                        hidden=move || editing.get()
-                        class=r#"inline-flex items-center py-2 px-4 ml-auto text-sm font-semibold text-white 
-                        bg-red-600 rounded-md shadow-sm hover:bg-red-500 focus:ring-2 focus:outline-none 
-                        focus:ring-yale-blue-500"#
-                        on:click=move |_| {
-                            if !deleting.get_untracked() {
-                                deleting.set(true);
-                            }
-                        }
-                    >
-                        "Delete"
-                    </button>
-                </Show>
+                    }
+                >
+                    {move || delete_submit_btn_text.get()}
+                </button>
             </div>
-        </div>
-    }
-}
-
-#[component]
-pub fn Difficulty(#[prop(default = 3)] rating: i8) -> impl IntoView {
-    let rating = rating.clamp(1, 5);
-
-    view! {
-        <div class=r#"difficulty"# role="img" aria-label=format!("Difficulty: {} of 5", rating)>
-            <span class=r#"label"#>
-                <b class=r#"text-lg/8"#>"Difficulty: "</b>
-                {"⭐".repeat(rating as usize)}
-            </span>
         </div>
     }
 }
