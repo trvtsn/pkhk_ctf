@@ -17,12 +17,16 @@ pub fn NavBar() -> impl IntoView {
         (role, username, points)
     };
 
-    Effect::new(move || {
-        if let Some(Ok(_)) = logout.value().get() {
-            refresh_user.update(|r| r.iteration += 1);
-            open.set(false);
-        }
-    });
+    Effect::watch(
+        move || logout.value().get(), 
+        move |val, _, _| {
+            if let Some(Ok(_)) = val {
+                refresh_user.update(|r| r.iteration += 1);
+                open.set(false);
+            }
+        }, 
+        false
+    );
 
     view! {
         <div class=r#"flex top-0 items-center p-4 w-full shadow-sm bg-background text-text z-15"#>

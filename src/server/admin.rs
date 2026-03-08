@@ -1420,10 +1420,6 @@ pub async fn update_proxmox(args: ProxmoxArgs) -> Result<ApiResult<String>, AppE
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
-            
-            if let Err(e) = crate::server::proxmox::test_auth(&args).await {
-                return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
-            }
 
             if let Err(e) = ProxmoxArgs::update(&args.base_url, &args.api_path, &args.templates_pool_id, &args.node, &args.username, &args.password, &args.api_token, &args.auth_type, &pool).await {
                 return Ok(ApiResult { result: ResultStatus::Fail, details: format!("connection succeeded but failed to update DB row: {e}") });

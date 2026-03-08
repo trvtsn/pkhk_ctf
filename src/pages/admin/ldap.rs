@@ -27,48 +27,58 @@ pub fn Ldap() -> impl IntoView {
     let connect_status_classes = Memo::new(move |_| {
         let base = "rounded-full w-3 h-3";
         if connect_success.get() {
-            format!("{} bg-green-600", base)
+            format!("{base} bg-green-600")
         } else {
-            format!("{} bg-red-600", base)
+            format!("{base} bg-red-600")
         }
     });
 
-    // really don't like using Effect for this, but it makes more sense than putting this into the Resource
-    Effect::new(move |_| {
-        if let Some(ldap_args) = ldap_resource.get() {
-            ldap_url.set(ldap_args.url.clone());
-            bind_dn.set(ldap_args.bind_dn.clone());
-            bind_pw.set(ldap_args.bind_pw.clone());
-            base_dn.set(ldap_args.base_dn.clone());
-            enabled.set(ldap_args.enabled);
-            if ldap_args.enabled.0 {
-                spawn_local(async move {
-                    if let Ok(ApiResult { result, .. }) = test_ldap(LdapArgs {
-                            url: ldap_args.url,
-                            bind_dn: ldap_args.bind_dn,
-                            bind_pw: ldap_args.bind_pw,
-                            base_dn: ldap_args.base_dn,
-                            enabled: ldap_args.enabled,
-                        })
-                        .await
-                    {
-                        connect_success.set(result == ResultStatus::Success);
-                    }
-                });
+    Effect::watch(
+        move || ldap_resource.get(),
+        move |val, _, _| {
+            if let Some(ldap_args) = val.clone() {
+                ldap_url.set(ldap_args.url.clone());
+                bind_dn.set(ldap_args.bind_dn.clone());
+                bind_pw.set(ldap_args.bind_pw.clone());
+                base_dn.set(ldap_args.base_dn.clone());
+                enabled.set(ldap_args.enabled);
+                if ldap_args.enabled.0 {
+                    spawn_local(async move {
+                        if let Ok(ApiResult { result, .. }) = test_ldap(LdapArgs {
+                                url: ldap_args.url,
+                                bind_dn: ldap_args.bind_dn,
+                                bind_pw: ldap_args.bind_pw,
+                                base_dn: ldap_args.base_dn,
+                                enabled: ldap_args.enabled,
+                            })
+                            .await
+                        {
+                            connect_success.set(result == ResultStatus::Success);
+                        }
+                    });
+                }
             }
-        }
-    });
-    Effect::new(move |_| {
-        if let Some(Some(cert)) = certificate_resource.get() {
-            certificate.set(Some(cert));
-        }
-    });
+        },
+        false
+    );
+
+    Effect::watch(
+        move || certificate_resource.get(),
+        move |val, _, _| {
+            if let Some(Some(cert)) = val {
+                certificate.set(Some(cert.clone()));
+            }
+        },
+        false,
+    );
 
     view! {
         <Transition fallback=move || {
             view! { <Spinner component_size=ComponentSize::Big /> }
         }>
             {move || {
+                ldap_resource.get();
+                certificate_resource.get();
                 view! {
                     <div class="grid gap-2">
                         <div class="flex gap-2">
@@ -98,7 +108,6 @@ pub fn Ldap() -> impl IntoView {
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="name"
                                     placeholder="e.g. ldaps://192.168.1.11:636"
-                                    value=move || ldap_url.get()
                                     bind:value=ldap_url
                                 />
                             </div>
@@ -110,7 +119,6 @@ pub fn Ldap() -> impl IntoView {
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="name"
                                     placeholder="e.g. CN=binduser,CN=Users,DC=my,DC=ldapsite,DC=com"
-                                    value=move || bind_dn.get()
                                     bind:value=bind_dn
                                 />
                             </div>
@@ -123,7 +131,6 @@ pub fn Ldap() -> impl IntoView {
                                         focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                         type=move || if password_hidden.get() { "password" } else { "text" }
                                         name="password"
-                                        value=move || bind_pw.get()
                                         bind:value=bind_pw
                                     />
                                     <HidePasswordButton hidden=password_hidden />
@@ -137,7 +144,6 @@ pub fn Ldap() -> impl IntoView {
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="name"
                                     placeholder="e.g. CN=Users,DC=my,DC=ldapsite,DC=com"
-                                    value=move || base_dn.get()
                                     bind:value=base_dn
                                 />
                             </div>

@@ -47,7 +47,7 @@ pub fn Settings() -> impl IntoView {
 
                 <div class="grid gap-2 items-center">
                     <form 
-                        class="flex gap-2"
+                        class="flex gap-2 items-center"
                         on:submit=move |ev| {
                             ev.prevent_default();
                             let new_username = new_username.get_untracked();

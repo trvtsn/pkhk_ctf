@@ -28,39 +28,43 @@ pub fn Proxmox() -> impl IntoView {
         }
     });
 
-    // really don't like using Effect for this, but it makes more sense than putting this into the Resource
-    Effect::new(move |_| {
-        if let Some(proxmox_args) = proxmox_resource.get() {
-            api_path.set(proxmox_args.api_path.clone());
-            api_token.set(proxmox_args.api_token.clone());
-            auth_type.set(proxmox_args.auth_type.clone());
-            base_url.set(proxmox_args.base_url.clone());
-            node.set(proxmox_args.node.clone());
-            templates_pool_id.set(proxmox_args.templates_pool_id.clone());
-            spawn_local(async move {
-                if let Ok(ApiResult { result, .. }) = test_proxmox(ProxmoxArgs {
-                        base_url: proxmox_args.base_url,
-                        api_path: proxmox_args.api_path,
-                        templates_pool_id: proxmox_args.templates_pool_id,
-                        node: proxmox_args.node,
-                        username: None,
-                        password: None,
-                        api_token: proxmox_args.api_token,
-                        auth_type: proxmox_args.auth_type,
-                    })
-                    .await
-                {
-                    auth_success.set(result == ResultStatus::Success);
-                }
-            });
-        }
-    });
+    Effect::watch(
+        move || proxmox_resource.get(),
+        move |val, _, _| {
+            if let Some(proxmox_args) = val.clone() {
+                api_path.set(proxmox_args.api_path.clone());
+                api_token.set(proxmox_args.api_token.clone());
+                auth_type.set(proxmox_args.auth_type.clone());
+                base_url.set(proxmox_args.base_url.clone());
+                node.set(proxmox_args.node.clone());
+                templates_pool_id.set(proxmox_args.templates_pool_id.clone());
+                spawn_local(async move {
+                    if let Ok(ApiResult { result, .. }) = test_proxmox(ProxmoxArgs {
+                            base_url: proxmox_args.base_url,
+                            api_path: proxmox_args.api_path,
+                            templates_pool_id: proxmox_args.templates_pool_id,
+                            node: proxmox_args.node,
+                            username: None,
+                            password: None,
+                            api_token: proxmox_args.api_token,
+                            auth_type: proxmox_args.auth_type,
+                        })
+                        .await
+                    {
+                        auth_success.set(result == ResultStatus::Success);
+                    }
+                });
+            }
+        },
+        false
+    );
 
     view! {
-        <Suspense fallback=move || {
+        <Transition fallback=move || {
             view! { <Spinner component_size=ComponentSize::Big /> }
         }>
             {move || {
+                proxmox_resource.get();
                 view! {
                     <div class="grid gap-2">
                         <div class="flex gap-2 items-center">
@@ -78,7 +82,6 @@ pub fn Proxmox() -> impl IntoView {
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="base_url"
                                     placeholder="e.g. https://192.168.1.21:8006"
-                                    value=move || base_url.get()
                                     bind:value=base_url
                                 />
                             </div>
@@ -90,7 +93,6 @@ pub fn Proxmox() -> impl IntoView {
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="api_path"
                                     placeholder="Optional (Default: /api2/json)"
-                                    value=move || api_path.get()
                                     bind:value=api_path
                                 />
                             </div>
@@ -102,7 +104,6 @@ pub fn Proxmox() -> impl IntoView {
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="api_path"
                                     placeholder="Optional (Default: templates)"
-                                    value=move || templates_pool_id.get()
                                     bind:value=templates_pool_id
                                 />
                             </div>
@@ -113,7 +114,6 @@ pub fn Proxmox() -> impl IntoView {
                                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                     name="node"
-                                    value=move || node.get()
                                     bind:value=node
                                 />
                             </div>
@@ -169,7 +169,6 @@ pub fn Proxmox() -> impl IntoView {
                                                 } else {
                                                     auth_success.set(false);
                                                 }
-                                                
                                             }
                                         });
                                     }
@@ -221,6 +220,6 @@ pub fn Proxmox() -> impl IntoView {
                     </div>
                 }
             }}
-        </Suspense>
+        </Transition>
     }
 }

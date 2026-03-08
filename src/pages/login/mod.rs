@@ -101,12 +101,6 @@ pub fn Login() -> impl IntoView {
                 </div>
 
                 <input
-                    hidden=true
-                    name="auth_type"
-                    value="normal"
-                />
-
-                <input
                     type="submit"
                     class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                     value="Login"

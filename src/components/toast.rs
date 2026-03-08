@@ -117,19 +117,23 @@ pub fn Toast(
         }
     });
 
-    Effect::new(move |_| {
-        if toast_message.appear.get() {
-            mounted.set(true);
-            set_timeout(move || entered.set(true), Duration::from_millis(16));
-            set_timeout(move || toast_message.appear.set(false), Duration::from_secs(4));
-        } else {
-            entered.set(false);
-            set_timeout(move || mounted.set(false), Duration::from_millis(1000));
-            set_timeout(move || {
-                toast_messages.update(|t| t.retain(|tm| tm.id != toast_message.id))
-            }, Duration::from_millis(1000));
-        }
-    });
+    Effect::watch(
+        move || toast_message.appear.get(),
+        move |appearing, prev, _| {
+            if *appearing {
+                mounted.set(true);
+                set_timeout(move || entered.set(true), Duration::from_millis(16));
+                set_timeout(move || toast_message.appear.set(false), Duration::from_secs(4));
+            } else if prev.is_some() {
+                entered.set(false);
+                set_timeout(move || mounted.set(false), Duration::from_millis(1000));
+                set_timeout(move || {
+                    toast_messages.update(|t| t.retain(|tm| tm.id != toast_message.id))
+                }, Duration::from_millis(1000));
+            }
+        },
+        true
+    );
 
     view! {
         <Show when=move || mounted.get()>

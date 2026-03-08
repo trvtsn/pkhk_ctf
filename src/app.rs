@@ -58,14 +58,10 @@ pub fn App() -> impl IntoView {
         get_db_user_without_pii(None).await.unwrap_or(None)
     });
 
-    // effects arent actually intended to synchronize with the reactive system,
-    // find another solution
+    // resource to signal hydration, no feedback loop
     Effect::new(move |_| {
         let user_value = user_resource.get().unwrap_or(None);
-        // only set the signal if it's different, avoiding infinite loops
-        if user_value != user.get() {
-            user.set(user_value);
-        }
+        user.set(user_value);
     });
 
     provide_context(toast_messages);

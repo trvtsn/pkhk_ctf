@@ -95,8 +95,15 @@ pub fn ChallengePopup(
     view! {
         <div
             class="absolute inset-0 z-20 flex content-center items-center justify-center rounded-lg p-4"
+            on:click=move |_| {
+                overlay_triggered.set(false);
+                cwa_popup.set(None);
+            }
         >
-            <div class="bg-card p-4 rounded-lg max-w-1/3 min-w-1/4">
+            <div
+                class="bg-card p-4 rounded-lg max-w-1/3 min-w-1/4"
+                on:click=move |ev| ev.stop_propagation()
+            >
                 <div class="flex justify-between mb-4">
                     <h3 class=r#"font-bold text-3xl/8"#>{move || cwa.get().challenge.name}</h3>
                     <button 
