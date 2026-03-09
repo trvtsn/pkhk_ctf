@@ -248,7 +248,7 @@ cfg_if! {
                         }
 
                         ldap.unbind().await?;
-                        let pw_hash = hash_string(&creds.password)?;
+                        let pw_hash = hash_string(&creds.password).await?;
 
                         if let Ok(None) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
                             let mut tx = self.pool.begin().await?;
@@ -295,7 +295,7 @@ cfg_if! {
                     }
                 };
 
-                if let Ok(()) = verify_hash(&creds.password, &user.pw_hash) {
+                if let Ok(()) = verify_hash(&creds.password, &user.pw_hash).await {
                     Ok(Some(user.to_user().await?))
                 } else {
                     Ok(None)
@@ -332,29 +332,26 @@ cfg_if! {
             }
         }
 
-        pub fn hash_string(string: &String) -> Result<String, argon2::password_hash::Error> {
-            let argon2 = Argon2::default();
-            // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
-            let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
-            // This gives back a data structure with various parts, which can be encoded using
-            // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
-            // recommended hashing algorithm at the time of this code being published (2024)
-            let flag_hash= argon2.hash_password(string.as_bytes(), &salt)?;
-            // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
-            // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
-            // a let-binding outside of the macro or the compiler complains.
-            Ok(flag_hash.to_string())
+        pub async fn hash_string(string: &String) -> Result<String, AppError> {
+            let string = string.clone();
+            tokio::task::spawn_blocking(move || {
+                let argon2 = Argon2::default();
+                let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
+                let flag_hash = argon2.hash_password(string.as_bytes(), &salt)?;
+                Ok::<String, argon2::password_hash::Error>(flag_hash.to_string())
+            }).await.map_err(|e| AppError::InternalError(e.to_string()))?
+              .map_err(|e| AppError::InternalError(e.to_string()))
         }
 
-        pub fn verify_hash(string: &String, hash: &String) -> Result<(), argon2::password_hash::Error> {
-            let hasher = Argon2::default();
-            let hash = argon2::PasswordHash::parse(hash.as_ref(), argon2::password_hash::Encoding::B64)?;
-            // Use the existing implementation to verify the password. I was doing this myself until
-            // I noticed that there is a PasswordVerifier trait, so this is better in every way.
-            match hasher.verify_password(string.as_bytes(), &hash) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e)
-            }
+        pub async fn verify_hash(string: &String, hash: &String) -> Result<(), AppError> {
+            let string = string.clone();
+            let hash = hash.clone();
+            tokio::task::spawn_blocking(move || {
+                let hasher = Argon2::default();
+                let parsed = argon2::PasswordHash::parse(hash.as_ref(), argon2::password_hash::Encoding::B64)?;
+                hasher.verify_password(string.as_bytes(), &parsed)
+            }).await.map_err(|e| AppError::InternalError(e.to_string()))?
+              .map_err(|e| AppError::InternalError(e.to_string()))
         }
 
     }

@@ -62,7 +62,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
 
             match action {
                 ChallengeAction::Create { event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
-                    let flag_hash = hash_string(&flag)?;
+                    let flag_hash = hash_string(&flag).await?;
                     let mut tx = pool.begin().await?;
                     let new_challenge_id = match db::structs::Challenge::add(&event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
                         Ok(result) => result,
@@ -164,7 +164,7 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
                 }
                 ChallengeAction::Edit { id, event_id, name, description, category, difficulty, points, flag, visible_to_groups, attachments, illustration, vm_ids, hints } => {
-                    let flag_hash = if flag.is_empty() { String::new() } else { hash_string(&flag)? };
+                    let flag_hash = if flag.is_empty() { String::new() } else { hash_string(&flag).await? };
 
                     let mut tx = pool.begin().await?;
                     if let Err(e) = db::structs::Challenge::edit(&id, &event_id, &name, &description, &category, &difficulty, &points, &flag_hash, &visible_to_groups, &vm_ids, &mut *tx).await {
@@ -955,8 +955,8 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         return Err(AppError::BadRequest("username must not be empty".to_string()));
                     }
 
-                    let hashed_pw = hash_string(&password)?;
-                    let new_user = DbUser { 
+                    let hashed_pw = hash_string(&password).await?;
+                    let new_user = DbUser {
                         id: "".to_string(), 
                         username, 
                         email, 
@@ -1125,7 +1125,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         return Err(AppError::BadRequest("password and confirm password must match".to_string()));
                     }
 
-                    let hashed_pw = hash_string(&password)?;
+                    let hashed_pw = hash_string(&password).await?;
 
                     match DbUser::edit_password(&user.id, &hashed_pw, &pool).await {
                         Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "edited user".to_string() }),

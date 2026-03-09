@@ -11,7 +11,7 @@
     font-weight: 300 800;
     font-style: normal;
     font-display: swap;
-    src: url("fonts/FunnelDisplay-VariableFont_wght.ttf") format("truetype");
+    src: url("/fonts/FunnelDisplay-VariableFont_wght.ttf") format("truetype");
 }
 
 @theme {

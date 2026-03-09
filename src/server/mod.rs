@@ -14,7 +14,6 @@ use tracing::instrument;
 use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
 use tokio::net::TcpStream;
-use std::net::ToSocketAddrs;
 use std::time::Duration;
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
@@ -486,7 +485,7 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                 }
             };
 
-            if let Ok(()) = verify_hash(&flag, &challenge_flag_hash) {                
+            if let Ok(()) = verify_hash(&flag, &challenge_flag_hash).await {
                 match db::structs::Submission::add(&challenge.id, &challenge.event_id, &user.id, &challenge.points, &chrono::Local::now(), &mut *tx).await {
                     Ok(_) => {
                         tx.commit().await?;
@@ -819,7 +818,7 @@ pub async fn edit_password(old_password: String, new_password: String, confirm_n
                 return Ok(ApiResult { result: ResultStatus::Fail, details: "new password is same as old password".to_string() });
             }
 
-            let pw_hash = hash_string(&new_password)?;
+            let pw_hash = hash_string(&new_password).await?;
             match DbUser::edit_password(&user.id, &pw_hash, &pool).await {
                 Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "changed password".to_string() }),
                 Err(e) => return Err(e.into())
@@ -1183,7 +1182,7 @@ pub async fn is_host_reachable(url: &String) -> Result<bool, AppError> {
     let host = url.host_str().unwrap_or_default();
     let port = url.port().unwrap_or_default();
     let timeout = Duration::from_millis(1000);
-    let addrs = (host, port).to_socket_addrs()?;
+    let addrs = tokio::net::lookup_host(format!("{host}:{port}")).await?;
 
     for addr in addrs {
         match tokio::time::timeout(timeout, TcpStream::connect(addr)).await {

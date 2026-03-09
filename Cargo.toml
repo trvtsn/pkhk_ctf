@@ -1,6 +1,7 @@
 [package]
 name = "pkhk_ctf"
-version = "0.2.0"
+description = "CTF platform for Pärnumaa Kutsehariduskeskus using Leptos SSR, Axum & Tailwind v4. Beta version 1.0.0"
+version = "1.0.0"
 edition = "2024"
 
 [lib]

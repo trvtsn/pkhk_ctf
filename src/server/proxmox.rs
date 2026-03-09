@@ -251,8 +251,8 @@ pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -
                 Ok(_) => {
                     schedule_vm_deletion(user.clone(), new_vm_id);
                     let pools_url = format!("{base_url}/{api_path}/pools/{poolid}");
-                    loop {
-                        async_std::task::sleep(Duration::from_secs(1)).await;
+                    for _ in 0..60 {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
                         let vms = match client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await {
                             Ok(res) => {
                                 res.json::<ProxmoxApiResponse<Members>>().await?
@@ -266,6 +266,8 @@ pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -
                             if vm_status == "running" && vm_id == new_vm_id { return Ok(new_vm_id); } else { continue };
                         }
                     }
+                    
+                    return Err(AppError::InternalError("VM failed to start within timeout".to_string()));
                 },
                 Err(e) => return Err(e.into())
             }
@@ -372,7 +374,7 @@ pub async fn destroy_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppErro
     match client.post(&stop_url).header(header::AUTHORIZATION, &auth_value).send().await {
         Ok(res) => {
             if res.status().is_success() {
-                async_std::task::sleep(Duration::from_secs(3)).await;
+                tokio::time::sleep(Duration::from_secs(3)).await;
                 // destroy
                 match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
                     Ok(_) => {
