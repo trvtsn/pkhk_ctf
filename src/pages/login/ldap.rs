@@ -1,20 +1,25 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user, structs::Credentials}};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 
 /// Default Home Page
 #[component]
 pub fn Login() -> impl IntoView {
-    let email = RwSignal::new("".to_string());
+    let username = RwSignal::new("".to_string());
     let password = RwSignal::new("".to_string());
     let password_hidden = RwSignal::new(true);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
-    let login = Action::new_local(move |(email, password): &(String, String)| {
-        let email = email.clone();
+    let login = Action::new_local(move |(username, password): &(String, String)| {
+        let username = username.clone();
         let password = password.clone();
+        let creds = Credentials { 
+            user_identifier: crate::server::db::enums::UserIdentifier::Username(username), 
+            password, 
+            auth_type: crate::server::backend::enums::AuthType::Ldap
+        };
         async move {
-            if let Err(e) = login_user(email, password, crate::server::backend::enums::AuthType::Ldap).await 
+            if let Err(e) = login_user(creds).await 
             && e == AppError::BadRequest("invalid credentials".to_string()) {
                 spawn_local(async move {
                     push_new_toast(ToastMessageType::InvalidCredentials);
@@ -61,19 +66,18 @@ pub fn Login() -> impl IntoView {
                 class="flex flex-col gap-4"
                 on:submit=move |ev| {
                     ev.prevent_default();
-                    let email = email.get();
+                    let username = username.get();
                     let password = password.get();
-                    login.dispatch((email, password));
+                    login.dispatch((username, password));
                 }
             >
-                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Email"</label>
+                <label class=r#"block mb-1 text-sm font-medium text-text"#>"Username"</label>
                 <input
                     class=r#"py-2 px-3 w-full text-sm rounded-md border border-input-border 
                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
-                    type="email"
-                    name="email"
+                    name="username"
                     required
-                    bind:value=email
+                    bind:value=username
                 />
 
                 <label class=r#"block mb-1 text-sm font-medium text-text"#>"Password"</label>

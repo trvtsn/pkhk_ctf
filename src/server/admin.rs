@@ -1220,11 +1220,7 @@ pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<String>, AppError> {
             let (_, pool) = authenticated_check().await?;
             
             let ldap_url = url::Url::parse(&args.url)?;
-
-            match is_host_reachable(&ldap_url.to_string()).await {
-                Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
-                Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
-            }
+            is_host_reachable(&ldap_url.to_string()).await?;
 
             if !args.enabled.0 {
                 return Err(AppError::InternalError("LDAP is disabled".to_string()));

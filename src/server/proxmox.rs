@@ -673,6 +673,63 @@ async fn get_user_vmid_from_template_id(user: &DbUser, template_id: &u32) -> Res
 
 #[cfg(feature = "ssr")]
 #[instrument]
+pub async fn change_pool_owner(user: &DbUser, new_username: &String) -> Result<(), AppError> {
+    let proxmox_args = get_proxmox_args().await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
+
+    let client = get_reqwest_client();
+
+    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+    let base_url = proxmox_args.base_url.trim_end_matches("/");
+    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+    let pools_url = format!("{base_url}/{api_path}/pools");
+    let url = format!("{base_url}/{api_path}/access/acl");
+    let poolid = format!("CTFPKHK-{}", user.username);
+
+    let res = client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await?;
+    let pools = res.json::<ProxmoxApiResponse<Vec<Pools>>>().await?;
+    if !pools.data.iter().any(|pool| pool.poolid.contains(&poolid)) {
+        return Err(AppError::InternalError(format!("Unable to change pool owner. Pool '{poolid}' does not exist")));
+    }
+
+    let acl_body = serde_urlencoded::to_string(&[
+        ("path", format!("/pool/{poolid}")),
+        ("users", format!("{}@pve", new_username)),
+        ("roles", "CTFCompetitor".to_string()),
+        ("propagate", "1".to_string())
+    ]).unwrap_or_default();
+    client.put(&url)
+        .header(header::AUTHORIZATION, &auth_value)
+        .body(acl_body)
+        .send()
+        .await?;
+
+    Ok(())
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+pub async fn delete_user(db_user: &DbUser) -> Result<(), AppError> {
+    let proxmox_args = get_proxmox_args().await?;
+    is_host_reachable(&proxmox_args.base_url).await?;
+
+    let client = get_reqwest_client();
+
+    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+    let base_url = proxmox_args.base_url.trim_end_matches("/");
+    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+    let url = format!("{base_url}/{api_path}/access/users/{}@pve", db_user.username);
+
+    match client.delete(&url).header(header::AUTHORIZATION, &auth_value).send().await {
+        Ok(res) => {
+            if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("".to_string())) }
+        },
+        Err(e) => Err(e.into())
+    }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
 pub async fn create_user(email: &String, username: &String, password: &String) -> Result<(), AppError> {
     let proxmox_args = get_proxmox_args().await?;
     is_host_reachable(&proxmox_args.base_url).await?;
@@ -795,6 +852,13 @@ pub async fn get_template_info(template_id: &u32) -> Result<ProxmoxVMTemplate, A
         }
     }
     Ok(template_info)
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+pub async fn get_proxmox_base_url() -> Result<String, AppError> {
+    let args = get_proxmox_args().await?;
+    Ok(args.base_url)
 }
 
 #[cfg(feature = "ssr")]

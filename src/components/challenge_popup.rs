@@ -3,7 +3,7 @@ use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::{Spinner, TruncatedDesc, ComponentSize, Difficulty};
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWithoutHint, HintWithoutHint};
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
-use crate::server::{add_vm_time, destroy_vm, get_hint, restart_vm, start_vm};
+use crate::server::{add_vm_time, destroy_vm, get_hint, get_proxmox_base_url, restart_vm, start_vm};
 use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
 use leptos::task::spawn_local;
@@ -38,6 +38,18 @@ pub fn ChallengePopup(
     let active_vm_origin_ids = Memo::new(move |_| {
         let user_vms = user_vms.get();
         user_vms.iter().map(|a| if a.running { a.origin_id } else { 0 }).collect::<Vec<u32>>()
+    });
+
+    let proxmox_base_url = Resource::new(move || (), move |_| async move {
+        get_proxmox_base_url().await.ok()
+    });
+
+    let vm_id_by_origin = Memo::new(move |_| {
+        let user_vms = user_vms.get();
+        user_vms.into_iter()
+            .filter(|vm| vm.running)
+            .map(|vm| (vm.origin_id, vm.id))
+            .collect::<HashMap<u32, u32>>()
     });
 
     let button_classes = Memo::new(move |_| {
@@ -344,7 +356,26 @@ pub fn ChallengePopup(
                                         
                                         view! {
                                             <div class="flex gap-2 items-center">
-                                                <label>{template.name}</label>
+                                                {move || {
+                                                    let vm_ids = vm_id_by_origin.get();
+                                                    if let Some(vm_id) = vm_ids.get(&template.id) {
+                                                        let vm_id = *vm_id;
+                                                        let href = proxmox_base_url.get()
+                                                            .flatten()
+                                                            .map(|url| format!("{}/#v1:0:=qemu%2F{}:4:::::::", url, vm_id))
+                                                            .unwrap_or_default();
+                                                        view! {
+                                                            <a href=href target="_blank" class="flex gap-1 text-yale-blue-600 hover:text-yale-blue-300">
+                                                                {template.name.clone()}
+                                                                <Icon icon=i::LuExternalLink width="0.8em" height="0.8em" />
+                                                            </a>
+                                                        }.into_any()
+                                                    } else {
+                                                        view! {
+                                                            <label>{template.name.clone()}</label>
+                                                        }.into_any()
+                                                    }
+                                                }}
                                                 <Show when=move || !active_vm_origin_ids.get().contains(&template.id)>
                                                     <button
                                                         class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 

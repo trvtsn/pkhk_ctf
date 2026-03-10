@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
-use crate::server::{backend::{AuthSession, structs::{Credentials}, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, LeaderboardData, PivotRow, User}}, utils::{get_context, offset_to_datetime}};
+use crate::server::{backend::{AuthSession, hash_string, verify_hash}, structs::AppState};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, Credentials, LeaderboardData, PivotRow, User}}, utils::{get_context, offset_to_datetime}};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
@@ -26,7 +26,7 @@ pub mod backend;
 pub mod db;
 pub mod proxmox;
 pub mod structs {
-    use crate::server::{enums::ResultStatus};
+    use crate::server::{backend::enums::AuthType, db::enums::UserIdentifier, enums::ResultStatus};
     use chrono::{DateTime, Local};
     use leptos::prelude::LeptosOptions;
     use serde::{Deserialize, Serialize};
@@ -56,6 +56,13 @@ pub mod structs {
         /// can keep it stable between page loads. Personally, I don't like using the password hash
         /// but that's how they do it in the example so it's probably fine.
         pub session_auth_hash: Vec<u8>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub struct Credentials {
+        pub user_identifier: UserIdentifier,
+        pub password: String,
+        pub auth_type: AuthType
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -322,13 +329,12 @@ pub async fn build_leaderboard_data() -> Result<LeaderboardData, AppError> {
 }
 
 #[server(name=LoginUser, prefix="/api", endpoint="login")]
-#[instrument(skip(password))]
-pub async fn login_user(email: String, password: String, auth_type: AuthType) -> Result<ApiResult<Option<User>>, AppError> {
+#[instrument(skip(creds))]
+pub async fn login_user(creds: Credentials) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let mut auth = get_context::<AuthSession>()?;
-            let creds = Credentials { user_identifier: UserIdentifier::Email(email.clone()), password: password.clone(), auth_type };
-            let user: Option<User> = auth.backend.authenticate(creds).await?;
+            let user: Option<User> = auth.backend.authenticate(creds.clone()).await?;
 
             if let Some(user) = user.as_ref() {
                 match auth.login(user).await {
@@ -337,8 +343,12 @@ pub async fn login_user(email: String, password: String, auth_type: AuthType) ->
                         let last_active_at = chrono::Local::now();
                         _ = DbUser::edit_last_active(&user.id, &last_active_at, &auth.backend.pool).await;
                         
-                        _ = crate::server::proxmox::create_user(&email, &db_user.username, &password).await;
-                        _ = crate::server::proxmox::create_user_pool(&db_user).await;
+                        // normal users have a user + pool created on register,
+                        // ldap users already have a user, but no pool, so create one on login
+                        if creds.auth_type == AuthType::Ldap {
+                            _ = crate::server::proxmox::create_user_pool(&db_user).await;
+                        }
+                        
                         Ok(ApiResult { result: ResultStatus::Success, details: Some(user.clone()) })
                     },
                     Err(e) => {
@@ -436,8 +446,6 @@ pub async fn register_user(email: String, password: String, confirm_password: St
             let user: Option<User> = auth_session.backend.add_user(&email, &password).await?;
 
             if let Some(user) = user {
-                // Tell the AuthSession that we're logged-in now and it should behave accordingly. This will set the
-                // session id and send it to the browser as a side-effect (before now you likely had no session id in the browser).
                 auth_session.login(&user).await?;
                 let db_user = get_db_user(&user, &auth_session.backend.pool).await?;
                 _ = crate::server::proxmox::create_user(&email, &db_user.username, &password).await?;
@@ -1082,6 +1090,21 @@ pub async fn get_challenge_hints_without_hints(challenge_id: String) -> Result<V
                 Ok(hints) => Ok(hints),
                 Err(e) => Err(e.into())
             }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetProxmoxBaseUrl, prefix="/api", endpoint="get_proxmox_url")]
+#[instrument]
+pub async fn get_proxmox_base_url() -> Result<String, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, _) = authenticated_check().await?;
+
+            let proxmox_args = crate::server::proxmox::get_proxmox_base_url().await?;
+            Ok(proxmox_args)
         } else {
             Err(AppError::NoServerConnection)
         }

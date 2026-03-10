@@ -78,6 +78,8 @@ DEFAULT CHARACTER SET = utf8mb3;
 
 CREATE UNIQUE INDEX `username_UNIQUE` ON `ctfpkhk`.`users` (`username` ASC) VISIBLE;
 
+CREATE UNIQUE INDEX `email_UNIQUE` ON `ctfpkhk`.`users` (`email` ASC) VISIBLE;
+
 CREATE INDEX `email_idx` ON `ctfpkhk`.`users` (`email` ASC) INVISIBLE;
 
 
@@ -201,6 +203,18 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`proxmox` (
   `api_token` VARCHAR(128) NULL DEFAULT NULL,
   `auth_type` VARCHAR(10) NOT NULL,
   PRIMARY KEY (`restriction`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb3;
+
+
+-- -----------------------------------------------------
+-- Table `ctfpkhk`.`sessions`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctfpkhk`.`sessions` (
+  `id` CHAR(22) NOT NULL,
+  `data` BLOB NOT NULL,
+  `expiry_date` TIMESTAMP(6) NOT NULL,
+  PRIMARY KEY (`id`))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
 

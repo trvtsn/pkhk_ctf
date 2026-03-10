@@ -26,22 +26,12 @@ pub type AuthSession = axum_login::AuthSession<Backend>;
 
 #[cfg(feature = "ssr")]
 pub mod structs {
-    use crate::server::db::enums::UserIdentifier;
-    use serde::{Deserialize, Serialize};
     #[cfg(feature = "ssr")]
     use sqlx::MySqlPool;
-    use super::enums::AuthType;
 
     #[derive(Debug, Clone)]
     pub struct Backend {
         pub pool: MySqlPool
-    }
-
-    #[derive(Debug, Clone, Deserialize, Serialize)]
-    pub struct Credentials {
-        pub user_identifier: UserIdentifier,
-        pub password: String,
-        pub auth_type: AuthType
     }
 }
 
@@ -68,7 +58,7 @@ pub mod enums {
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use crate::{error_template::AppError, server::{backend::structs::{Backend, Credentials}, db::{enums::{UserIdentifier, UserRole}, structs::DbUser}, structs::User}};
+        use crate::{error_template::AppError, server::{backend::structs::Backend, db::{enums::{UserIdentifier, UserRole}, structs::DbUser}, structs::{Credentials, User}}};
         use sqlx::MySqlPool;
 
         impl AuthUser for User {
@@ -183,18 +173,16 @@ cfg_if! {
                             Err(e) => return Err(e.into())
                         };
                         let ldap_url = url::Url::parse(&ldap_args.url)?;
+                        is_host_reachable(&ldap_url.to_string()).await?;
 
-                        let mut email = "".to_string(); 
-                        if let UserIdentifier::Email(ref email_cred) = creds.user_identifier {
-                            email = email_cred.to_string();
+                        let login_id = match &creds.user_identifier {
+                            UserIdentifier::Email(e) => e.clone(),
+                            UserIdentifier::Username(u) => u.clone(),
+                            _ => return Ok(None),
                         };
-                        let mut username = "".to_string();
-                        let mut groups_result = "".to_string();
-
-                        match is_host_reachable(&ldap_url.to_string()).await {
-                            Ok(reachable) => if reachable {} else { return Err(AppError::InternalError("ldap host not reachable".to_string())) },
-                            Err(_) =>  return Err(AppError::InternalError("ldap host not reachable".to_string()))
-                        }
+                        let mut email = String::new();
+                        let mut username = String::new();
+                        let mut groups_result = String::new();
 
                         let certificate = match Attachment::get_certificate(&self.pool).await {
                             Ok(cert) => cert,
@@ -214,10 +202,11 @@ cfg_if! {
                         let (conn, mut ldap) = LdapConnAsync::with_settings(settings, ldap_url.as_str()).await?;
                         ldap3::drive!(conn);
 
-                        match ldap.simple_bind(email.as_str(), creds.password.as_str()).await {
-                            Ok(res) => if res.success().is_err() { 
+                        // Bind with service account first
+                        match ldap.simple_bind(ldap_args.bind_dn.as_str(), ldap_args.bind_pw.as_str()).await {
+                            Ok(res) => if res.success().is_err() {
                                 ldap.unbind().await?;
-                                return Ok(None) 
+                                return Ok(None)
                             },
                             Err(e) => {
                                 ldap.unbind().await?;
@@ -225,17 +214,20 @@ cfg_if! {
                             }
                         };
 
-                        let filter = format!("(userPrincipalName={})", email);
-                        let attrs = vec!["userPrincipalName", "sAMAccountName", "memberOf"];
+                        // Search by either userPrincipalName or sAMAccountName
+                        let filter = format!("(|(userPrincipalName={})(sAMAccountName={}))", login_id, login_id);
+                        let attrs = vec!["distinguishedName", "userPrincipalName", "sAMAccountName", "memberOf"];
                         let (entries, _res) = ldap.search(ldap_args.base_dn.as_str(), ldap3::Scope::Subtree, &filter, attrs).await?.success()?;
                         if entries.is_empty() {
                             ldap.unbind().await?;
                             return Ok(None);
                         }
 
+                        let mut user_dn = String::new();
                         for entry in entries {
                             let se = SearchEntry::construct(entry);
 
+                            user_dn = se.dn;
                             username = se.attrs.get("sAMAccountName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
                             email = se.attrs.get("userPrincipalName").and_then(|v| v.get(0)).cloned().unwrap_or_default();
                             if let Some(groups) = se.attrs.get("memberOf") {
@@ -246,6 +238,18 @@ cfg_if! {
                                 .join(",");
                             }
                         }
+
+                        // Re-bind as the user to verify their password
+                        match ldap.simple_bind(user_dn.as_str(), creds.password.as_str()).await {
+                            Ok(res) => if res.success().is_err() {
+                                ldap.unbind().await?;
+                                return Ok(None)
+                            },
+                            Err(e) => {
+                                ldap.unbind().await?;
+                                return Err(e.into())
+                            }
+                        };
 
                         ldap.unbind().await?;
                         let pw_hash = hash_string(&creds.password).await?;
