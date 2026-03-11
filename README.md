@@ -1,4 +1,4 @@
-![](https://github.com/trvtsn/pkhk_ctf/blob/dev/site_introduction.gif)
+![](https://github.com/trvtsn/pkhk_ctf/blob/master/site_introduction.gif)
 
 # PKHK CTF Platform
 
