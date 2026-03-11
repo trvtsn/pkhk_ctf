@@ -448,8 +448,8 @@ pub async fn register_user(email: String, password: String, confirm_password: St
             if let Some(user) = user {
                 auth_session.login(&user).await?;
                 let db_user = get_db_user(&user, &auth_session.backend.pool).await?;
-                _ = crate::server::proxmox::create_user(&email, &db_user.username, &password).await?;
-                _ = crate::server::proxmox::create_user_pool(&db_user).await?;
+                _ = crate::server::proxmox::create_user(&email, &db_user.username, &password).await;
+                _ = crate::server::proxmox::create_user_pool(&db_user).await;
                 Ok(ApiResult { result: ResultStatus::Success, details: Some(user) })
             } else {
                 Err(AppError::InternalError("".to_string()))
@@ -852,7 +852,7 @@ pub async fn user_exists(email: String) -> Result<bool, AppError> {
     }
 }
 
-#[server(name=LogoutUser, prefix="/api/",endpoint="logout")]
+#[server(name=LogoutUser, prefix="/api",endpoint="logout")]
 pub async fn logout_user() -> Result<(), AppError> {
     let mut auth = get_context::<AuthSession>()?;
 

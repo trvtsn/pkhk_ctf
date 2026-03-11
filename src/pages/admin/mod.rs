@@ -22,7 +22,14 @@ pub enum AdminSections {
     Users,
     Log,
     Ldap,
-    Proxmox
+    Proxmox(ProxmoxSubSection)
+}
+
+#[derive(Clone, Default, PartialEq)]
+pub enum ProxmoxSubSection {
+    #[default]
+    Config,
+    Users
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -72,7 +79,7 @@ pub fn Admin() -> impl IntoView {
                                 <Ldap />
                             </Show>
 
-                            <Show when=move || selected.get() == AdminSections::Proxmox>
+                            <Show when=move || matches!(selected.get(), AdminSections::Proxmox(_))>
                                 <Proxmox />
                             </Show>
 
@@ -103,15 +110,16 @@ pub fn AdminNavBar() -> impl IntoView {
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium  
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium  
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::SiteSettings
                         on:click=move |_| selected.set(AdminSections::SiteSettings)
                     >
                         <Icon icon=i::LuSettings />
                         "Site Settings"
-                    </p>
+                    </button>
                 </li>
                 <li 
                     class=move || {
@@ -122,15 +130,16 @@ pub fn AdminNavBar() -> impl IntoView {
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium text-text 
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::Events
                         on:click=move |_| selected.set(AdminSections::Events)
                     >
                         <Icon icon=i::LuCalendarRange />
                         "Events"
-                    </p>
+                    </button>
                 </li>
                 <li 
                     class=move || {
@@ -141,15 +150,16 @@ pub fn AdminNavBar() -> impl IntoView {
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium text-text 
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::Challenges
                         on:click=move |_| selected.set(AdminSections::Challenges)
                     >
                         <Icon icon=i::MdiBullseyeArrow />
                         "Challenges"
-                    </p>
+                    </button>
                 </li>
                 <li 
                     class=move || {
@@ -160,15 +170,16 @@ pub fn AdminNavBar() -> impl IntoView {
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium text-text 
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::Files
                         on:click=move |_| selected.set(AdminSections::Files)
                     >
                         <Icon icon=i::LuFiles />
                         "Files"
-                    </p>
+                    </button>
                 </li>
                 <li 
                     class=move || {
@@ -179,15 +190,16 @@ pub fn AdminNavBar() -> impl IntoView {
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium text-text 
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::Users
                         on:click=move |_| selected.set(AdminSections::Users)
                     >
                         <Icon icon=i::LuUsers />
                         "Users"
-                    </p>
+                    </button>
                 </li>
                 <li 
                     class=move || {
@@ -198,34 +210,37 @@ pub fn AdminNavBar() -> impl IntoView {
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium text-text 
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::Ldap
                         on:click=move |_| selected.set(AdminSections::Ldap)
                     >
                         <Icon icon=i::LuUserLock />
                         "LDAP"
-                    </p>
+                    </button>
                 </li>
                 <li 
                     class=move || {
-                        if selected.get() == AdminSections::Proxmox { 
+                        if selected.get() == AdminSections::Proxmox(ProxmoxSubSection::Config) 
+                        || selected.get() == AdminSections::Proxmox(ProxmoxSubSection::Users) { 
                             "bg-background-hover hover:bg-background-hover" 
                         } else { 
                             "bg-background hover:bg-background-hover" 
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium text-text 
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
-                        on:click=move |_| selected.set(AdminSections::Proxmox)
+                        disabled=move || matches!(selected.get(), AdminSections::Proxmox(_))
+                        on:click=move |_| selected.set(AdminSections::Proxmox(ProxmoxSubSection::Config))
                     >
                         <Icon icon=i::LuServer />
                         "Proxmox"
-                    </p>
+                    </button>
                 </li>
                 <li 
                     class=move || {
@@ -236,15 +251,16 @@ pub fn AdminNavBar() -> impl IntoView {
                         }
                     }
                 >
-                    <p
-                        class=r#"flex gap-3 items-center py-2 px-3 text-sm font-medium text-text 
-                        rounded-md focus:ring-2 focus:outline-none 
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium text-text 
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
                         focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::Log
                         on:click=move |_| selected.set(AdminSections::Log)
                     >
                         <Icon icon=i::LuLogs />
                         "Log"
-                    </p>
+                    </button>
                 </li>
             </ul>
         </nav>

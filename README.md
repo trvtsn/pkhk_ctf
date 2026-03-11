@@ -20,6 +20,10 @@ cargo leptos watch
 
 - Project is nearing "beta" status. With the core functionalities and site structure having been implemented, we can begin placing our focus on additional UI/UX design along with the identification and mitigation of any potential bugs and performance optimization. Most features have already been implemented, so any work relating to new feature additions can be, for now, safely set aside.
 
+### 9. March 2026
+
+- Project has reached "beta" status. Beta test with live users done. A couple of issues popped up, like the application freezing at certain unknown locations in the code, and the inability to login via username (sAMAccountName) with LDAP. I suspect the application freezes due to some code blocking the main thread, not allowing other executions to take place. However, there's also the possibility of lacking hardware resources during the test. The server was hosted on a Proxmox VM (Debian 13.2.0 OS, 1 socket 8 core CPU, 16 GB RAM). We shall see if the freezing issue has been fixed after some adjustments to the code and a boost to the server's resources.
+
 ## To-Do List
 
 ### Functionality
@@ -64,3 +68,4 @@ cargo leptos watch
 
 ### Project Longevity
 - [ ] Add doc comments to pages and components
+- [ ] Add setup docs

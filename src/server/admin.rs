@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast, is_host_reachable};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::{ApiResult, User}}, utils::get_context};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, User}}, utils::get_context};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
 use std::collections::{HashMap, HashSet};
 use tracing::instrument;
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct ProxmoxUserInfo {
+    pub user: DbUser,
+    pub pve_user_id: Option<String>,
+    pub pool: Option<String>,
+    pub vms: Vec<ProxmoxVMInstance>
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1512,6 +1520,200 @@ pub async fn get_all_hints() -> Result<Vec<DbHint>, AppError> {
 
             match DbHint::get_all(&pool).await {
                 Ok(hints) => Ok(hints),
+                Err(e) => Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetProxmoxUsersInfo, prefix="/api/admin/proxmox", endpoint="users_info")]
+#[instrument]
+pub async fn get_proxmox_users_info() -> Result<Vec<ProxmoxUserInfo>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let all_users = match DbUser::get_all(&pool).await {
+                Ok(users) => users,
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    return Err(AppError::InternalError(e.to_string()));
+                }
+            };
+
+            let proxmox_userids = crate::server::proxmox::get_proxmox_userids().await.unwrap_or_default();
+            let proxmox_poolids = crate::server::proxmox::get_proxmox_poolids().await.unwrap_or_default();
+
+            let mut proxmox_users_info = Vec::<ProxmoxUserInfo>::new();
+            for user in all_users {
+                let vms = match crate::server::proxmox::get_user_vms(&user).await {
+                    Ok(vms) => vms,
+                    Err(_) => vec![]
+                };
+
+                let realm_suffix = if user.auth_type == "ldap" { "CTFPKHK" } else { "pve" };
+                let expected_user_id = format!("{}@{realm_suffix}", user.username);
+                let expected_pool = format!("CTFPKHK-{}", user.username);
+
+                let pve_user_id = if proxmox_userids.contains(&expected_user_id) { Some(expected_user_id) } else { None };
+                let pool = if proxmox_poolids.contains(&expected_pool) { Some(expected_pool) } else { None };
+
+                proxmox_users_info.push(ProxmoxUserInfo { user, pve_user_id, pool, vms })
+            }
+
+            Ok(proxmox_users_info)
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=CreateProxmoxUser, prefix="/api/admin/proxmox", endpoint="create_user")]
+#[instrument]
+pub async fn create_proxmox_user(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user_db_id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => return Ok(ApiResult { result: ResultStatus::Fail, details: "user not found".to_string() }),
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            };
+
+            match crate::server::proxmox::create_proxmox_user(&db_user).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "user created".to_string() }),
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=DeleteProxmoxUser, prefix="/api/admin/proxmox", endpoint="delete_user")]
+#[instrument]
+pub async fn delete_proxmox_user(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user_db_id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => return Ok(ApiResult { result: ResultStatus::Fail, details: "user not found".to_string() }),
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            };
+
+            match crate::server::proxmox::delete_proxmox_user(&db_user).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "user deleted".to_string() }),
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=CreateProxmoxPool, prefix="/api/admin/proxmox", endpoint="create_pool")]
+#[instrument]
+pub async fn create_proxmox_pool(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user_db_id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => return Ok(ApiResult { result: ResultStatus::Fail, details: "user not found".to_string() }),
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            };
+
+            match crate::server::proxmox::create_user_pool(&db_user).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "pool created".to_string() }),
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=DeleteProxmoxPool, prefix="/api/admin/proxmox", endpoint="delete_pool")]
+#[instrument]
+pub async fn delete_proxmox_pool(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            let db_user = match DbUser::get(&UserIdentifier::Id(user_db_id.clone()), &pool).await {
+                Ok(Some(user)) => user,
+                Ok(None) => return Ok(ApiResult { result: ResultStatus::Fail, details: "user not found".to_string() }),
+                Err(e) => return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            };
+
+            match crate::server::proxmox::delete_user_pool(&db_user).await {
+                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "pool deleted".to_string() }),
+                Err(e) => Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=StartVM, prefix="/api/admin", endpoint="start_vm")]
+#[instrument]
+pub async fn start_vm(vm_id: u32, username: String) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            match crate::server::proxmox::admin::start_vm(&vm_id, &username).await {
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully started VM (ID: {vm_id})") }),
+                Err(e) => return Err(e.into())
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=RestartVM, prefix="/api/admin", endpoint="restart_vm")]
+#[instrument]
+pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            match crate::server::proxmox::admin::restart_vm(&vm_id).await {
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully restarted VM (ID: {vm_id})") }),
+                Err(e) => Err(e)
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=DestroyVM, prefix="/api/admin", endpoint="destroy_vm")]
+#[instrument]
+pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            match crate::server::proxmox::admin::destroy_vm(&vm_id).await {
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully destroyed VM (ID: {vm_id})") }),
+                Err(e) => return Err(e)
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=AddVMTime, prefix="/api/admin", endpoint="add_vm_time")]
+#[instrument]
+pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            match crate::server::proxmox::admin::add_vm_time(&vm_id).await {
+                Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully added time to VM (ID: {vm_id})") }),
                 Err(e) => Err(e.into())
             }
         } else {

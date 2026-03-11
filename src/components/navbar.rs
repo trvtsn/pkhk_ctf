@@ -62,70 +62,71 @@ pub fn NavBar() -> impl IntoView {
             </nav>
 
             <nav class=r#"flex flex-1 gap-2 justify-end items-center p-2"#>
-                <ul class=r#"flex gap-4 items-center p-0 m-0 list-none"#>
-                    <Show when=move || user.get().is_some()>
-                        <li class=r#"flex gap-2 items-center"#>
-                            <a
-                                class=r#"inline-flex gap-2 items-center m-1 cursor-pointer"#
-                                on:click=move |_| {
-                                    open.set(!open.get_untracked());
-                                }
-                            >
-                                <Icon icon=i::LuUser />
-                                {move || username.get()}
-                            </a>
-                        </li>
-                        <b>"Points: "{move || points.get()}</b>
-                    </Show>
+                <div class="flex justify-center w-1/3">
+                    <ul class=r#"flex gap-4 items-center p-0 m-0 list-none"#>
+                        <Show when=move || user.get().is_some()>
+                            <li class=r#"relative flex gap-2 items-center"#>
+                                <a
+                                    class=r#"inline-flex gap-2 items-center m-1 cursor-pointer"#
+                                    on:click=move |_| {
+                                        open.set(!open.get_untracked());
+                                    }
+                                >
+                                    <Icon icon=i::LuUser />
+                                    {move || username.get()}
+                                </a>
+                                <Show when=move || open.get() fallback=|| ()>
+                                    <nav
+                                        class=r#"absolute z-10 top-full left-1/2 -translate-x-1/2 flex-col p-4 mt-2 rounded-md shadow-sm bg-background"#
+                                        on:blur=move |_| { open.set(false) }
+                                    >
+                                        <ul class=r#"flex flex-col gap-4 items-center"#>
+                                            <li class=r#"w-full"#>
+                                                <a href=move || format!("/profile/{}", username.get()) class="flex gap-2 items-center">
+                                                    <Icon icon=i::LuCircleUser />
+                                                    "Profile"
+                                                </a>
+                                            </li>
+                                            <li class=r#"w-full"#>
+                                                <a href="/settings" class="flex gap-2 items-center">
+                                                    <Icon icon=i::LuUserCog />
+                                                    "Settings"
+                                                </a>
+                                            </li>
+                                            <li class=r#"w-full"#>
+                                                <ActionForm action=logout>
+                                                    <button
+                                                        class=r#"cursor-pointer flex gap-2 items-center"#
+                                                        type="Submit"
+                                                    >
+                                                        <Icon icon=i::LuLogOut />
+                                                        "Logout"
+                                                    </button>
+                                                </ActionForm>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                </Show>
+                            </li>
+                            <b>"Points: "{move || points.get()}</b>
+                        </Show>
 
-                    <Show when=move || user.get().is_none()>
-                        <li class=r#"flex gap-2 items-center"#>
-                            <a href="/login" class=r#"inline-flex gap-2 items-center m-1"#>
-                                <Icon icon=i::LuLogIn />
-                                "Login"
-                            </a>
-                        </li>
-                        <li class=r#"flex gap-2 items-center"#>
-                            <a href="/register" class=r#"inline-flex gap-2 items-center m-1"#>
-                                <Icon icon=i::LuUserPlus />
-                                "Register"
-                            </a>
-                        </li>
-                    </Show>
-
-                    <Show when=move || open.get() fallback=|| ()>
-                        <nav
-                            class=r#"absolute z-10 flex-col p-4 rounded-md shadow-sm bg-background mt-[15rem]"#
-                            on:blur=move |_| { open.set(false) }
-                        >
-                            <ul class=r#"flex flex-col gap-4 items-center"#>
-                                <li class=r#"w-full"#>
-                                    <a href=move || format!("/profile/{}", username.get())>
-                                        <Icon icon=i::LuCircleUser />
-                                        "Profile"
-                                    </a>
-                                </li>
-                                <li class=r#"w-full"#>
-                                    <a href="/settings">
-                                        <Icon icon=i::LuUserCog />
-                                        "Settings"
-                                    </a>
-                                </li>
-                                <li class=r#"w-full"#>
-                                    <ActionForm action=logout>
-                                        <button
-                                            class=r#"cursor-pointer"#
-                                            type="Submit"
-                                        >
-                                            <Icon icon=i::LuLogOut />
-                                            "Logout"
-                                        </button>
-                                    </ActionForm>
-                                </li>
-                            </ul>
-                        </nav>
-                    </Show>
-                </ul>
+                        <Show when=move || user.get().is_none()>
+                            <li class=r#"flex gap-2 items-center"#>
+                                <a href="/login" class=r#"inline-flex gap-2 items-center m-1"#>
+                                    <Icon icon=i::LuLogIn />
+                                    "Login"
+                                </a>
+                            </li>
+                            <li class=r#"flex gap-2 items-center"#>
+                                <a href="/register" class=r#"inline-flex gap-2 items-center m-1"#>
+                                    <Icon icon=i::LuUserPlus />
+                                    "Register"
+                                </a>
+                            </li>
+                        </Show>
+                    </ul>
+                </div>
             </nav>
         </div>
     }

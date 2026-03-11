@@ -1,3 +1,5 @@
+use crate::server::db::structs::DbUser;
+use chrono::{DateTime, Local};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
@@ -183,6 +185,78 @@ pub fn FileTooltip(
             >
                 <Icon icon=i::LuX />
             </button>
+        </div>
+    }
+}
+
+#[component]
+pub fn UserTooltip(db_user: DbUser) -> impl IntoView {
+    let show_tooltip = RwSignal::new(false);
+    view! {
+        <div class="flex gap-2 items-center">
+            <span
+                class="relative inline-block"
+                on:mouseenter=move |_| show_tooltip.set(true)
+                on:mouseleave=move |_| show_tooltip.set(false)
+                on:focus=move |_| show_tooltip.set(true)
+                on:blur=move |_| show_tooltip.set(false)
+                tabindex="0"
+            >
+                {db_user.username}
+                <Show when=move || show_tooltip.get()>
+                    <div
+                        role="tooltip"
+                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap
+                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                    >
+                        <div>
+                            <b>"ID: "</b>{format!("{}", db_user.id)}
+                        </div>
+                        <div>
+                            <b>"E-mail: "</b>{format!("{}", db_user.email)}
+                        </div>
+                        <div>
+                            <b>"Role: "</b>{format!("{}", db_user.role.to_string())}
+                        </div>
+                    </div>
+                </Show>
+            </span>
+        </div>
+    }
+}
+
+#[component]
+pub fn VMTooltip(vm_id: u32, href: String, created_at: DateTime<Local>, end_at: DateTime<Local>) -> impl IntoView {
+    let show_tooltip = RwSignal::new(false);
+    view! {
+        <div class="flex gap-2 items-center">
+            <span
+                class="relative inline-block"
+                on:mouseenter=move |_| show_tooltip.set(true)
+                on:mouseleave=move |_| show_tooltip.set(false)
+                on:focus=move |_| show_tooltip.set(true)
+                on:blur=move |_| show_tooltip.set(false)
+                tabindex="0"
+            >
+                <a href=href target="_blank" class="flex gap-1 text-yale-blue-600 hover:text-yale-blue-300">
+                    {vm_id}
+                    <Icon icon=i::LuExternalLink width="0.8em" height="0.8em" />
+                </a>
+                <Show when=move || show_tooltip.get()>
+                    <div
+                        role="tooltip"
+                        class=r#"absolute left-1/2 bottom-full -translate-x-1/2 whitespace-nowrap
+                            rounded p-1 text-xs bg-card-hover shadow-sm z-1"#
+                    >
+                        <div>
+                            <b>"Created At: "</b>{created_at.format("%Y-%m-%d %H:%M:%S").to_string()}
+                        </div>
+                        <div>
+                            <b>"Expires At: "</b>{end_at.format("%Y-%m-%d %H:%M:%S").to_string()}
+                        </div>
+                    </div>
+                </Show>
+            </span>
         </div>
     }
 }
