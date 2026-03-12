@@ -135,6 +135,44 @@ pub mod enums {
 }
 
 #[cfg(feature = "ssr")]
+mod file_cache {
+    use moka::future::Cache;
+    use once_cell::sync::Lazy;
+    use std::time::Duration;
+
+    #[derive(Clone)]
+    pub struct CachedFile {
+        pub bytes: Vec<u8>,
+        pub content_type: Option<String>,
+        pub file_name: String,
+    }
+
+    static CACHE: Lazy<Cache<String, CachedFile>> = Lazy::new(|| {
+        Cache::builder()
+            .max_capacity(200)
+            .time_to_live(Duration::from_secs(3600))
+            .build()
+    });
+
+    pub async fn get(id: &str) -> Option<CachedFile> {
+        CACHE.get(id).await
+    }
+
+    pub async fn insert(id: String, file: CachedFile) {
+        CACHE.insert(id, file).await;
+    }
+
+    pub async fn remove(id: &str) {
+        CACHE.remove(id).await;
+    }
+}
+
+#[cfg(feature = "ssr")]
+pub async fn invalidate_file_cache(id: &str) {
+    file_cache::remove(id).await;
+}
+
+#[cfg(feature = "ssr")]
 pub fn pool() -> Result<MySqlPool, AppError> {
     Ok(get_context::<MySqlPool>()?)
 }
@@ -440,7 +478,7 @@ pub async fn register_user(email: String, password: String, confirm_password: St
             let mut auth_session = get_context::<AuthSession>()?;
 
             if password != confirm_password {
-                return Err(AppError::BadRequest("password and confirm password must be the same".to_string()));
+                return Err(AppError::BadRequest("password and confirm password must match".to_string()));
             }
 
             let user: Option<User> = auth_session.backend.add_user(&email, &password).await?;
@@ -707,79 +745,124 @@ pub async fn get_user_solved_challenges() -> Result<Vec<String>, AppError> {
 }
 
 #[cfg(feature = "ssr")]
-#[instrument(skip(auth_session))]
+#[instrument(skip(auth_session, headers))]
 pub async fn download_blob(
     auth_session: AuthSession,
+    headers: axum::http::HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     match auth_session.user {
         Some(_) => {},
         None => return (StatusCode::FORBIDDEN).into_response(),
-    } 
+    }
 
-    let pool = auth_session.backend.pool;
-    let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id), &pool).await {
-        Ok(Some(f)) => f,
-        Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
-        Err(e) => {
-            tracing::error!(error = ?e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
+    // if the browser already has this version cached, return 304
+    let etag = format!("\"{}\"", id);
+    if let Some(if_none_match) = headers.get(header::IF_NONE_MATCH) {
+        if if_none_match.as_bytes() == etag.as_bytes() {
+            return StatusCode::NOT_MODIFIED.into_response();
         }
+    }
+
+    let cached = file_cache::get(&id).await;
+    let (bytes, file_name) = if let Some(cached) = cached {
+        (cached.bytes, cached.file_name)
+    } else {
+        let pool = auth_session.backend.pool;
+        let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id.clone()), &pool).await {
+            Ok(Some(f)) => f,
+            Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
+            Err(e) => {
+                tracing::error!(error = ?e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
+            }
+        };
+
+        let entry = file_cache::CachedFile {
+            bytes: file.file_blob,
+            content_type: file.mime_type,
+            file_name: file.file_name,
+        };
+        let result = (entry.bytes.clone(), entry.file_name.clone());
+        file_cache::insert(id.clone(), entry).await;
+        result
     };
 
-    let bytes = file.file_blob;
     let disposition = format!(
         "attachment; filename=\"{}\"",
-        // sanitize(&filename)
-        file.file_name
+        file_name
     );
 
     (
         [
-            (header::CONTENT_TYPE, "application/octet-stream".into()),
+            (header::CONTENT_TYPE, "application/octet-stream".to_string()),
             (header::CONTENT_DISPOSITION, disposition),
+            (header::ETAG, etag),
+            (header::CACHE_CONTROL, "private, max-age=3600".to_string()),
         ],
         bytes,
     ).into_response()
 }
 
 #[cfg(feature = "ssr")]
-#[instrument(skip(auth_session))]
+#[instrument(skip(auth_session, headers))]
 pub async fn serve_image(
     auth_session: AuthSession,
+    headers: axum::http::HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     match auth_session.user {
         Some(_) => {},
         None => return (StatusCode::FORBIDDEN).into_response(),
-    } 
+    }
 
-    let pool = auth_session.backend.pool;
-    let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id), &pool).await {
-        Ok(Some(f)) => f,
-        Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
-        Err(e) => {
-            tracing::error!(error = ?e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
+    // if the browser already has this version cached, return 304
+    let etag = format!("\"{}\"", id);
+    if let Some(if_none_match) = headers.get(header::IF_NONE_MATCH) {
+        if if_none_match.as_bytes() == etag.as_bytes() {
+            return StatusCode::NOT_MODIFIED.into_response();
         }
+    }
+
+    let cached = file_cache::get(&id).await;
+    let (bytes, content_type, file_name) = if let Some(cached) = cached {
+        (cached.bytes, cached.content_type, cached.file_name)
+    } else {
+        let pool = auth_session.backend.pool;
+        let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id.clone()), &pool).await {
+            Ok(Some(f)) => f,
+            Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
+            Err(e) => {
+                tracing::error!(error = ?e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
+            }
+        };
+
+        let entry = file_cache::CachedFile {
+            bytes: file.file_blob,
+            content_type: file.mime_type,
+            file_name: file.file_name,
+        };
+        let result = (entry.bytes.clone(), entry.content_type.clone(), entry.file_name.clone());
+        file_cache::insert(id.clone(), entry).await;
+        result
     };
 
-    let bytes = file.file_blob;
-    let content_type = file.mime_type;
     let disposition = format!(
         "inline; image; filename=\"{}\"",
-        // sanitize(&filename)
-        file.file_name
+        file_name
     );
 
     (
         [
-            {if let Some(content_type) = content_type {
-                (header::CONTENT_TYPE, content_type)
+            {if let Some(ref content_type) = content_type {
+                (header::CONTENT_TYPE, content_type.clone())
             } else {
                 (header::CONTENT_TYPE, "application/octet-stream".to_string())
             }},
             (header::CONTENT_DISPOSITION, disposition),
+            (header::ETAG, format!("\"{}\"", id)),
+            (header::CACHE_CONTROL, "private, max-age=3600".to_string()),
         ],
         bytes,
     ).into_response()
@@ -819,7 +902,7 @@ pub async fn edit_password(old_password: String, new_password: String, confirm_n
             let (user, pool) = authenticated_check().await?;
 
             if new_password != confirm_new_password {
-                return Err(AppError::BadRequest("new password and confirm new password must be the same".to_string()));
+                return Err(AppError::BadRequest("new password and confirm new password must match".to_string()));
             }
 
             if old_password == new_password {
@@ -1103,8 +1186,8 @@ pub async fn get_proxmox_base_url() -> Result<String, AppError> {
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
 
-            let proxmox_args = crate::server::proxmox::get_proxmox_base_url().await?;
-            Ok(proxmox_args)
+            let base_url = crate::server::proxmox::get_proxmox_base_url().await?;
+            Ok(base_url)
         } else {
             Err(AppError::NoServerConnection)
         }

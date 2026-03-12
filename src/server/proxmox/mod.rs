@@ -48,19 +48,14 @@ pub struct ProxmoxVMInstance {
 }
 
 #[derive(Deserialize)]
-struct ProxmoxApiResponse<T> {
-    data: T
+pub struct ProxmoxApiResponse<T> {
+    pub data: T
 }
 
 #[derive(Serialize, Deserialize)]
 struct Domains {
     realm: String,
     r#type: String
-}
-
-#[derive(Deserialize)]
-struct Vmid {
-    data: String
 }
 
 #[derive(Serialize, Deserialize)]
@@ -103,30 +98,92 @@ struct Role {
 }
 
 #[cfg(feature = "ssr")]
+pub struct ProxmoxClient {
+    pub client: &'static Client,
+    pub auth_value: String,
+    pub api_base: String,
+    pub node: String,
+    pub templates_pool_id: String,
+}
+
+#[cfg(feature = "ssr")]
+impl ProxmoxClient {
+    pub async fn new() -> Result<Self, AppError> {
+        let proxmox_args = get_proxmox_args().await?;
+        is_host_reachable(&proxmox_args.base_url).await?;
+
+        let client = get_reqwest_client();
+        let api_token = proxmox_args.api_token.ok_or(
+            AppError::BadRequest("Proxmox config not setup: missing api_token".to_string())
+        )?;
+        let auth_value = format!("PVEAPIToken={api_token}");
+        let base = proxmox_args.base_url.trim_end_matches("/").to_string();
+        let path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/").to_string();
+        let api_base = format!("{base}/{path}");
+
+        Ok(Self { client, auth_value, api_base, node: proxmox_args.node, templates_pool_id: proxmox_args.templates_pool_id })
+    }
+
+    pub fn append_to_qemu_url(&self, vm_id: u32) -> String {
+        format!("{}/nodes/{}/qemu/{vm_id}", self.api_base, self.node)
+    }
+
+    pub fn append_to_api_url(&self, path: &str) -> String {
+        format!("{}/{}", self.api_base, path.trim_start_matches("/"))
+    }
+
+    pub async fn get_req<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<ProxmoxApiResponse<T>, AppError> {
+        let res = self.client.get(url)
+            .header(header::AUTHORIZATION, &self.auth_value)
+            .send().await?;
+        Ok(res.json::<ProxmoxApiResponse<T>>().await?)
+    }
+
+    pub async fn post_req(&self, url: &str, body: Option<String>) -> Result<reqwest::Response, AppError> {
+        if let Some(body) = body {
+            let res = self.client.post(url)
+                .header(header::AUTHORIZATION, &self.auth_value)
+                .body(body)
+                .send().await?;
+            Ok(res)
+        } else {
+            let res = self.client.post(url)
+                .header(header::AUTHORIZATION, &self.auth_value)
+                .send().await?;
+            Ok(res)
+        }
+    }
+
+    pub async fn put_req(&self, url: &str, body: String) -> Result<reqwest::Response, AppError> {
+        let res = self.client.put(url)
+            .header(header::AUTHORIZATION, &self.auth_value)
+            .body(body)
+            .send().await?;
+        Ok(res)
+    }
+
+    pub async fn delete_req(&self, url: &str) -> Result<reqwest::Response, AppError> {
+        let res = self.client.delete(url)
+            .header(header::AUTHORIZATION, &self.auth_value)
+            .send().await?;
+        Ok(res)
+    }
+}
+
+#[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_realm() -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let sync_url = pxc.append_to_api_url("access/domains/CTFPKHK/sync");
+    let url = pxc.append_to_api_url("access/domains");
 
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let sync_url = format!("{base_url}/{api_path}/access/domains/CTFPKHK/sync");
-    let url = format!("{base_url}/{api_path}/access/domains");
-
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            let domains = res.json::<ProxmoxApiResponse<Vec<Domains>>>().await?;
-            for domain in domains.data {
-                if domain.realm.contains("CTFPKHK") {
-                    return Ok(())
-                }
-            }
-        },
-        Err(e) => return Err(e.into())
-    };
+    let domains = pxc.get_req::<Vec<Domains>>(&url).await?;
+    for domain in domains.data {
+        if domain.realm.contains("CTFPKHK") {
+            return Ok(())
+        }
+    }
 
     let ldap_args = match LdapArgs::get(get_db_ref()).await {
         Ok(Some(res)) => res,
@@ -147,12 +204,7 @@ pub async fn create_realm() -> Result<(), AppError> {
         ("verify", "0"),
     ]).unwrap_or_default();
 
-    let resp = client
-        .post(&url)
-        .header(header::AUTHORIZATION, &auth_value)
-        .body(body)
-        .send()
-        .await?;
+    let resp = pxc.post_req(&url, Some(body)).await?;
 
     let body = serde_urlencoded::to_string(&[
         ("scope", "users"),
@@ -161,15 +213,11 @@ pub async fn create_realm() -> Result<(), AppError> {
     ]).unwrap_or_default();
 
     if resp.status().is_success() {
-        match client.post(&sync_url).header(header::AUTHORIZATION, &auth_value).body(body).send().await {
-            Ok(res) => {
-                if res.status().is_success() {
-                    Ok(())
-                } else {
-                    Err(AppError::InternalError("failed to create realm for Proxmox".to_string()))
-                }
-            },
-            Err(e) => return Err(e.into())
+        let res = pxc.post_req(&sync_url, Some(body)).await?;
+        if res.status().is_success() {
+            Ok(())
+        } else {
+            Err(AppError::InternalError("failed to create realm for Proxmox".to_string()))
         }
     } else {
         Err(AppError::InternalError("".to_string()))
@@ -179,15 +227,9 @@ pub async fn create_realm() -> Result<(), AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn sync_realm() -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let sync_url = format!("{base_url}/{api_path}/access/domains/CTFPKHK/sync");
+    let sync_url = pxc.append_to_api_url("access/domains/CTFPKHK/sync");
 
     let body = serde_urlencoded::to_string(&[
         ("realm", "CTFPKHK"),
@@ -196,108 +238,65 @@ pub async fn sync_realm() -> Result<(), AppError> {
         ("remove-vanished", "acl;entry;properties")
     ]).unwrap_or_default();
 
-    match client.post(&sync_url).header(header::AUTHORIZATION, &auth_value).body(body).send().await {
-        Ok(res) => {
-            if res.status().is_success() {
-                Ok(())
-            } else {
-                Err(AppError::InternalError("failed to sync realm for Proxmox".to_string()))
-            }
-        },
-        Err(e) => return Err(e.into())
+    let res = pxc.post_req(&sync_url, Some(body)).await?;
+    if res.status().is_success() {
+        Ok(())
+    } else {
+        Err(AppError::InternalError("failed to sync realm for Proxmox".to_string()))
     }
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn get_next_free_vm_id() -> Result<u32, AppError> {
-    let client = get_reqwest_client();
+    let pxc = ProxmoxClient::new().await?;
 
-    let proxmox_args = get_proxmox_args().await?;
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/cluster/nextid");
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+    let url = pxc.append_to_api_url("cluster/nextid");
 
-    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            let next_free_vm_id = res.json::<Vmid>().await?;
-            let next_free_vm_id = next_free_vm_id.data.parse::<u32>()?;
-            Ok(next_free_vm_id)
-        },
-        Err(e) => return Err(e.into())
-    }
+    let next_free_vm_id = pxc.get_req::<String>(&url).await?;
+    let next_free_vm_id = next_free_vm_id.data.parse::<u32>()?;
+    Ok(next_free_vm_id)
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
-
-    let client = get_reqwest_client();
-
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let poolid = format!("CTFPKHK-{}", user.username);
-    let pools_url = format!("{base_url}/{api_path}/pools/{poolid}");
+    let pxc = ProxmoxClient::new().await?;
 
     match get_user_vmid_from_template_id(user, template_id).await? {
         Some(vm_id) => {
-            let start_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, vm_id);
-            // start
-            match client.post(&start_url).header(header::AUTHORIZATION, &auth_value).send().await {
-                Ok(_) => {
-                    for _ in 0..60 {
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                        let vms = match client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await {
-                            Ok(res) => {
-                                res.json::<ProxmoxApiResponse<Members>>().await?
-                            },
-                            Err(e) => return Err(e.into())
-                        };
+            let start_url = format!("{}/status/start", pxc.append_to_qemu_url(vm_id));
+            let status_url = format!("{}/status/current", pxc.append_to_qemu_url(vm_id));
 
-                        for vm in vms.data.members {
-                            let vm_status = vm.status.unwrap_or_default();
-                            if vm_status == "running" && vm.vmid.unwrap_or_default() == vm_id { return Ok(vm_id); } else { continue };
-                        }
-                    }
+            pxc.post_req(&start_url, None).await?;
 
-                    return Err(AppError::InternalError("VM failed to start within timeout".to_string()));
-                },
-                Err(e) => return Err(e.into())
+            for _ in 0..60 {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                let vm = pxc.get_req::<Member>(&status_url).await?;
+
+                let vm_status = vm.data.status.unwrap_or_default();
+                if vm_status == "running" { return Ok(vm_id); }
             }
+
+            Err(AppError::InternalError("VM failed to start within timeout".to_string()))
         },
         None => {
             let new_vm_id = clone_vm(template_id, challenge, user).await?;
-            let start_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, new_vm_id);
+            let start_url = format!("{}/status/start", pxc.append_to_qemu_url(new_vm_id));
+            let status_url = format!("{}/status/current", pxc.append_to_qemu_url(new_vm_id));
 
-            // start
-            match client.post(&start_url).header(header::AUTHORIZATION, &auth_value).send().await {
-                Ok(_) => {
-                    schedule_vm_deletion(user.clone(), new_vm_id);
-                    let pools_url = format!("{base_url}/{api_path}/pools/{poolid}");
-                    for _ in 0..60 {
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                        let vms = match client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await {
-                            Ok(res) => {
-                                res.json::<ProxmoxApiResponse<Members>>().await?
-                            },
-                            Err(e) => return Err(e.into())
-                        };
+            pxc.post_req(&start_url, None).await?;
+            schedule_vm_deletion(user.clone(), new_vm_id);
 
-                        for vm in vms.data.members {
-                            let vm_status = vm.status.unwrap_or_default();
-                            let vm_id = vm.vmid.unwrap_or_default();
-                            if vm_status == "running" && vm_id == new_vm_id { return Ok(new_vm_id); } else { continue };
-                        }
-                    }
-                    
-                    return Err(AppError::InternalError("VM failed to start within timeout".to_string()));
-                },
-                Err(e) => return Err(e.into())
+            for _ in 0..60 {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                let vm = pxc.get_req::<Member>(&status_url).await?;
+
+                let vm_status = vm.data.status.unwrap_or_default();
+                if vm_status == "running" { return Ok(new_vm_id); }
             }
+
+            Err(AppError::InternalError("VM failed to start within timeout".to_string()))
         }
     }
 }
@@ -305,14 +304,7 @@ pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
-
-    let client = get_reqwest_client();
-
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
+    let pxc = ProxmoxClient::new().await?;
 
     let new_vm_id = get_next_free_vm_id().await?;
     let template_info = get_template_info(template_id).await?;
@@ -321,15 +313,13 @@ async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Re
         ("newid", new_vm_id.to_string()),
         ("name", template_info.name),
         ("full", "1".to_string()), // 0 - linked clone, 1 - full clone
-        ("target", proxmox_args.node.clone()),
+        ("target", pxc.node.clone()),
         ("pool", format!("CTFPKHK-{}", user.username)),
     ]).unwrap_or_default();
 
     // clone
-    let clone_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/clone", &proxmox_args.node, &template_id);
-    if let Err(e) = client.post(&clone_url).header(header::AUTHORIZATION, &auth_value).body(clone_body).send().await {
-        return Err(e.into())
-    }
+    let clone_url = format!("{}/clone", pxc.append_to_qemu_url(*template_id));
+    pxc.post_req(&clone_url, Some(clone_body)).await?;
 
     let created_at = Local::now();
     let expire_at = created_at + chrono::Duration::hours(1);
@@ -342,49 +332,36 @@ async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Re
         expire_at
     );
 
-    let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", proxmox_args.node, new_vm_id);
+    let conf_url = format!("{}/config", pxc.append_to_qemu_url(new_vm_id));
     let conf_body = serde_urlencoded::to_string(&[
         ("description", vm_description),
     ]).unwrap_or_default();
 
     // update config
-    match client.post(&conf_url).header(header::AUTHORIZATION, &auth_value).body(conf_body).send().await {
-        Ok(_) => Ok(new_vm_id),
-        Err(e) => return Err(e.into())
-    }
+    pxc.post_req(&conf_url, Some(conf_body)).await?;
+    Ok(new_vm_id)
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn restart_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
         Some(vm_id) => vm_id,
-        None =>  return Err(AppError::InternalError("".to_string()))
+        None => return Err(AppError::InternalError("".to_string()))
     };
-    let reboot_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/reboot", proxmox_args.node);
-    let status_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/current", proxmox_args.node);
+    let reboot_url = format!("{}/status/reboot", pxc.append_to_qemu_url(vm_id));
+    let status_url = format!("{}/status/current", pxc.append_to_qemu_url(vm_id));
 
-    let pre_uptime = match client.get(&status_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => res.json::<ProxmoxApiResponse<VmCurrentStatus>>().await?.data.uptime.unwrap_or(0),
-        Err(e) => return Err(e.into())
-    };
+    let pre_uptime = pxc.get_req::<VmCurrentStatus>(&status_url).await?.data.uptime.unwrap_or(0);
 
-    if let Err(e) = client.post(reboot_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        return Err(e.into());
-    }
+    pxc.post_req(&reboot_url, None).await?;
 
     for _ in 0..90 {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let status = match client.get(&status_url).header(header::AUTHORIZATION, &auth_value).send().await {
-            Ok(res) => res.json::<ProxmoxApiResponse<VmCurrentStatus>>().await?,
+        let status = match pxc.get_req::<VmCurrentStatus>(&status_url).await {
+            Ok(s) => s,
             Err(_) => continue
         };
 
@@ -399,78 +376,64 @@ pub async fn restart_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppErro
     Err(AppError::InternalError("Failed to restart VM within timeout".to_string()))
 }
 
-// return Ok only when vm with template id doesn't exist in user pool anymore
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn destroy_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
         Some(vm_id) => vm_id,
-        None =>  return Err(AppError::InternalError("".to_string()))
+        None => return Err(AppError::InternalError("".to_string()))
     };
-    let destroy_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}", proxmox_args.node);
-    let stop_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/stop", proxmox_args.node);
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+    let stop_url = format!("{}/status/stop", pxc.append_to_qemu_url(vm_id));
+    let status_url = format!("{}/status/current", pxc.append_to_qemu_url(vm_id));
 
     // stop
-    match client.post(&stop_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            if res.status().is_success() {
-                tokio::time::sleep(Duration::from_secs(3)).await;
-                // destroy
-                match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
-                    Ok(_) => {
-                        Ok(vm_id)
-                    },
-                    Err(e) => Err(e.into())
-                }
-            } else {
-                Err(AppError::InternalError("failed to stop vm".to_string()))
-            }
-        },
-        Err(e) => return Err(e.into())
+    let res = pxc.post_req(&stop_url, None).await?;
+    if !res.status().is_success() {
+        return Err(AppError::InternalError("Failed to stop VM".to_string()));
     }
+
+    // poll until stopped
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let status = match pxc.get_req::<VmCurrentStatus>(&status_url).await {
+            Ok(s) => s,
+            Err(_) => continue
+        };
+
+        if status.data.status.unwrap_or_default() == "stopped" {
+            // destroy
+            let destroy_url = pxc.append_to_qemu_url(vm_id);
+            let del_res = pxc.delete_req(&destroy_url).await?;
+            if !del_res.status().is_success() {
+                return Err(AppError::InternalError("Failed to destroy VM".to_string()));
+            }
+            return Ok(vm_id);
+        }
+    }
+
+    Err(AppError::InternalError("VM failed to stop within timeout".to_string()))
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_user_pool(user: &DbUser) -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let pools_url = format!("{base_url}/{api_path}/pools");
-    let acl_url = format!("{base_url}/{api_path}/access/acl");
+    let pools_url = pxc.append_to_api_url("pools");
+    let acl_url = pxc.append_to_api_url("access/acl");
     let poolid = format!("CTFPKHK-{}", user.username);
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
 
-    match client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            let pools = res.json::<ProxmoxApiResponse<Vec<Pools>>>().await?;
-            for pool in pools.data {
-                if pool.poolid.contains(&poolid) {
-                    return Ok(());
-                }
-            }
-        },
-        Err(e) => return Err(e.into())
-    };
+    let pools = pxc.get_req::<Vec<Pools>>(&pools_url).await?;
+    for pool in pools.data {
+        if pool.poolid.contains(&poolid) {
+            return Ok(());
+        }
+    }
 
     let body = serde_urlencoded::to_string(&[("poolid", &poolid)]).unwrap_or_default();
-    client.post(&pools_url)
-        .header(header::AUTHORIZATION, &auth_value)
-        .body(body)
-        .send()
-        .await?;
+    pxc.post_req(&pools_url, Some(body)).await?;
 
     let realm_suffix = if user.auth_type == "ldap" { "CTFPKHK" } else { "pve" };
     let acl_body = serde_urlencoded::to_string(&[
@@ -479,11 +442,7 @@ pub async fn create_user_pool(user: &DbUser) -> Result<(), AppError> {
         ("roles", "CTFCompetitor".to_string()),
         ("propagate", "1".to_string())
     ]).unwrap_or_default();
-    client.put(&acl_url)
-        .header(header::AUTHORIZATION, &auth_value)
-        .body(acl_body)
-        .send()
-        .await?;
+    pxc.put_req(&acl_url, acl_body).await?;
 
     Ok(())
 }
@@ -495,10 +454,11 @@ pub async fn test_auth(args: &ProxmoxArgs) -> Result<(), AppError> {
 
     let client = get_reqwest_client();
 
+    let api_token = args.api_token.clone().ok_or(AppError::BadRequest("Proxmox config not setup: missing api_token".to_string()))?;
+    let auth_value = format!("PVEAPIToken={api_token}");
     let base_url = args.base_url.trim_end_matches("/");
     let api_path = args.api_path.trim_start_matches("/").trim_end_matches("/");
     let url = format!("{base_url}/{api_path}/nodes/status");
-    let auth_value = format!("PVEAPIToken={}", args.api_token.as_deref().unwrap_or_default());
 
     match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
         Ok(res) => if res.status().is_success() { Ok(()) } else { Err(AppError::Unauthorized) },
@@ -510,29 +470,19 @@ pub async fn test_auth(args: &ProxmoxArgs) -> Result<(), AppError> {
 #[instrument]
 fn schedule_vm_deletion(user: DbUser, vm_id: u32) {
     tokio::spawn(async move {
-        let client = get_reqwest_client();
-
-        let proxmox_args = match get_proxmox_args().await {
-            Ok(args) => args,
-            Err(e) => { tracing::error!(error = ?e, "failed to get proxmox args for scheduled deletion"); return; }
+        let pxc = match ProxmoxClient::new().await {
+            Ok(p) => p,
+            Err(e) => { tracing::error!(error = ?e, "failed to initialize proxmox client for scheduled deletion"); return; }
         };
 
-        let base_url = proxmox_args.base_url.trim_end_matches("/");
-        let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-        let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", &proxmox_args.node, vm_id);
-        let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+        let conf_url = format!("{}/config", pxc.append_to_qemu_url(vm_id));
 
         let mut intv = tokio::time::interval(Duration::from_secs(60 * 30));
         loop {
             intv.tick().await;
 
-            let config = match client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await {
-                Ok(res) => {
-                    match res.json::<ProxmoxApiResponse<Config>>().await {
-                        Ok(c) => c,
-                        Err(e) => { tracing::error!(error = ?e, "failed to parse VM config"); return; }
-                    }
-                },
+            let config = match pxc.get_req::<Config>(&conf_url).await {
+                Ok(c) => c,
                 Err(e) => { tracing::error!(error = ?e, "failed to fetch VM config"); return; }
             };
             let description = config.data.description.unwrap_or_default();
@@ -556,24 +506,15 @@ fn schedule_vm_deletion(user: DbUser, vm_id: u32) {
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn add_vm_time(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
         Some(vm_id) => vm_id,
-        None =>  return Err(AppError::InternalError("".to_string()))
+        None => return Err(AppError::InternalError("".to_string()))
     };
-    let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", &proxmox_args.node, vm_id);
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+    let conf_url = format!("{}/config", pxc.append_to_qemu_url(vm_id));
 
-    let config = match client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => res.json::<ProxmoxApiResponse<Config>>().await?,
-        Err(e) => return Err(e.into())
-    };
+    let config = pxc.get_req::<Config>(&conf_url).await?;
     let description = config.data.description.unwrap_or_default();
     let args = extract_args_from_description(description)?;
     let new_expire_at = args.end_at + chrono::Duration::minutes(30);
@@ -591,8 +532,9 @@ pub async fn add_vm_time(user: &DbUser, template_id: &u32) -> Result<u32, AppErr
     ]).unwrap_or_default();
 
     // update config
-    if let Err(e) = client.post(&conf_url).header(header::AUTHORIZATION, &auth_value).body(conf_body).send().await {
-        return Err(e.into())
+    let res = pxc.post_req(&conf_url, Some(conf_body)).await?;
+    if !res.status().is_success() {
+        return Err(AppError::InternalError("Failed to update VM config".to_string()));
     }
 
     Ok(vm_id)
@@ -601,28 +543,18 @@ pub async fn add_vm_time(user: &DbUser, template_id: &u32) -> Result<u32, AppErr
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn get_user_vms(user: &DbUser) -> Result<Vec<ProxmoxVMInstance>, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
     let poolid = format!("CTFPKHK-{}", user.username);
-    let url = format!("{base_url}/{api_path}/pools/{poolid}");
+    let url = pxc.append_to_api_url(&format!("pools/{poolid}"));
 
-    let vms = match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            res.json::<ProxmoxApiResponse<Members>>().await?
-        },
-        Err(e) => return Err(e.into())
-    };
+    let vms = pxc.get_req::<Members>(&url).await?;
 
     // using parallelization because all vm configs are needed, so we fetch them concurrently
-    let futures  = vms.data.members.into_iter().map(|vm| {
-        let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", &proxmox_args.node, vm.vmid.unwrap_or_default());
-        let auth_value = auth_value.clone();
+    let futures = vms.data.members.into_iter().map(|vm| {
+        let conf_url = format!("{}/config", pxc.append_to_qemu_url(vm.vmid.unwrap_or_default()));
+        let auth_value = pxc.auth_value.clone();
+        let client = pxc.client;
         async move {
             let config = client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await
                 .map_err(AppError::from)?
@@ -659,22 +591,11 @@ fn extract_args_from_description(desc: String) -> Result<ProxmoxVMInstance, AppE
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let url = pxc.append_to_api_url(&format!("pools/{}", pxc.templates_pool_id));
 
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let url = format!("{base_url}/{api_path}/pools/{}", proxmox_args.templates_pool_id);
-
-    let vms = match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            res.json::<ProxmoxApiResponse<Members>>().await?
-        },
-        Err(e) => return Err(e.into())
-    };
+    let vms = pxc.get_req::<Members>(&url).await?;
 
     let templates = vms.data.members.into_iter().map(|vm| {
         ProxmoxVMTemplate { id: vm.vmid.unwrap_or_default(), name: vm.name.unwrap_or_default() }
@@ -685,30 +606,18 @@ pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn get_user_vmid_from_template_id(user: &DbUser, template_id: &u32) -> Result<Option<u32>, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
     let poolid = format!("CTFPKHK-{}", user.username);
-    let url = format!("{base_url}/{api_path}/pools/{poolid}");
+    let url = pxc.append_to_api_url(&format!("pools/{poolid}"));
 
-    let vms = match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => res.json::<ProxmoxApiResponse<Members>>().await?,
-        Err(e) => return Err(e.into())
-    };
+    let vms = pxc.get_req::<Members>(&url).await?;
 
     // sequential because we return on the first match, so parallelizing would "over-fetch"
     for vm in vms.data.members {
         let vmid = vm.vmid.unwrap_or_default();
-        let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vmid}/config", &proxmox_args.node);
-        let config = match client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await {
-            Ok(res) => res.json::<ProxmoxApiResponse<Config>>().await?,
-            Err(e) => return Err(e.into())
-        };
+        let conf_url = format!("{}/config", pxc.append_to_qemu_url(vmid));
+        let config = pxc.get_req::<Config>(&conf_url).await?;
         let description = config.data.description.unwrap_or_default();
         let args = extract_args_from_description(description)?;
         if args.origin_id == *template_id {
@@ -722,20 +631,13 @@ async fn get_user_vmid_from_template_id(user: &DbUser, template_id: &u32) -> Res
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn change_pool_owner(user: &DbUser, new_username: &String) -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let pools_url = format!("{base_url}/{api_path}/pools");
-    let url = format!("{base_url}/{api_path}/access/acl");
+    let pools_url = pxc.append_to_api_url("pools");
+    let acl_url = pxc.append_to_api_url("access/acl");
     let poolid = format!("CTFPKHK-{}", user.username);
 
-    let res = client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await?;
-    let pools = res.json::<ProxmoxApiResponse<Vec<Pools>>>().await?;
+    let pools = pxc.get_req::<Vec<Pools>>(&pools_url).await?;
     if !pools.data.iter().any(|pool| pool.poolid.contains(&poolid)) {
         return Err(AppError::InternalError(format!("Unable to change pool owner. Pool '{poolid}' does not exist")));
     }
@@ -746,11 +648,7 @@ pub async fn change_pool_owner(user: &DbUser, new_username: &String) -> Result<(
         ("roles", "CTFCompetitor".to_string()),
         ("propagate", "1".to_string())
     ]).unwrap_or_default();
-    client.put(&url)
-        .header(header::AUTHORIZATION, &auth_value)
-        .body(acl_body)
-        .send()
-        .await?;
+    pxc.put_req(&acl_url, acl_body).await?;
 
     Ok(())
 }
@@ -758,49 +656,28 @@ pub async fn change_pool_owner(user: &DbUser, new_username: &String) -> Result<(
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn delete_user(db_user: &DbUser) -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let url = pxc.append_to_api_url(&format!("access/users/{}@pve", db_user.username));
 
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/access/users/{}@pve", db_user.username);
-
-    match client.delete(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("".to_string())) }
-        },
-        Err(e) => Err(e.into())
-    }
+    let res = pxc.delete_req(&url).await?;
+    if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("".to_string())) }
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_user(email: &String, username: &String, password: &String) -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let url = pxc.append_to_api_url("access/users");
 
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/access/users");
-
-    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            let users = res.json::<ProxmoxApiResponse<Vec<User>>>().await?;
-            let userid = format!("{}@pve", username);
-            for user in users.data {
-                if user.userid.unwrap_or_default() == userid {
-                    return Ok(());
-                }
-            }
-        },
-        Err(e) => return Err(e.into())
-    };
+    let users = pxc.get_req::<Vec<User>>(&url).await?;
+    let userid = format!("{}@pve", username);
+    for user in users.data {
+        if user.userid.unwrap_or_default() == userid {
+            return Ok(());
+        }
+    }
 
     let body = serde_urlencoded::to_string(&[
         ("userid", format!("{}@pve", username)),
@@ -810,46 +687,27 @@ pub async fn create_user(email: &String, username: &String, password: &String) -
         ("email", email.to_string()),
     ]).unwrap_or_default();
 
-    match client.post(&url).header(header::AUTHORIZATION, auth_value).body(body).send().await {
-        Ok(_) => Ok(()),
-        Err(e) => return Err(e.into())
-    }
+    pxc.post_req(&url, Some(body)).await?;
+    Ok(())
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn get_roles() -> Result<Vec<Role>, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let url = pxc.append_to_api_url("access/roles");
 
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/access/roles");
-
-    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            let roles = res.json::<ProxmoxApiResponse<Vec<Role>>>().await?;
-            Ok(roles.data)
-        }
-        Err(e) => Err(e.into())
-    }
+    let roles = pxc.get_req::<Vec<Role>>(&url).await?;
+    Ok(roles.data)
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_user_role() -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/access/roles");
+    let url = pxc.append_to_api_url("access/roles");
 
     let roles = get_roles().await?;
     let roleid = "CTFCompetitor";
@@ -866,31 +724,18 @@ pub async fn create_user_role() -> Result<(), AppError> {
         ("privs", "Pool.Audit"),
     ]).unwrap_or_default();
 
-    match client.post(&url).header(header::AUTHORIZATION, &auth_value).body(body).send().await {
-        Ok(_) => Ok(()),
-        Err(e) => return Err(e.into())
-    }
+    pxc.post_req(&url, Some(body)).await?;
+    Ok(())
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn get_template_info(template_id: &u32) -> Result<ProxmoxVMTemplate, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let url = pxc.append_to_api_url(&format!("pools/{}", pxc.templates_pool_id));
 
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let url = format!("{base_url}/{api_path}/pools/{}", proxmox_args.templates_pool_id);
-
-    let vms = match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            res.json::<ProxmoxApiResponse<Members>>().await?
-        },
-        Err(e) => return Err(e.into())
-    };
+    let vms = pxc.get_req::<Members>(&url).await?;
 
     let mut template_info = ProxmoxVMTemplate::default();
     for vm in vms.data.members {
@@ -912,98 +757,55 @@ pub async fn get_proxmox_base_url() -> Result<String, AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn get_proxmox_userids() -> Result<Vec<String>, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/access/users");
+    let url = pxc.append_to_api_url("access/users");
 
-    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            let users = res.json::<ProxmoxApiResponse<Vec<User>>>().await?;
-            Ok(users.data.into_iter().filter_map(|u| u.userid).collect())
-        },
-        Err(e) => Err(e.into())
-    }
+    let users = pxc.get_req::<Vec<User>>(&url).await?;
+    Ok(users.data.into_iter().filter_map(|u| u.userid).collect())
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn get_proxmox_poolids() -> Result<Vec<String>, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/pools");
+    let url = pxc.append_to_api_url("pools");
 
-    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            let pools = res.json::<ProxmoxApiResponse<Vec<Pools>>>().await?;
-            Ok(pools.data.into_iter().map(|p| p.poolid).collect())
-        },
-        Err(e) => Err(e.into())
-    }
+    let pools = pxc.get_req::<Vec<Pools>>(&url).await?;
+    Ok(pools.data.into_iter().map(|p| p.poolid).collect())
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn delete_user_pool(db_user: &DbUser) -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let poolid = format!("CTFPKHK-{}", db_user.username);
-    let url = format!("{base_url}/{api_path}/pools/{poolid}");
+    let url = pxc.append_to_api_url(&format!("pools/{poolid}"));
 
-    match client.delete(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("failed to delete pool".to_string())) }
-        },
-        Err(e) => Err(e.into())
-    }
+    let res = pxc.delete_req(&url).await?;
+    if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("failed to delete pool".to_string())) }
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn delete_proxmox_user(db_user: &DbUser) -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
     let realm_suffix = if db_user.auth_type == "ldap" { "CTFPKHK" } else { "pve" };
-    let url = format!("{base_url}/{api_path}/access/users/{}@{realm_suffix}", db_user.username);
+    let url = pxc.append_to_api_url(&format!("access/users/{}@{realm_suffix}", db_user.username));
 
-    match client.delete(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("failed to delete user".to_string())) }
-        },
-        Err(e) => Err(e.into())
-    }
+    let res = pxc.delete_req(&url).await?;
+    if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("failed to delete user".to_string())) }
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn create_proxmox_user(db_user: &DbUser) -> Result<(), AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/access/users");
+    let url = pxc.append_to_api_url("access/users");
 
     if db_user.auth_type == "ldap" {
         match sync_realm().await {
@@ -1026,12 +828,8 @@ pub async fn create_proxmox_user(db_user: &DbUser) -> Result<(), AppError> {
         ];
 
         let body = serde_urlencoded::to_string(&params).unwrap_or_default();
-        match client.post(&url).header(header::AUTHORIZATION, auth_value).body(body).send().await {
-            Ok(res) => {
-                if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("failed to create user".to_string())) }
-            },
-            Err(e) => Err(e.into())
-        }
+        let res = pxc.post_req(&url, Some(body)).await?;
+        if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("failed to create user".to_string())) }
     }
 }
 

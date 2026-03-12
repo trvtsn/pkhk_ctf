@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user, structs::Credentials}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user, structs::Credentials}};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 
@@ -93,11 +93,17 @@ pub fn Login() -> impl IntoView {
                     <HidePasswordButton hidden=password_hidden />
                 </div>
 
-                <input
+                <button
                     type="submit"
                     class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
-                    value="Login"
-                />
+                    disabled=move || login.pending().get()
+                >
+                    {move || if login.pending().get() {
+                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                    } else {
+                        "Login".into_any()
+                    }}
+                </button>
             </form>
             <a 
                 class="text-blue-600"

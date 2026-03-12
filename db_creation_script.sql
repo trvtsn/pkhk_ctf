@@ -134,9 +134,16 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`hints` (
   `hint` TEXT NOT NULL,
   `challenge_id` CHAR(36) NOT NULL,
   `points_penalty` INT UNSIGNED NOT NULL,
-  PRIMARY KEY (`id`))
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_hints_challenges1`
+    FOREIGN KEY (`challenge_id`)
+    REFERENCES `ctfpkhk`.`challenges` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE INDEX `fk_hints_challenges1` ON `ctfpkhk`.`hints` (`challenge_id` ASC) VISIBLE;
 
 
 -- -----------------------------------------------------
@@ -164,7 +171,7 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`hints_used` (
     ON DELETE CASCADE
     ON UPDATE CASCADE)
 ENGINE = InnoDB
-AUTO_INCREMENT = 89
+AUTO_INCREMENT = 90
 DEFAULT CHARACTER SET = utf8mb3;
 
 CREATE INDEX `fk_hints_used_challenges1_idx` ON `ctfpkhk`.`hints_used` (`challenge_id` ASC) VISIBLE;
@@ -208,18 +215,6 @@ DEFAULT CHARACTER SET = utf8mb3;
 
 
 -- -----------------------------------------------------
--- Table `ctfpkhk`.`sessions`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ctfpkhk`.`sessions` (
-  `id` CHAR(22) NOT NULL,
-  `data` BLOB NOT NULL,
-  `expiry_date` TIMESTAMP(6) NOT NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb3;
-
-
--- -----------------------------------------------------
 -- Table `ctfpkhk`.`submissions`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (
@@ -257,6 +252,16 @@ CREATE INDEX `fk_leaderboard_challenges1_idx` ON `ctfpkhk`.`submissions` (`chall
 USE `ctfpkhk`;
 
 DELIMITER $$
+USE `ctfpkhk`$$
+CREATE
+DEFINER=`root`@`localhost`
+TRIGGER `ctfpkhk`.`challenges_BEFORE_DELETE`
+BEFORE DELETE ON `ctfpkhk`.`challenges`
+FOR EACH ROW
+BEGIN
+    DELETE FROM submissions WHERE challenge_id = OLD.id;
+END$$
+
 USE `ctfpkhk`$$
 CREATE
 DEFINER=`root`@`localhost`

@@ -119,7 +119,7 @@ pub fn Challenges() -> impl IntoView {
     view! {
         <div class=r#"flex gap-2 mb-4"#>
             <button
-                class=r#"py-1 px-3 text-sm rounded-md border border-input-border hover:bg-background-hover"#
+                class=r#"py-1 px-3 text-sm rounded-md border border-input-border bg-background hover:bg-background-hover"#
                 on:click=move |_| {
                     creating.update(|c| *c = !*c);
                 }

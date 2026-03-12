@@ -1,78 +1,48 @@
 #[cfg(feature = "ssr")]
-use crate::server::is_host_reachable;
-use crate::{error_template::AppError, server::proxmox::{Config, Members, ProxmoxApiResponse, VmCurrentStatus}};
+use crate::server::proxmox::ProxmoxClient;
+use crate::{error_template::AppError, server::proxmox::{Config, Member, VmCurrentStatus}};
 #[cfg(feature = "ssr")]
-use crate::server::proxmox::{extract_args_from_description, get_proxmox_args, get_reqwest_client};
-#[cfg(feature = "ssr")]
-use reqwest::header;
+use crate::server::proxmox::extract_args_from_description;
 use std::time::Duration;
 use tracing::instrument;
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn start_vm(vm_id: &u32, username: &String) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let start_url = format!("{}/status/start", pxc.append_to_qemu_url(*vm_id));
+    let status_url = format!("{}/status/current", pxc.append_to_qemu_url(*vm_id));
 
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/status/start", proxmox_args.node, vm_id);
-    let poolid = format!("CTFPKHK-{}", username);
-    let pools_url = format!("{base_url}/{api_path}/pools/{poolid}");
+    pxc.post_req(&start_url, None).await?;
 
-    match client.post(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(_) => {
-            for _ in 0..60 {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                let vms = match client.get(&pools_url).header(header::AUTHORIZATION, &auth_value).send().await {
-                    Ok(res) => {
-                        res.json::<ProxmoxApiResponse<Members>>().await?
-                    },
-                    Err(e) => return Err(e.into())
-                };
+    for _ in 0..60 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let vm = pxc.get_req::<Member>(&status_url).await?;
 
-                for vm in vms.data.members {
-                    let vm_status = vm.status.unwrap_or_default();
-                    if vm_status == "running" && vm.vmid.unwrap_or_default() == *vm_id { return Ok(*vm_id); } else { continue };
-                }
-            }
-
-            return Err(AppError::InternalError("VM failed to start within timeout".to_string()));
-        },
-        Err(e) => return Err(e.into())
+        let vm_status = vm.data.status.unwrap_or_default();
+        if vm_status == "running" { return Ok(*vm_id); }
     }
+
+    Err(AppError::InternalError("VM failed to start within timeout".to_string()))
 }
 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn restart_vm(vm_id: &u32) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let reboot_url = format!("{}/status/reboot", pxc.append_to_qemu_url(*vm_id));
+    let status_url = format!("{}/status/current", pxc.append_to_qemu_url(*vm_id));
 
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let reboot_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/reboot", proxmox_args.node);
-    let status_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/current", proxmox_args.node);
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+    let pre_uptime = pxc.get_req::<VmCurrentStatus>(&status_url).await?.data.uptime.unwrap_or(0);
 
-    let pre_uptime = match client.get(&status_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => res.json::<ProxmoxApiResponse<VmCurrentStatus>>().await?.data.uptime.unwrap_or(0),
-        Err(e) => return Err(e.into())
-    };
-
-    if let Err(e) = client.post(reboot_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        return Err(e.into());
-    }
+    pxc.post_req(&reboot_url, None).await?;
 
     for _ in 0..90 {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let status = match client.get(&status_url).header(header::AUTHORIZATION, &auth_value).send().await {
-            Ok(res) => res.json::<ProxmoxApiResponse<VmCurrentStatus>>().await?,
+        let status = match pxc.get_req::<VmCurrentStatus>(&status_url).await {
+            Ok(s) => s,
             Err(_) => continue
         };
 
@@ -90,20 +60,11 @@ pub async fn restart_vm(vm_id: &u32) -> Result<u32, AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn add_vm_time(vm_id: &u32) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
+    let conf_url = format!("{}/config", pxc.append_to_qemu_url(*vm_id));
 
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let conf_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{}/config", &proxmox_args.node, vm_id);
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
-
-    let config = match client.get(&conf_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => res.json::<ProxmoxApiResponse<Config>>().await?,
-        Err(e) => return Err(e.into())
-    };
+    let config = pxc.get_req::<Config>(&conf_url).await?;
     let description = config.data.description.unwrap_or_default();
     let args = extract_args_from_description(description)?;
     let new_expire_at = args.end_at + chrono::Duration::minutes(30);
@@ -122,44 +83,46 @@ pub async fn add_vm_time(vm_id: &u32) -> Result<u32, AppError> {
     ]).unwrap_or_default();
 
     // update config
-    if let Err(e) = client.post(&conf_url).header(header::AUTHORIZATION, &auth_value).body(conf_body).send().await {
-        return Err(e.into())
+    let res = pxc.post_req(&conf_url, Some(conf_body)).await?;
+    if !res.status().is_success() {
+        return Err(AppError::InternalError("Failed to update VM config".to_string()));
     }
 
     Ok(*vm_id)
 }
 
-// return Ok only when vm with template id doesn't exist in user pool anymore
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn destroy_vm(vm_id: &u32) -> Result<u32, AppError> {
-    let proxmox_args = get_proxmox_args().await?;
-    is_host_reachable(&proxmox_args.base_url).await?;
+    let pxc = ProxmoxClient::new().await?;
 
-    let client = get_reqwest_client();
-
-    let base_url = proxmox_args.base_url.trim_end_matches("/");
-    let api_path = proxmox_args.api_path.trim_start_matches("/").trim_end_matches("/");
-    let destroy_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}", proxmox_args.node);
-    let stop_url = format!("{base_url}/{api_path}/nodes/{}/qemu/{vm_id}/status/stop", proxmox_args.node);
-    let auth_value = format!("PVEAPIToken={}", proxmox_args.api_token.unwrap_or_default());
+    let stop_url = format!("{}/status/stop", pxc.append_to_qemu_url(*vm_id));
+    let status_url = format!("{}/status/current", pxc.append_to_qemu_url(*vm_id));
 
     // stop
-    match client.post(&stop_url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => {
-            if res.status().is_success() {
-                tokio::time::sleep(Duration::from_secs(3)).await;
-                // destroy
-                match client.delete(destroy_url).header(header::AUTHORIZATION, auth_value).send().await {
-                    Ok(_) => {
-                        Ok(*vm_id)
-                    },
-                    Err(e) => Err(e.into())
-                }
-            } else {
-                Err(AppError::InternalError("failed to stop vm".to_string()))
-            }
-        },
-        Err(e) => return Err(e.into())
+    let res = pxc.post_req(&stop_url, None).await?;
+    if !res.status().is_success() {
+        return Err(AppError::InternalError("Failed to stop VM".to_string()));
     }
+
+    // poll until stopped
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let status = match pxc.get_req::<VmCurrentStatus>(&status_url).await {
+            Ok(s) => s,
+            Err(_) => continue
+        };
+
+        if status.data.status.unwrap_or_default() == "stopped" {
+            // destroy
+            let destroy_url = pxc.append_to_qemu_url(*vm_id);
+            let del_res = pxc.delete_req(&destroy_url).await?;
+            if !del_res.status().is_success() {
+                return Err(AppError::InternalError("Failed to destroy VM".to_string()));
+            }
+            return Ok(*vm_id);
+        }
+    }
+
+    Err(AppError::InternalError("VM failed to stop within timeout".to_string()))
 }

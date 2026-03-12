@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{AuthSession, hash_string, build_and_broadcast, is_host_reachable};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, HintsUsed, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, User}}, utils::get_context};
+use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, User}}, utils::get_context};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
@@ -130,42 +130,14 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                     }
                 }
                 ChallengeAction::Delete { id } => {
-                    let mut tx = pool.begin().await?;
-
-                    if let Err(e) = db::structs::Submission::delete(&db::enums::SubmissionIdentifier::ChallengeId(id.clone()), &mut *tx).await {
-                        tx.rollback().await?;
-                        tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
-                    }
-
-                    if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id.clone()), &mut *tx).await {
-                        tx.rollback().await?;
-                        tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
-                    }
-
-                    if let Err(e) = HintsUsed::delete_all_from_challenge(&id, &mut *tx).await {
-                        tx.rollback().await?;
-                        tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
-                    }
-
-                    if let Err(e) = DbHint::delete_all_from_challenge(&id, &mut *tx).await {
-                        tx.rollback().await?;
-                        tracing::error!(error = ?e);
-                        return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
-                    }
-
-                    match db::structs::Challenge::delete(&id, &mut *tx).await {
+                    match db::structs::Challenge::delete(&id, &pool).await {
                         Ok(_) => {
-                            tx.commit().await?;
                             tokio::spawn(async {
                                 _ = build_and_broadcast(AdminEventPayloadKind::ChallengeDeleted).await;
                             });
                             Ok(ApiResult { result: ResultStatus::Success, details: "deleted challenge".to_string() })
                         },
                         Err(e) => {
-                            tx.rollback().await?;
                             tracing::error!(error = ?e);
                             return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
@@ -284,9 +256,10 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                                 }
                             };
                             
-                            if let Some(id) = existing_illustration_id {
-                                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
+                            if let Some(attachment_id) = existing_illustration_id {
+                                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(attachment_id.clone()), &mut *tx).await {
                                     Ok(_) => {
+                                        crate::server::invalidate_file_cache(&attachment_id).await;
                                         tx.commit().await?;
                                         tokio::spawn(async {
                                             _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
@@ -478,14 +451,15 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                                 }
                             };
                             
-                            if let Some(id) = existing_illustration_id {
-                                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::EventId(id), &mut *tx).await {
+                            if let Some(attachment_id) = existing_illustration_id {
+                                match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(attachment_id.clone()), &mut *tx).await {
                                     Ok(_) => {
+                                        crate::server::invalidate_file_cache(&attachment_id).await;
                                         tx.commit().await?;
                                         tokio::spawn(async {
                                             _ = build_and_broadcast(AdminEventPayloadKind::EventEdited).await;
                                         });
-                                        return Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() });
+                                        return Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() });
                                     },
                                     Err(e) => {
                                         tx.rollback().await?;
@@ -693,10 +667,11 @@ pub async fn upload_certificate(file: MultipartData) -> Result<ApiResult<Attachm
                 Err(e) => return Err(e.into())
             };
             if let Some(existing_certificate) = existing_certificate {
-                if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_certificate.id), &pool).await {
+                if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_certificate.id.clone()), &pool).await {
                     tracing::error!(error = ?e);
                     return Err(AppError::InternalError(e.to_string()));
                 }
+                crate::server::invalidate_file_cache(&existing_certificate.id).await;
             }
 
             let mut attachment = AttachmentWithoutBlob::default();
@@ -1021,7 +996,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                     };
 
                     match DbUser::delete(&user.id, &pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted event".to_string() }),
+                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted user".to_string() }),
                         Err(e) => {
                             tracing::error!(error = ?e);
                             Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
@@ -1101,11 +1076,12 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         };
 
                         if let Some(existing_avatar) = existing_avatar {
-                            if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_avatar.id), &mut *tx).await {
+                            if let Err(e) = db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(existing_avatar.id.clone()), &mut *tx).await {
                                     tx.rollback().await?;
                                     tracing::error!(error = ?e);
                                     return Err(AppError::InternalError(e.to_string()));
                             }
+                            crate::server::invalidate_file_cache(&existing_avatar.id).await;
                         }
                     }
 
@@ -1157,8 +1133,11 @@ pub async fn delete_file(id: String) -> Result<ApiResult<String>, AppError> {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
 
-            match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(id), &pool).await {
-                Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted file".to_string() }),
+            match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(id.clone()), &pool).await {
+                Ok(_) => {
+                    crate::server::invalidate_file_cache(&id).await;
+                    Ok(ApiResult { result: ResultStatus::Success, details: "deleted file".to_string() })
+                }
                 Err(e) => {
                     tracing::error!(error = ?e);
                     Err(AppError::InternalError(e.to_string()))
@@ -1534,6 +1513,9 @@ pub async fn get_proxmox_users_info() -> Result<Vec<ProxmoxUserInfo>, AppError> 
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
+
+            let base_url = crate::server::proxmox::get_proxmox_base_url().await?;
+            is_host_reachable(&base_url).await?;
 
             let all_users = match DbUser::get_all(&pool).await {
                 Ok(users) => users,

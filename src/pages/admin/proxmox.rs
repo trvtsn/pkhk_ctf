@@ -12,7 +12,7 @@ pub fn Proxmox() -> impl IntoView {
             <ul class="flex flex-row gap-4">
                 <li>
                     <button
-                        class="py-1 px-3 text-sm rounded-md border border-input-border hover:bg-background-hover" 
+                        class="py-1 px-3 text-sm rounded-md border border-input-border bg-background hover:bg-background-hover" 
                         disabled=move || selected.get() == AdminSections::Proxmox(ProxmoxSubSection::Config)
                         on:click=move |_| selected.set(AdminSections::Proxmox(ProxmoxSubSection::Config))
                     >
@@ -21,7 +21,7 @@ pub fn Proxmox() -> impl IntoView {
                 </li>
                 <li>
                     <button
-                        class="py-1 px-3 text-sm rounded-md border border-input-border hover:bg-background-hover" 
+                        class="py-1 px-3 text-sm rounded-md border border-input-border bg-background hover:bg-background-hover" 
                         disabled=move || selected.get() == AdminSections::Proxmox(ProxmoxSubSection::Users)
                         on:click=move |_| selected.set(AdminSections::Proxmox(ProxmoxSubSection::Users))
                     >
@@ -379,7 +379,7 @@ fn Users() -> impl IntoView {
                                                 <div class="flex gap-2 items-center">
                                                     {uid}
                                                     <button
-                                                        class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-hover"
+                                                        class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-red-400 hover:border-red-400"
                                                         on:click=move |_| {
                                                             let user_id = info.get().user.id;
                                                             delete_proxmox_user_action.dispatch(user_id);
@@ -398,7 +398,7 @@ fn Users() -> impl IntoView {
                                         } else {
                                             view! {
                                                 <button
-                                                    class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-hover"
+                                                    class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-green-400 hover:border-green-400"
                                                     on:click=move |_| {
                                                         let user_id = info.get().user.id;
                                                         create_proxmox_user_action.dispatch(user_id);
@@ -421,7 +421,7 @@ fn Users() -> impl IntoView {
                                                 <div class="flex gap-2 items-center">
                                                     {pool}
                                                     <button
-                                                        class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-hover"
+                                                        class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-red-400 hover:border-red-400"
                                                         on:click=move |_| {
                                                             let user_id = info.get().user.id;
                                                             delete_proxmox_pool_action.dispatch(user_id);
@@ -440,7 +440,7 @@ fn Users() -> impl IntoView {
                                         } else {
                                             view! {
                                                 <button
-                                                    class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-hover"
+                                                    class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-green-400 hover:border-green-400"
                                                     on:click=move |_| {
                                                         let user_id = info.get().user.id;
                                                         create_proxmox_pool_action.dispatch(user_id);

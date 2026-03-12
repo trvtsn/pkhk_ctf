@@ -118,12 +118,17 @@ pub fn Register() -> impl IntoView {
                     ""
                 }}
 
-                <input
+                <button
                     type="submit"
                     class=r#"py-2 px-4 text-sm rounded-md border border-input-border hover:bg-background-hover"#
                     disabled=move || !password_confirm_matches.get()
-                    value="Register"
-                />
+                >
+                    {move || if register.pending().get() {
+                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                    } else {
+                        "Register".into_any()
+                    }}
+                </button>
             </form>
         </div>
     }

@@ -1121,7 +1121,13 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(result) => {
+                            if result.rows_affected() > 0 {
+                                Ok(())
+                            } else {
+                                Err(sqlx::Error::RowNotFound)
+                            }
+                        },
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -1268,7 +1274,13 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(result) => {
+                            if result.rows_affected() > 0 {
+                                Ok(())
+                            } else {
+                                Err(sqlx::Error::RowNotFound)
+                            }
+                        },
                         Err(e) => {
                             //log::error!("Failed to get user (ID: {id}): {e}");
                             Err(e)?
@@ -1486,7 +1498,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<()>, sqlx::Error> {
+            pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
                         match sqlx::query!(
@@ -1499,10 +1511,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -1517,10 +1535,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -1535,10 +1559,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -1553,10 +1583,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -1572,10 +1608,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -2143,7 +2185,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<()>, sqlx::Error> {
+            pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
                         match sqlx::query!(
@@ -2156,10 +2198,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -2174,10 +2222,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -2192,10 +2246,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -2210,10 +2270,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -2229,10 +2295,16 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(Some(())),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
                                     tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
+                                    Err(e)
                                 }
                             }
                     }
@@ -3102,10 +3174,15 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(result) => {
+                            if result.rows_affected() > 0 {
+                                Ok(())
+                            } else {
+                                Err(sqlx::Error::RowNotFound)
+                            }
+                        },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
+                            Err(e)
                         }
                     }
             }
@@ -3280,10 +3357,15 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(()),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
+                                    Err(e)
                                 }
                             }
                     }
@@ -3297,10 +3379,15 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(()),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
+                                    Err(e)
                                 }
                             }
                     }
@@ -3314,10 +3401,15 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(()),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
+                                    Err(e)
                                 }
                             }
                     }
@@ -3331,10 +3423,15 @@ cfg_if! {
                         )
                             .execute(executor)
                             .await {
-                                Ok(_) => Ok(()),
+                                Ok(result) => {
+                                    if result.rows_affected() > 0 {
+                                        Ok(())
+                                    } else {
+                                        Err(sqlx::Error::RowNotFound)
+                                    }
+                                },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
+                                    Err(e)
                                 }
                             }
                     }
@@ -3495,10 +3592,15 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(result) => {
+                            if result.rows_affected() > 0 {
+                                Ok(())
+                            } else {
+                                Err(sqlx::Error::RowNotFound)
+                            }
+                        },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
+                            Err(e)
                         }
                     }
             }
@@ -3682,10 +3784,15 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(result) => {
+                            if result.rows_affected() > 0 {
+                                Ok(())
+                            } else {
+                                Err(sqlx::Error::RowNotFound)
+                            }
+                        },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
+                            Err(e)
                         }
                     }
             }
@@ -3759,10 +3866,15 @@ cfg_if! {
                 )
                     .execute(executor)
                     .await {
-                        Ok(_) => Ok(()),
+                        Ok(result) => {
+                            if result.rows_affected() > 0 {
+                                Ok(())
+                            } else {
+                                Err(sqlx::Error::RowNotFound)
+                            }
+                        },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
-                            Err(e)?
+                            Err(e)
                         }
                     }
             }
