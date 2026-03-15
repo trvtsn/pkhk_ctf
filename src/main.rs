@@ -12,7 +12,7 @@ cfg_if! {
         use leptos::prelude::provide_context;
         use leptos_axum::handle_server_fns_with_context;
         use pkhk_ctf::{app::shell, logging::{init_tracing, logs_sse}};
-        use pkhk_ctf::server::{backend::structs::Backend, db::get_db, structs::AppState, init_env};
+        use pkhk_ctf::server::{backend::structs::Backend, db::get_db, structs::AppState, init_env, status_data_sse, track_traffic};
 
         pub type AuthSession = axum_login::AuthSession<Backend>;
     }
@@ -61,7 +61,8 @@ async fn main() {
     use axum_login::{AuthManagerLayerBuilder, tower_sessions::{Expiry, SessionManagerLayer}};
     use leptos::{logging::log, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use pkhk_ctf::{app::*, server::{self, backend::structs::Backend, db}};
+    use pkhk_ctf::{app::*, server::{self, backend::structs::Backend, db, init_status_querying}};
+    use pkhk_ctf::server::START_TIME;
     use tower_sessions_sqlx_store::MySqlStore;
 
     init_tracing();
@@ -127,6 +128,10 @@ async fn main() {
             "/admin/logs", 
             get(logs_sse)
         )
+        .route(
+            "/admin/status", 
+            get(status_data_sse)
+        )
         .leptos_routes_with_handler(
             routes, 
             get(leptos_routes_handler)
@@ -136,7 +141,13 @@ async fn main() {
         )
         .merge(pkhk_ctf::server::router())
         .layer(auth_session_layer)
+        .layer(axum::middleware::from_fn(track_traffic))
         .with_state(app_state);
+
+    // initializing process uptime tracker
+    _ = *START_TIME;
+    // initializing process status tracker
+    _ = init_status_querying();
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`

@@ -109,3 +109,52 @@ pub fn build_multi_file_form_data(node_ref: Option<HtmlInputElement>) -> Option<
     }
     Some(fd)
 }
+
+pub fn format_duration(seconds: u64) -> String {
+    let d = seconds / 86400;
+    let h = (seconds % 86400) / 3600;
+    let m = (seconds % 3600) / 60;
+    let s = seconds % 60;
+    if d > 0 {
+        format!("{d}d {h}h {m}m {s}s")
+    } else if h > 0 {
+        format!("{h}h {m}m {s}s")
+    } else if m > 0 {
+        format!("{m}m {s}s")
+    } else {
+        format!("{s}s")
+    }
+}
+
+pub fn format_traffic(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+    let b = bytes as f64;
+    if b >= GIB {
+        format!("{:.2} GiB", b / GIB)
+    } else if b >= MIB {
+        format!("{:.2} MiB", b / MIB)
+    } else if b >= KIB {
+        format!("{:.2} KiB", b / KIB)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+pub fn format_file_size(bytes: u64) -> String {
+    const KB: f64 = 1000.0;
+    const MB: f64 = KB * 1000.0;
+    const GB: f64 = MB * 1000.0;
+    let b = bytes as f64;
+    if b >= GB {
+        format!("{:.2} GB", b / GB)
+    } else if b >= MB {
+        format!("{:.2} MB", b / MB)
+    } else if b >= KB {
+        format!("{:.2} KB", b / KB)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+

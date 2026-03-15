@@ -5,16 +5,18 @@ pub mod ldap;
 pub mod log;
 pub mod proxmox;
 pub mod site_settings;
+pub mod status;
 pub mod users;
 
 use super::admin::{challenges::Challenges, events::Events, log::Log, site_settings::SiteSettings, users::Users, files::Files};
-use crate::{components::navbar::NavBar, pages::admin::{ldap::Ldap, proxmox::Proxmox}};
+use crate::{components::navbar::NavBar, pages::admin::{ldap::Ldap, proxmox::Proxmox, status::Status}};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
 
 #[derive(Clone, PartialEq)]
 pub enum AdminSections {
+    Status,
     SiteSettings,
     Events,
     Challenges,
@@ -43,7 +45,7 @@ pub enum Actions {
 /// Default Home Page
 #[component]
 pub fn Admin() -> impl IntoView {
-    let selected = RwSignal::new(AdminSections::SiteSettings);
+    let selected = RwSignal::new(AdminSections::Status);
     provide_context(selected);
 
     view! {
@@ -55,6 +57,10 @@ pub fn Admin() -> impl IntoView {
                 <section class=r#"col-start-2 col-end-6 p-6 bg-background-secondary text-text rounded-lg shadow-sm main-panel"#>
                     {move || {
                         view! {
+                            <Show when=move || selected.get() == AdminSections::Status>
+                                <Status />
+                            </Show>
+
                             <Show when=move || selected.get() == AdminSections::SiteSettings>
                                 <SiteSettings />
                             </Show>
@@ -101,6 +107,26 @@ pub fn AdminNavBar() -> impl IntoView {
     view! {
         <nav class=r#"flex flex-col col-start-1 col-end-1 gap-2 p-4 bg-background-secondary text-text rounded-lg shadow-sm"#>
             <ul class=r#"flex flex-col gap-1"# role="menu" aria-label="Admin navigation">
+                <li 
+                    class=move || {
+                        if selected.get() == AdminSections::Status { 
+                            "bg-background-hover hover:bg-background-hover" 
+                        } else { 
+                            "bg-background hover:bg-background-hover" 
+                        }
+                    }
+                >
+                    <button
+                        class=r#"flex gap-3 items-center w-full py-2 px-3 text-sm font-medium  
+                        cursor-default rounded-md focus:ring-2 focus:outline-none 
+                        focus:ring-yale-blue-500 hover:text-hover"#
+                        disabled=move || selected.get() == AdminSections::Status
+                        on:click=move |_| selected.set(AdminSections::Status)
+                    >
+                        <Icon icon=i::LuMonitorCheck />
+                        "Status"
+                    </button>
+                </li>
                 <li 
                     class=move || {
                         if selected.get() == AdminSections::SiteSettings { 

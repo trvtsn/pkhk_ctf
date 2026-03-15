@@ -26,6 +26,8 @@
     --color-card: var(--color-card);
     --color-card-hover: var(--color-card-hover);
     --color-toast: var(--color-toast);
+    --color-gauge-meter: var(--color-gauge-meter);
+    --color-gauge-bg: var(--color-gauge-bg);
     --color-yale-blue-50: #e8f6fd;
     --color-yale-blue-100: #d0edfb;
     --color-yale-blue-200: #a1dcf7;
@@ -97,7 +99,9 @@
         --color-text-hover: var(--color-slate-grey-900);
         --color-card: var(--color-yale-blue-50);
         --color-card-hover: var(--color-yale-blue-100);
-        --color-toast: var(--color-yale-blue-100)
+        --color-toast: var(--color-yale-blue-100);
+        --color-gauge-meter: var(--color-yale-blue-800);
+        --color-gauge-bg: var(--color-slate-grey-100);
     }
 
     html[data-theme="dark"] {
@@ -109,7 +113,9 @@
         --color-text-hover: var(--color-slate-grey-950);
         --color-card: var(--color-yale-blue-800);
         --color-card-hover: var(--color-yale-blue-900);
-        --color-toast: var(--color-yale-blue-900)
+        --color-toast: var(--color-yale-blue-900);
+        --color-gauge-meter: var(--color-yale-blue-900);
+        --color-gauge-bg: var(--color-slate-grey-900);
     }
 }
 

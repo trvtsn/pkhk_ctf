@@ -260,3 +260,22 @@ pub fn VMTooltip(vm_id: u32, href: String, created_at: DateTime<Local>, end_at: 
         </div>
     }
 }
+
+#[component]
+pub fn Gauge(percent: RwSignal<f32>) -> impl IntoView {
+    view! {
+        <div class="w-40 h-20 overflow-hidden">
+            <div
+                // for some reason we can't break this class into multiple lines
+                // or else it will break and tailwind won't be able to generate
+                // the required style
+                class="w-40 h-40 rounded-full bg-[conic-gradient(from_270deg,var(--color-yale-blue-500)_0deg,var(--color-yale-blue-800)_calc(1.8deg*var(--percent)),var(--color-gauge-meter)_calc(1.8deg*var(--percent)),var(--color-gauge-meter)_180deg,transparent_180deg)]"
+                style=move || format!("--percent: {:.2}", percent.get())
+            >
+                <div class="w-full h-full flex items-center justify-center">
+                <div class="w-28 h-28 rounded-full bg-gauge-bg"></div>
+                </div>
+            </div>
+        </div>
+    }
+}

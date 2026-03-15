@@ -269,7 +269,7 @@ fn Config() -> impl IntoView {
 fn Users() -> impl IntoView {
     let proxmox_users_info = RwSignal::new(Vec::<ProxmoxUserInfo>::new());
     let proxmox_users_resource = Resource::new(move || (), move |_| async move {
-        get_proxmox_users_info().await.unwrap_or_default()
+        get_proxmox_users_info().await
     });
 
     let proxmox_base_url = Resource::new(move || (), move |_| async move {
@@ -279,7 +279,7 @@ fn Users() -> impl IntoView {
     Effect::watch(
         move || proxmox_users_resource.get(),
         move |val, _, _| {
-            if let Some(val) = val.clone() {
+            if let Some(val) = val.clone() && let Ok(val) = val {
                 proxmox_users_info.set(val);
             }
         },
@@ -291,338 +291,341 @@ fn Users() -> impl IntoView {
             view! { <Spinner component_size=ComponentSize::Big /> }
         }>
             {move || {
-                proxmox_users_resource.get();
-                view! {
-                    <table class="w-full border-collapse border border-input-border">
-                        <tr class="border-b border-input-border">
-                            <th class="py-2 px-4">"No."</th>
-                            <th class="py-2 px-4">"User"</th>
-                            <th class="py-2 px-4">"Auth Type"</th>
-                            <th class="py-2 px-4">"PVE User ID"</th>
-                            <th class="py-2 px-4">"Pool"</th>
-                            <th class="py-2 px-4">"Existing VMs"</th>
-                        </tr>
-                        {move || proxmox_users_info.get()
-                            .into_iter()
-                            .sorted_by(|a, b| a.user.username.to_lowercase().cmp(&b.user.username.to_lowercase()))
-                            .enumerate()
-                            .map(|(index, info)| 
-                        {
-                            let info = RwSignal::new(info);
+                if let Some(val) = proxmox_users_resource.get() && let Err(e) = val {
+                    view! { <p>{format!("An error occurred: {e}")}</p> }.into_any()
+                } else {
+                    view! {
+                        <table class="w-full border-collapse border border-input-border">
+                            <tr class="border-b border-input-border">
+                                <th class="py-2 px-4">"No."</th>
+                                <th class="py-2 px-4">"User"</th>
+                                <th class="py-2 px-4">"Auth Type"</th>
+                                <th class="py-2 px-4">"PVE User ID"</th>
+                                <th class="py-2 px-4">"Pool"</th>
+                                <th class="py-2 px-4">"Existing VMs"</th>
+                            </tr>
+                            {move || proxmox_users_info.get()
+                                .into_iter()
+                                .sorted_by(|a, b| a.user.username.to_lowercase().cmp(&b.user.username.to_lowercase()))
+                                .enumerate()
+                                .map(|(index, info)| 
+                            {
+                                let info = RwSignal::new(info);
 
-                            let delete_proxmox_user_action = Action::new_local(move |user_id: &String| {
-                                let user_id = user_id.clone();
-                                async move {
-                                    if delete_proxmox_user(user_id).await.is_ok() {
-                                        spawn_local(async move {
-                                            push_new_toast(ToastMessageType::ProxmoxUserDeleted);
-                                        });
-                                        proxmox_users_resource.refetch();
-                                    } else {
-                                        push_new_toast(ToastMessageType::ProxmoxUserDeleteFail);
+                                let delete_proxmox_user_action = Action::new_local(move |user_id: &String| {
+                                    let user_id = user_id.clone();
+                                    async move {
+                                        if delete_proxmox_user(user_id).await.is_ok() {
+                                            spawn_local(async move {
+                                                push_new_toast(ToastMessageType::ProxmoxUserDeleted);
+                                            });
+                                            proxmox_users_resource.refetch();
+                                        } else {
+                                            push_new_toast(ToastMessageType::ProxmoxUserDeleteFail);
+                                        }
                                     }
-                                }
-                            });
-                            let create_proxmox_user_action = Action::new_local(move |user_id: &String| {
-                                let user_id = user_id.clone();
-                                async move {
-                                    if create_proxmox_user(user_id).await.is_ok() {
-                                        spawn_local(async move {
-                                            push_new_toast(ToastMessageType::ProxmoxUserCreated);
-                                        });
-                                        proxmox_users_resource.refetch();
-                                    } else {
-                                        push_new_toast(ToastMessageType::ProxmoxUserCreateFail);
+                                });
+                                let create_proxmox_user_action = Action::new_local(move |user_id: &String| {
+                                    let user_id = user_id.clone();
+                                    async move {
+                                        if create_proxmox_user(user_id).await.is_ok() {
+                                            spawn_local(async move {
+                                                push_new_toast(ToastMessageType::ProxmoxUserCreated);
+                                            });
+                                            proxmox_users_resource.refetch();
+                                        } else {
+                                            push_new_toast(ToastMessageType::ProxmoxUserCreateFail);
+                                        }
                                     }
-                                }
-                            });
+                                });
 
-                            let create_proxmox_pool_action = Action::new_local(move |user_id: &String| {
-                                let user_id = user_id.clone();
-                                async move {
-                                    if create_proxmox_pool(user_id).await.is_ok() {
-                                        spawn_local(async move {
-                                            push_new_toast(ToastMessageType::ProxmoxPoolCreated);
-                                        });
-                                        proxmox_users_resource.refetch();
-                                    } else {
-                                        push_new_toast(ToastMessageType::ProxmoxPoolCreateFail);
+                                let create_proxmox_pool_action = Action::new_local(move |user_id: &String| {
+                                    let user_id = user_id.clone();
+                                    async move {
+                                        if create_proxmox_pool(user_id).await.is_ok() {
+                                            spawn_local(async move {
+                                                push_new_toast(ToastMessageType::ProxmoxPoolCreated);
+                                            });
+                                            proxmox_users_resource.refetch();
+                                        } else {
+                                            push_new_toast(ToastMessageType::ProxmoxPoolCreateFail);
+                                        }
                                     }
-                                }
-                            });
-                            let delete_proxmox_pool_action = Action::new_local(move |user_id: &String| {
-                                let user_id = user_id.clone();
-                                async move {
-                                    if delete_proxmox_pool(user_id).await.is_ok() {
-                                        spawn_local(async move {
-                                            push_new_toast(ToastMessageType::ProxmoxPoolDeleted);
-                                        });
-                                        proxmox_users_resource.refetch();
-                                    } else {
-                                        push_new_toast(ToastMessageType::ProxmoxPoolDeleteFail);
+                                });
+                                let delete_proxmox_pool_action = Action::new_local(move |user_id: &String| {
+                                    let user_id = user_id.clone();
+                                    async move {
+                                        if delete_proxmox_pool(user_id).await.is_ok() {
+                                            spawn_local(async move {
+                                                push_new_toast(ToastMessageType::ProxmoxPoolDeleted);
+                                            });
+                                            proxmox_users_resource.refetch();
+                                        } else {
+                                            push_new_toast(ToastMessageType::ProxmoxPoolDeleteFail);
+                                        }
                                     }
-                                }
-                            });
+                                });
 
-                            view! {
-                                <tr class="border-b border-input-border">
-                                    <td class="py-2 px-4">{index + 1}</td>
-                                    <td class="py-2 px-4">
-                                        <UserTooltip db_user=info.get().user />
-                                    </td>
-                                    <td class="py-2 px-4">
-                                        {info.get().user.auth_type}
-                                    </td>
-                                    <td class="py-2 px-4">
-                                        {if let Some(uid) = info.get().pve_user_id {
-                                            view! {
-                                                <div class="flex gap-2 items-center">
-                                                    {uid}
+                                view! {
+                                    <tr class="border-b border-input-border">
+                                        <td class="py-2 px-4">{index + 1}</td>
+                                        <td class="py-2 px-4">
+                                            <UserTooltip db_user=info.get().user />
+                                        </td>
+                                        <td class="py-2 px-4">
+                                            {info.get().user.auth_type}
+                                        </td>
+                                        <td class="py-2 px-4">
+                                            {if let Some(uid) = info.get().pve_user_id {
+                                                view! {
+                                                    <div class="flex gap-2 items-center">
+                                                        {uid}
+                                                        <button
+                                                            class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-red-400 hover:border-red-400"
+                                                            on:click=move |_| {
+                                                                let user_id = info.get().user.id;
+                                                                delete_proxmox_user_action.dispatch(user_id);
+                                                            }
+                                                        >
+                                                            {move || {
+                                                                if delete_proxmox_user_action.pending().get() {
+                                                                    view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                } else {
+                                                                    "Delete".into_any()
+                                                                }
+                                                            }}
+                                                        </button>
+                                                    </div>
+                                                }.into_any()
+                                            } else {
+                                                view! {
                                                     <button
-                                                        class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-red-400 hover:border-red-400"
+                                                        class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-green-400 hover:border-green-400"
                                                         on:click=move |_| {
                                                             let user_id = info.get().user.id;
-                                                            delete_proxmox_user_action.dispatch(user_id);
+                                                            create_proxmox_user_action.dispatch(user_id);
                                                         }
                                                     >
                                                         {move || {
-                                                            if delete_proxmox_user_action.pending().get() {
+                                                            if create_proxmox_user_action.pending().get() {
                                                                 view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
                                                             } else {
-                                                                "Delete".into_any()
+                                                                "Create".into_any()
                                                             }
                                                         }}
                                                     </button>
-                                                </div>
-                                            }.into_any()
-                                        } else {
-                                            view! {
-                                                <button
-                                                    class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-green-400 hover:border-green-400"
-                                                    on:click=move |_| {
-                                                        let user_id = info.get().user.id;
-                                                        create_proxmox_user_action.dispatch(user_id);
-                                                    }
-                                                >
-                                                    {move || {
-                                                        if create_proxmox_user_action.pending().get() {
-                                                            view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                        } else {
-                                                            "Create".into_any()
-                                                        }
-                                                    }}
-                                                </button>
-                                            }.into_any()
-                                        }}
-                                    </td>
-                                    <td class="py-2 px-4">
-                                        {if let Some(pool) = info.get().pool {
-                                            view! {
-                                                <div class="flex gap-2 items-center">
-                                                    {pool}
+                                                }.into_any()
+                                            }}
+                                        </td>
+                                        <td class="py-2 px-4">
+                                            {if let Some(pool) = info.get().pool {
+                                                view! {
+                                                    <div class="flex gap-2 items-center">
+                                                        {pool}
+                                                        <button
+                                                            class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-red-400 hover:border-red-400"
+                                                            on:click=move |_| {
+                                                                let user_id = info.get().user.id;
+                                                                delete_proxmox_pool_action.dispatch(user_id);
+                                                            }
+                                                        >
+                                                            {move || {
+                                                                if delete_proxmox_pool_action.pending().get() {
+                                                                    view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                } else {
+                                                                    "Delete".into_any()
+                                                                }
+                                                            }}
+                                                        </button>
+                                                    </div>
+                                                }.into_any()
+                                            } else {
+                                                view! {
                                                     <button
-                                                        class="py-1 px-2 text-xs text-red-600 rounded border border-red-600 hover:text-red-400 hover:border-red-400"
+                                                        class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-green-400 hover:border-green-400"
                                                         on:click=move |_| {
                                                             let user_id = info.get().user.id;
-                                                            delete_proxmox_pool_action.dispatch(user_id);
+                                                            create_proxmox_pool_action.dispatch(user_id);
                                                         }
                                                     >
                                                         {move || {
-                                                            if delete_proxmox_pool_action.pending().get() {
+                                                            if create_proxmox_pool_action.pending().get() {
                                                                 view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
                                                             } else {
-                                                                "Delete".into_any()
+                                                                "Create".into_any()
                                                             }
                                                         }}
                                                     </button>
-                                                </div>
-                                            }.into_any()
-                                        } else {
-                                            view! {
-                                                <button
-                                                    class="py-1 px-2 text-xs text-green-600 rounded border border-green-600 hover:text-green-400 hover:border-green-400"
-                                                    on:click=move |_| {
-                                                        let user_id = info.get().user.id;
-                                                        create_proxmox_pool_action.dispatch(user_id);
-                                                    }
-                                                >
-                                                    {move || {
-                                                        if create_proxmox_pool_action.pending().get() {
-                                                            view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                        } else {
-                                                            "Create".into_any()
+                                                }.into_any()
+                                            }}
+                                        </td>
+                                        <td class="grid gap-2 py-2 px-4">
+                                            {info.get().vms.into_iter().map(|vm| {
+                                                let vm_id = vm.id;
+                                                
+                                                let start_vm_action = Action::new_local(move |(vm_id, username): &(u32, String)| {
+                                                        let vm_id = vm_id.clone();
+                                                        let username = username.clone();
+                                                        async move {
+                                                            if let Ok(result) = start_vm(vm_id, username).await {
+                                                                spawn_local(async move {
+                                                                    push_new_toast(ToastMessageType::Custom(result.details));
+                                                                });
+                                                                proxmox_users_resource.refetch();
+                                                            } else {
+                                                                spawn_local(async move {
+                                                                    push_new_toast(ToastMessageType::VMStartFail);
+                                                                });
+                                                            }
                                                         }
-                                                    }}
-                                                </button>
-                                            }.into_any()
-                                        }}
-                                    </td>
-                                    <td class="grid gap-2 py-2 px-4">
-                                        {info.get().vms.into_iter().map(|vm| {
-                                            let vm_id = vm.id;
-                                            
-                                            let start_vm_action = Action::new_local(move |(vm_id, username): &(u32, String)| {
+                                                    });
+                                                let restart_vm_action = Action::new_local(move |vm_id: &u32| {
                                                     let vm_id = vm_id.clone();
-                                                    let username = username.clone();
                                                     async move {
-                                                        if let Ok(result) = start_vm(vm_id, username).await {
+                                                        if let Ok(result) = restart_vm(vm_id).await {
                                                             spawn_local(async move {
                                                                 push_new_toast(ToastMessageType::Custom(result.details));
                                                             });
                                                             proxmox_users_resource.refetch();
                                                         } else {
                                                             spawn_local(async move {
-                                                                push_new_toast(ToastMessageType::VMStartFail);
+                                                                push_new_toast(ToastMessageType::VMRestartFail);
                                                             });
                                                         }
                                                     }
                                                 });
-                                            let restart_vm_action = Action::new_local(move |vm_id: &u32| {
-                                                let vm_id = vm_id.clone();
-                                                async move {
-                                                    if let Ok(result) = restart_vm(vm_id).await {
-                                                        spawn_local(async move {
-                                                            push_new_toast(ToastMessageType::Custom(result.details));
-                                                        });
-                                                        proxmox_users_resource.refetch();
-                                                    } else {
-                                                        spawn_local(async move {
-                                                            push_new_toast(ToastMessageType::VMRestartFail);
-                                                        });
+                                                let add_vm_time_action = Action::new_local(move |vm_id: &u32| {
+                                                    let vm_id = vm_id.clone();
+                                                    async move {
+                                                        if let Ok(result) = add_vm_time(vm_id).await {
+                                                            spawn_local(async move {
+                                                                push_new_toast(ToastMessageType::Custom(result.details));
+                                                            });
+                                                            proxmox_users_resource.refetch();
+                                                        } else {
+                                                            spawn_local(async move {
+                                                                push_new_toast(ToastMessageType::VMAddTimeFail);
+                                                            });
+                                                        }
                                                     }
-                                                }
-                                            });
-                                            let add_vm_time_action = Action::new_local(move |vm_id: &u32| {
-                                                let vm_id = vm_id.clone();
-                                                async move {
-                                                    if let Ok(result) = add_vm_time(vm_id).await {
-                                                        spawn_local(async move {
-                                                            push_new_toast(ToastMessageType::Custom(result.details));
-                                                        });
-                                                        proxmox_users_resource.refetch();
-                                                    } else {
-                                                        spawn_local(async move {
-                                                            push_new_toast(ToastMessageType::VMAddTimeFail);
-                                                        });
+                                                });
+                                                let destroy_vm_action = Action::new_local(move |vm_id: &u32| {
+                                                    let vm_id = vm_id.clone();
+                                                    async move {
+                                                        if let Ok(result) = destroy_vm(vm_id).await {
+                                                            spawn_local(async move {
+                                                                push_new_toast(ToastMessageType::Custom(result.details));
+                                                            });
+                                                            proxmox_users_resource.refetch();
+                                                        } else {
+                                                            spawn_local(async move {
+                                                                push_new_toast(ToastMessageType::VMDestroyFail);
+                                                            });
+                                                        }
                                                     }
+                                                });
+
+                                                view! {
+                                                    <div class="flex gap-2 items-center">
+                                                        {move || {
+                                                            let href = proxmox_base_url.get()
+                                                                .flatten()
+                                                                .map(|url| format!("{}/#v1:0:=qemu%2F{}:4:::::::", url, vm_id))
+                                                                .unwrap_or_default();
+                                                            view! {
+                                                                <VMTooltip
+                                                                    vm_id
+                                                                    href
+                                                                    created_at=vm.created_at
+                                                                    end_at=vm.end_at
+                                                                />
+                                                            }.into_any()
+                                                        }}
+                                                        <Show when=move || !vm.running>
+                                                            <button
+                                                                class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || start_vm_action.pending().get()
+                                                                on:click=move |_| {
+                                                                    let username = info.get().user.username;
+                                                                    start_vm_action.dispatch((vm_id, username));
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if start_vm_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Start VM".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
+                                                        </Show>
+
+                                                        <Show when=move || vm.running>
+                                                            <button
+                                                                class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || restart_vm_action.pending().get()
+                                                                on:click=move |_| {
+                                                                    restart_vm_action.dispatch(vm_id);
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if restart_vm_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Restart VM".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
+
+                                                            <button
+                                                                class=r#"col-start-3 col-end-3 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || add_vm_time_action.pending().get()
+                                                                on:click=move |_| {
+                                                                    add_vm_time_action.dispatch(vm_id);
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if add_vm_time_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Add Time (+30 min)".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
+
+                                                            <button
+                                                                class=r#"col-start-4 col-end-4 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
+                                                                rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
+                                                                bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
+                                                                disabled=move || destroy_vm_action.pending().get()
+                                                                on:click=move |_| {
+                                                                    destroy_vm_action.dispatch(vm_id);
+                                                                }
+                                                            >
+                                                                {move || {
+                                                                    if destroy_vm_action.pending().get() {
+                                                                        view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
+                                                                    } else {
+                                                                        "Destroy VM".into_any()
+                                                                    }
+                                                                }}
+                                                            </button>
+                                                        </Show>
+                                                    </div>
                                                 }
-                                            });
-                                            let destroy_vm_action = Action::new_local(move |vm_id: &u32| {
-                                                let vm_id = vm_id.clone();
-                                                async move {
-                                                    if let Ok(result) = destroy_vm(vm_id).await {
-                                                        spawn_local(async move {
-                                                            push_new_toast(ToastMessageType::Custom(result.details));
-                                                        });
-                                                        proxmox_users_resource.refetch();
-                                                    } else {
-                                                        spawn_local(async move {
-                                                            push_new_toast(ToastMessageType::VMDestroyFail);
-                                                        });
-                                                    }
-                                                }
-                                            });
-
-                                            view! {
-                                                <div class="flex gap-2 items-center">
-                                                    {move || {
-                                                        let href = proxmox_base_url.get()
-                                                            .flatten()
-                                                            .map(|url| format!("{}/#v1:0:=qemu%2F{}:4:::::::", url, vm_id))
-                                                            .unwrap_or_default();
-                                                        view! {
-                                                            <VMTooltip
-                                                                vm_id
-                                                                href
-                                                                created_at=vm.created_at
-                                                                end_at=vm.end_at
-                                                            />
-                                                        }.into_any()
-                                                    }}
-                                                    <Show when=move || !vm.running>
-                                                        <button
-                                                            class=r#"col-start-1 col-end-1 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                            disabled=move || start_vm_action.pending().get()
-                                                            on:click=move |_| {
-                                                                let username = info.get().user.username;
-                                                                start_vm_action.dispatch((vm_id, username));
-                                                            }
-                                                        >
-                                                            {move || {
-                                                                if start_vm_action.pending().get() {
-                                                                    view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                                } else {
-                                                                    "Start VM".into_any()
-                                                                }
-                                                            }}
-                                                        </button>
-                                                    </Show>
-
-                                                    <Show when=move || vm.running>
-                                                        <button
-                                                            class=r#"col-start-2 col-end-2 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                            disabled=move || restart_vm_action.pending().get()
-                                                            on:click=move |_| {
-                                                                restart_vm_action.dispatch(vm_id);
-                                                            }
-                                                        >
-                                                            {move || {
-                                                                if restart_vm_action.pending().get() {
-                                                                    view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                                } else {
-                                                                    "Restart VM".into_any()
-                                                                }
-                                                            }}
-                                                        </button>
-
-                                                        <button
-                                                            class=r#"col-start-3 col-end-3 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                            disabled=move || add_vm_time_action.pending().get()
-                                                            on:click=move |_| {
-                                                                add_vm_time_action.dispatch(vm_id);
-                                                            }
-                                                        >
-                                                            {move || {
-                                                                if add_vm_time_action.pending().get() {
-                                                                    view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                                } else {
-                                                                    "Add Time (+30 min)".into_any()
-                                                                }
-                                                            }}
-                                                        </button>
-
-                                                        <button
-                                                            class=r#"col-start-4 col-end-4 gap-2 items-center py-2 px-4 text-sm font-medium text-white 
-                                                            rounded-lg transition focus:ring-2 focus:outline-none active:scale-95 
-                                                            bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
-                                                            disabled=move || destroy_vm_action.pending().get()
-                                                            on:click=move |_| {
-                                                                destroy_vm_action.dispatch(vm_id);
-                                                            }
-                                                        >
-                                                            {move || {
-                                                                if destroy_vm_action.pending().get() {
-                                                                    view! { <Spinner component_size=ComponentSize::Small /> }.into_any()
-                                                                } else {
-                                                                    "Destroy VM".into_any()
-                                                                }
-                                                            }}
-                                                        </button>
-                                                    </Show>
-                                                </div>
-                                            }
-                                        }).collect_view()}
-                                    </td>
-                                </tr>
-                            }
-                        }).collect_view()}
-                    </table>
+                                            }).collect_view()}
+                                        </td>
+                                    </tr>
+                                }
+                            }).collect_view()}
+                        </table>
+                    }.into_any()
                 }
             }}
         </Transition>

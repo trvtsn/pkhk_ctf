@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
-use crate::server::{backend::{AuthSession, hash_string, verify_hash}, structs::AppState};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, Credentials, LeaderboardData, PivotRow, User}}, utils::{get_context, offset_to_datetime}};
+use crate::server::{backend::{AuthSession, hash_string, verify_hash}, db::get_db, structs::AppState};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, Credentials, LeaderboardData, PivotRow, StatusData, User}}, utils::{get_context, offset_to_datetime}};
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 #[cfg(feature = "ssr")]
@@ -85,6 +85,16 @@ pub mod structs {
         pub y_max: f64,
         pub users: Vec<String>,
         pub rows: Vec<PivotRow>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Default)]
+    pub struct StatusData {
+        pub uptime: String,
+        pub active_users: u32,
+        pub cpu_usage: f32,
+        pub ram_usage: f32,
+        pub ram_usage_mb: f32,
+        pub traffic: String,
     }
 }
 
@@ -1214,17 +1224,39 @@ pub async fn get_all_templates() -> Result<Vec<ProxmoxVMTemplate>, AppError> {
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         use axum::response::sse;
-        // use chrono::{Local, DateTime};
+        use axum::{extract::Request, middleware::Next, response::Response};
         use futures::stream::{Stream, StreamExt};
         use once_cell::sync::Lazy;
         use serde::{Serialize, Deserialize};
         use std::{convert::Infallible, fmt::Debug};
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::time::Instant;
         use tokio::sync::broadcast;
         use tokio_stream::wrappers::BroadcastStream;
 
         pub static ADMIN_TX: Lazy<broadcast::Sender<String>> = Lazy::new(|| {
             broadcast::channel::<String>(1024).0
         });
+
+        pub static STATUS_TX: Lazy<broadcast::Sender<String>> = Lazy::new(|| {
+            broadcast::channel::<String>(1024).0
+        });
+
+        pub static TOTAL_BYTES: AtomicU64 = AtomicU64::new(0);
+
+        pub static START_TIME: Lazy<Instant> = Lazy::new(Instant::now);
+
+        pub async fn track_traffic(req: Request, next: Next) -> Response {
+            let response = next.run(req).await;
+            if let Some(content_length) = response.headers()
+                .get(header::CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<u64>().ok())
+            {
+                TOTAL_BYTES.fetch_add(content_length, Ordering::Relaxed);
+            }
+            response
+        }
 
         #[derive(Debug, Serialize, Deserialize)]
         pub struct AdminEventPayload {
@@ -1244,11 +1276,19 @@ cfg_if! {
             sse::Sse::new(stream)
         }
 
+        pub async fn status_data_sse() -> sse::Sse<impl Stream<Item = Result<sse::Event, Infallible>>> {
+            let rx = STATUS_TX.subscribe();
+
+            let stream = BroadcastStream::new(rx)
+                .filter_map(|res| async move { res.ok() })
+                .map(|msg: String| sse::Event::default().data(msg))
+                .map(Ok);
+
+            sse::Sse::new(stream)
+        }
+
         #[instrument]
         pub async fn build_and_broadcast(payload_kind: AdminEventPayloadKind) -> Result<(), AppError> {
-            // let payload = AdminEventPayload {
-            //     kind: payload_kind,
-            // };
             match serde_json::to_string(&payload_kind) {
                 Ok(json) => {
                     if let Err(e) = ADMIN_TX.send(json) {
@@ -1263,6 +1303,85 @@ cfg_if! {
                     Err(AppError::InternalError(e.to_string()))
                 }
             }
+        }
+
+        pub async fn broadcast_status_data(payload: StatusData) -> Result<(), AppError> {
+            match serde_json::to_string(&payload) {
+                Ok(json) => {
+                    if let Err(e) = STATUS_TX.send(json) {
+                        tracing::warn!(error = ?e, "admin event broadcast failed");
+                        return Err(AppError::InternalError(e.to_string()));
+                    }
+
+                    Ok(())
+                }
+                Err(e) => {
+                    tracing::error!(error = ?e, "serializing admin event failed");
+                    Err(AppError::InternalError(e.to_string()))
+                }
+            }
+        }
+
+        #[instrument]
+        pub fn init_status_querying() {
+            let status_pool = get_db();
+            tokio::spawn(async move {
+                use crate::utils::{format_duration, format_traffic};
+                use std::sync::atomic::Ordering;
+                use sysinfo::{Pid, System};
+
+                let pid = Pid::from_u32(std::process::id());
+                let mut sys = System::new();
+
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+                let mut tick_count = 0_u32;
+                let mut cached_active_users = 0_u32;
+                loop {
+                    interval.tick().await;
+
+                    if STATUS_TX.receiver_count() == 0 {
+                        continue;
+                    }
+
+                    sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+                    sys.refresh_memory();
+
+                    let (cpu_usage, ram_bytes) = sys.process(pid)
+                        .map(|p| (p.cpu_usage(), p.memory()))
+                        .unwrap_or((0.0, 0));
+                    let ram_total_bytes = sys.total_memory();
+                    let ram_usage = if ram_total_bytes > 0 {
+                        (ram_bytes as f32 / ram_total_bytes as f32) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    if tick_count % 10 == 0 {
+                        let count: i64 = sqlx::query_scalar(
+                            "SELECT COUNT(*) FROM ctfpkhk.sessions WHERE expiry_date > NOW()"
+                        ).fetch_one(&status_pool).await.unwrap_or(0);
+                        cached_active_users = count as u32;
+                    }
+                    tick_count = tick_count.wrapping_add(1);
+
+                    let active_users = cached_active_users;
+
+                    let traffic_bytes = TOTAL_BYTES.load(Ordering::Relaxed);
+
+                    let status = StatusData {
+                        uptime: format_duration(START_TIME.elapsed().as_secs()),
+                        active_users,
+                        cpu_usage: cpu_usage.clamp(0.0, 100.0),
+                        ram_usage: ram_usage.clamp(0.0, 100.0),
+                        ram_usage_mb: ram_bytes as f32 / (1024.0 * 1024.0),
+                        traffic: format_traffic(traffic_bytes),
+                    };
+
+                    if let Err(e) = broadcast_status_data(status).await {
+                        tracing::debug!(error = ?e, "status broadcast had no receivers");
+                    }
+                }
+            });
         }
     }
 }
