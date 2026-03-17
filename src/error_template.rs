@@ -84,6 +84,12 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
+impl From<chrono::ParseError> for AppError {
+    fn from(value: chrono::ParseError) -> Self {
+        Self::InternalError(value.to_string())
+    }
+}
+
 impl FromServerFnError for AppError {
     type Encoder = JsonEncoding;
 
@@ -135,6 +141,12 @@ cfg_if! {
 
         impl From<native_tls::Error> for AppError {
             fn from(value: native_tls::Error) -> Self {
+                Self::InternalError(value.to_string())
+            }
+        }
+
+        impl From<serde_urlencoded::de::Error> for AppError {
+            fn from(value: serde_urlencoded::de::Error) -> Self {
                 Self::InternalError(value.to_string())
             }
         }

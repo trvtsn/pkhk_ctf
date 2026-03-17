@@ -24,10 +24,10 @@ pub fn File(
     let file_url_path = Memo::new(
         { let id = id.clone(); move |_| { format!("/file/{}", id) } }
     );
-    let file_size = Memo::new(move |_| {
+    let file_size = {
         let file_size = file_size.unwrap_or_default().try_into().unwrap_or(0);
         format!("{}", format_file_size(file_size))
-    });
+    };
     let deleting = RwSignal::new(false);
     let renaming = RwSignal::new(false);
     let rename_submit_btn_text = action_btn_text(move || renaming.get(), "Confirm Rename", "Rename");
@@ -50,7 +50,7 @@ pub fn File(
             </p>
             <p class=r#"text-lg/8"#>
                 <b>"File Size: "</b>
-                {file_size.get()}
+                {file_size}
             </p>
             <div class="flex gap-2 mt-2">
                 <a download href=move || file_url_path.get() class=r#""#>

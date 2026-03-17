@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 use crate::server::{db::get_db_ref, is_host_reachable};
-use crate::{error_template::AppError, server::db::{self, structs::{Challenge, DbUser, LdapArgs, ProxmoxArgs}}, utils::html_local_to_datetime};
+use crate::{error_template::AppError, server::db::{self, structs::{Challenge, DbUser, LdapArgs, ProxmoxArgs}}, utils::local_string_to_datetime};
 use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
 use reqwest::{Client, header};
@@ -36,7 +36,7 @@ pub struct ProxmoxVMTemplate {
     pub name: String
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Eq, Hash, PartialEq, Deserialize, Serialize)]
 pub struct ProxmoxVMInstance {
     pub id: u32,
     pub challenge_id: String,
@@ -321,16 +321,18 @@ async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Re
     let clone_url = format!("{}/clone", pxc.append_to_qemu_url(*template_id));
     pxc.post_req(&clone_url, Some(clone_body)).await?;
 
-    let created_at = Local::now();
-    let expire_at = created_at + chrono::Duration::hours(1);
-    let vm_description = format!(
-        "id={new_vm_id}&challenge_id={}&origin_id={}&user_id={}&created_at={}&expire_at={}",
-        challenge.id,
-        template_id,
-        user.id,
-        created_at,
-        expire_at
-    );
+    let now = Local::now();
+    let expire_at = (now + chrono::Duration::hours(1)).to_rfc3339();
+    let created_at = now.to_rfc3339();
+
+    let vm_description = serde_urlencoded::to_string(&[
+        ("id", new_vm_id.to_string()),
+        ("challenge_id", challenge.id.to_string()),
+        ("origin_id", template_id.to_string()),
+        ("user_id", user.id.to_string()),
+        ("created_at", created_at),
+        ("expire_at", expire_at),
+    ]).unwrap_or_default();
 
     let conf_url = format!("{}/config", pxc.append_to_qemu_url(new_vm_id));
     let conf_body = serde_urlencoded::to_string(&[
@@ -494,7 +496,7 @@ fn schedule_vm_deletion(user: DbUser, vm_id: u32) {
             let end_at = args.end_at.timestamp();
             let now = Local::now().timestamp();
             if now >= end_at {
-                if let Err(e) = destroy_vm(&user, &vm_id).await {
+                if let Err(e) = super::admin::destroy_vm(vm_id).await {
                     tracing::error!(error = ?e, "failed to destroy expired VM");
                 }
                 return;
@@ -519,13 +521,14 @@ pub async fn add_vm_time(user: &DbUser, template_id: &u32) -> Result<u32, AppErr
     let args = extract_args_from_description(description)?;
     let new_expire_at = args.end_at + chrono::Duration::minutes(30);
 
-    let new_description = format!(
-        "id={vm_id}&challenge_id={}&origin_id={template_id}&user_id={}&created_at={}&expire_at={}",
-        args.challenge_id,
-        args.user_id,
-        args.created_at,
-        new_expire_at
-    );
+    let new_description = serde_urlencoded::to_string(&[
+        ("id", vm_id.to_string()),
+        ("challenge_id", args.challenge_id),
+        ("origin_id", template_id.to_string()),
+        ("user_id", args.user_id),
+        ("created_at", args.created_at.to_rfc3339()),
+        ("expire_at", new_expire_at.to_rfc3339()),
+    ]).unwrap_or_default();
 
     let conf_body = serde_urlencoded::to_string(&[
         ("description", new_description),
@@ -573,7 +576,7 @@ pub async fn get_user_vms(user: &DbUser) -> Result<Vec<ProxmoxVMInstance>, AppEr
 #[cfg(feature = "ssr")]
 #[instrument]
 fn extract_args_from_description(desc: String) -> Result<ProxmoxVMInstance, AppError> {
-    let params: HashMap<String, String> = url::form_urlencoded::parse(desc.as_bytes()).into_owned().collect();
+    let params: HashMap<String, String> = serde_urlencoded::from_str(&desc)?;
 
     let id = params.get("id").cloned().unwrap_or_default().parse::<u32>().unwrap_or_default();
     let challenge_id = params.get("challenge_id").cloned().unwrap_or_default();
@@ -582,8 +585,8 @@ fn extract_args_from_description(desc: String) -> Result<ProxmoxVMInstance, AppE
     let created_at = params.get("created_at").cloned().unwrap_or_default();
     let end_at = params.get("expire_at").cloned().unwrap_or_default();
 
-    let created_at = html_local_to_datetime(created_at);
-    let end_at = html_local_to_datetime(end_at);
+    let created_at = local_string_to_datetime(created_at)?;
+    let end_at = local_string_to_datetime(end_at)?;
 
     Ok(ProxmoxVMInstance { id, challenge_id, origin_id, user_id, created_at, end_at, running: false })
 }

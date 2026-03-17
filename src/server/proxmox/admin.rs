@@ -69,14 +69,14 @@ pub async fn add_vm_time(vm_id: &u32) -> Result<u32, AppError> {
     let args = extract_args_from_description(description)?;
     let new_expire_at = args.end_at + chrono::Duration::minutes(30);
 
-    let new_description = format!(
-        "id={vm_id}&challenge_id={}&origin_id={}&user_id={}&created_at={}&expire_at={}",
-        args.challenge_id,
-        args.origin_id,
-        args.user_id,
-        args.created_at,
-        new_expire_at
-    );
+    let new_description = serde_urlencoded::to_string(&[
+        ("id", vm_id.to_string()),
+        ("challenge_id", args.challenge_id),
+        ("origin_id", args.origin_id.to_string()),
+        ("user_id", args.user_id),
+        ("created_at", args.created_at.to_rfc3339()),
+        ("expire_at", new_expire_at.to_rfc3339()),
+    ]).unwrap_or_default();
 
     let conf_body = serde_urlencoded::to_string(&[
         ("description", new_description),

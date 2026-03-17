@@ -1,8 +1,9 @@
 use crate::{components::toast::{ToastMessageType, push_new_toast}, error_template::AppError};
 use std::any::type_name;
-use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc, offset::LocalResult};
+use chrono::{DateTime, Local, NaiveDateTime, ParseError, TimeZone, Utc, offset::LocalResult};
 use leptos::{prelude::*, web_sys::FormData, wasm_bindgen::JsCast, web_sys::{HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
 use time::OffsetDateTime;
+use tracing::instrument;
 
 pub fn offset_to_naive(offset_dt: OffsetDateTime) -> NaiveDateTime {
     let offset_dt_secs = offset_dt.unix_timestamp();
@@ -33,6 +34,13 @@ pub fn html_local_to_datetime(dt: String) -> DateTime<Local> {
         Ok(dt) => dt.into(),
         Err(_) => dateparser::parse_with_timezone(&formatted_dt, &chrono::offset::Local).unwrap_or(Utc::now()).into()
     }
+}
+
+#[instrument]
+pub fn local_string_to_datetime(dt: String) -> Result<DateTime<Local>, ParseError> {
+    let dt = DateTime::parse_from_rfc3339(&dt)?;
+    let dt_local = dt.with_timezone(&Local);
+    Ok(dt_local)
 }
 
 pub fn get_context<T: 'static + Clone>() -> Result<T, AppError> {
