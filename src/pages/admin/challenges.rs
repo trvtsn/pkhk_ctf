@@ -1,13 +1,12 @@
 use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::{ComponentSize, FileTooltip};
 use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options};
-use crate::server::admin::{get_all_challenge_templates, get_all_hints, get_all_user_groups, upload_illustration};
+use crate::server::admin::{api::{get_all_challenge_templates, get_all_hints, get_all_user_groups, upload_illustration}};
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbHint};
-use crate::server::enums::{AdminEventPayloadKind, ResultStatus};
+use crate::server::enums::{ServerEventPayload, ResultStatus};
 use crate::server::proxmox::ProxmoxVMTemplate;
 use crate::server::structs::ApiResult;
-use crate::{components::{admin::challenge::Challenge, utils::Spinner}, server::{admin::{upload_files, get_all_challenge_categories, get_all_events}, db, get_all_challenges_with_attachments}};
-use gloo_timers::future::sleep;
+use crate::{components::{admin::challenge::Challenge, utils::Spinner}, server::{admin::{api::{upload_files, get_all_challenge_categories, get_all_events}}, db, api::get_all_challenges_with_attachments}};
 use icondata as i;
 use leptos::prelude::*;
 use leptos::{web_sys::{Event, HtmlSelectElement}, wasm_bindgen::JsCast, task::spawn_local};
@@ -48,6 +47,9 @@ impl From<Hint> for crate::server::db::structs::Hint {
 /// Default Home Page
 #[component]
 pub fn Challenges() -> impl IntoView {
+    let created = RwSignal::new(false);
+    let creating = RwSignal::new(false);
+
     let attachments_ref = NodeRef::new();
     let illustration_ref = NodeRef::new();
 
@@ -67,53 +69,108 @@ pub fn Challenges() -> impl IntoView {
     let create_hints = RwSignal::new(Some(vec![Hint::new("0".to_string(), "")]));
     let next_hint_id = RwSignal::new(1_usize);
 
-    let refresh = RwSignal::new(0);
+    let editing_ids = RwSignal::<Vec<String>>::new(vec![]);
+    let pending_cwa_updates = RwSignal::<Vec<ChallengeWithAttachments>>::new(vec![]);
+    let cwa_signal = RwSignal::<Vec<ChallengeWithAttachments>>::new(vec![]);
     let categories_signal = RwSignal::<Vec<String>>::new(vec![]);
     let events_signal = RwSignal::<Vec<db::structs::Event>>::new(vec![]);
     let templates_signal = RwSignal::<Vec<ProxmoxVMTemplate>>::new(vec![]);
+    let user_groups_signal = RwSignal::new(vec![]);
+    let all_hints_signal = RwSignal::new(vec![]);
 
-    let cwa_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let cwa_resource = Resource::new(move || (), move |_| async move {
         get_all_challenges_with_attachments().await.unwrap_or_default()
     });
-    let categories_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let categories_resource = Resource::new(move || (), move |_| async move {
         get_all_challenge_categories().await.unwrap_or_default()
     });
-    let events_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let events_resource = Resource::new(move || (), move |_| async move {
         get_all_events().await.unwrap_or_default()
     });
-    let user_groups_signal = RwSignal::new(vec![]);
-    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let groups_resource = Resource::new(move || (), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
     });
-    let challenge_templates_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let challenge_templates_resource = Resource::new(move || (), move |_| async move {
         get_all_challenge_templates().await.unwrap_or_default()
     });
-
-    let all_hints_signal = RwSignal::new(vec![]);
-    let all_hints_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let all_hints_resource = Resource::new(move || (), move |_| async move {
         get_all_hints().await.unwrap_or_default()
     });
 
-    let UseEventSourceReturn { message, .. } = 
+    let create_submit_btn_text = Memo::new(move |_| {
+        if created.get() { "Created!".to_string() } else { "Create".to_string() }
+    });
+
+    let grouped_challenges = Memo::new(move |_| {
+        let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
+        for ch in cwa_signal.get().into_iter() {
+            map.entry(ch.challenge.category.clone()).or_default().push(ch);
+        }
+        let mut groups = map
+            .into_iter()
+            .collect::<Vec<(Option<String>, Vec<ChallengeWithAttachments>)>>();
+        // alphabetical sort, there's probably a better way to do this
+        groups
+            .sort_by(|(a, _), (b, _)| {
+                a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or(""))
+            });
+
+        groups
+    });
+
+    let UseEventSourceReturn { message, .. } =
         use_event_source_with_options::<String, FromToStringCodec>(
-            "/events".to_string(), 
+            "/admin/events".to_string(),
             UseEventSourceOptions::default().immediate(true)
         );
 
     Effect::new(move |_| {
         if let Some(msg) = message.get() {
-            match serde_json::from_str::<AdminEventPayloadKind>(&msg.data) {
-                Ok(AdminEventPayloadKind::ChallengeEdited)  => refresh.update(|n| *n += 1),
+            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
+                Ok(ServerEventPayload::ChallengeEdited(new_cwa)) => {
+                    if editing_ids.get_untracked().contains(&new_cwa.challenge.id) {
+                        pending_cwa_updates.update(|pending| {
+                            pending.retain(|p| p.challenge.id != new_cwa.challenge.id);
+                            pending.push(new_cwa);
+                        });
+                    } else {
+                        cwa_signal.update(|challenges| {
+                            if let Some(existing) = challenges.iter_mut().find(|c| c.challenge.id == new_cwa.challenge.id) {
+                                *existing = new_cwa;
+                            }
+                        });
+                    }
+                },
+                Ok(ServerEventPayload::ChallengeDeleted(id)) => {
+                    cwa_signal.update(|cwa| cwa.retain(|cwa| cwa.challenge.id != id));
+                },
+                Ok(ServerEventPayload::NewChallengeCreated(new_cwa)) => {
+                    cwa_signal.update(|cwa| cwa.push(new_cwa));
+                }, 
                 Ok(_) => {},
-                Err(e) => tracing::warn!("failed to parse AdminEventPayloadKind: {}", e)
+                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
             }
         }
     });
 
-    let created = RwSignal::new(false);
-    let creating = RwSignal::new(false);
-    let create_submit_btn_text = Memo::new(move |_| {
-        if created.get() { "Created!".to_string() } else { "Create".to_string() }
+    // Flush pending SSE updates for challenges no longer being edited
+    Effect::new(move |_| {
+        let current_editing = editing_ids.get();
+        let pending = pending_cwa_updates.get_untracked();
+        let to_flush: Vec<_> = pending.iter()
+            .filter(|p| !current_editing.contains(&p.challenge.id))
+            .cloned()
+            .collect();
+        if !to_flush.is_empty() {
+            pending_cwa_updates.update(|p| p.retain(|u| current_editing.contains(&u.challenge.id)));
+            cwa_signal.update(|challenges| {
+                for updated_cwa in to_flush {
+                    if let Some(existing) = challenges.iter_mut().find(|c| c.challenge.id == updated_cwa.challenge.id) {
+                        *existing = updated_cwa;
+                    }
+                }
+            });
+        }
     });
 
     view! {
@@ -525,7 +582,7 @@ pub fn Challenges() -> impl IntoView {
                                 let attachments = attachments.get_untracked();
                                 let illustration = illustration.get_untracked();
 
-                                if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Create {
+                                if let Ok(ApiResult { result, .. }) = crate::server::admin::api::challenge(crate::server::admin::ChallengeAction::Create {
                                         event_id,
                                         name,
                                         description,
@@ -543,9 +600,7 @@ pub fn Challenges() -> impl IntoView {
                                 {
                                     created.set(true);
                                     push_new_toast(ToastMessageType::ChallengeCreated);
-                                    refresh.update(|n| *n += 1);
-                                    sleep(Duration::from_secs(2)).await;
-                                    created.set(false);
+                                    set_timeout(move || created.set(false), Duration::from_secs(2));
                                 } else {
                                     push_new_toast(ToastMessageType::ChallengeCreateFail);
                                 }
@@ -563,6 +618,9 @@ pub fn Challenges() -> impl IntoView {
                 view! { <Spinner component_size=ComponentSize::Big /> }
             }>
                 {move || {
+                    let cwa = cwa_resource.get().unwrap_or_default();
+                    cwa_signal.set(cwa);
+
                     let events = events_resource.get().unwrap_or_default();
                     events_signal.set(events);
 
@@ -573,59 +631,55 @@ pub fn Challenges() -> impl IntoView {
                     user_groups_signal.set(user_groups);
 
                     let categories = categories_resource.get().unwrap_or_default();
-                    categories_signal.set(categories.clone());
-
+                    categories_signal.set(categories);
+                    
                     let templates = challenge_templates_resource.get().unwrap_or_default();
                     templates_signal.set(templates);
 
-                    let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
-                    for ch in cwa_resource.get().unwrap_or_default().into_iter() {
-                        map.entry(ch.challenge.category.clone()).or_default().push(ch);
-                    }
-                    let mut groups = map
-                        .into_iter()
-                        .collect::<Vec<(Option<String>, Vec<ChallengeWithAttachments>)>>();
-                    // alphabetical sort, there's probably a better way to do this
-                    groups
-                        .sort_by(|(a, _), (b, _)| {
-                            a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or(""))
-                        });
-
                     view! {
                         <For
-                            each=move || groups.clone()
+                            each=move || grouped_challenges.get()
                             key=|group: &(Option<String>, Vec<ChallengeWithAttachments>)| {
                                 group.0.clone()
                             }
                             let(group)
                         >
-                            <div class=r#"p-2 challenge-category"#>
-                                <h2 class=r#"text-2xl"#>
-                                    {group.0.clone().unwrap_or_else(|| "Uncategorized".to_string())}
-                                </h2>
+                            {
+                                let category = group.0.clone();
+                                view! {
+                                    <div class=r#"p-2 challenge-category"#>
+                                        <h2 class=r#"text-2xl"#>
+                                            {category.clone().unwrap_or_else(|| "Uncategorized".to_string())}
+                                        </h2>
 
-                                <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
-                                    <For
-                                        each=move || group.1.clone()
-                                        key=|challenge: &ChallengeWithAttachments| {
-                                            challenge.challenge.id.clone()
-                                        }
-                                        let(challenge)
-                                    >
-                                        <div class=r#"p-2 challenge"#>
-                                            <Challenge
-                                                cwa=challenge
-                                                refresh
-                                                categories=categories_signal
-                                                events=events_signal
-                                                templates=templates_signal
-                                                hints=all_hints_signal
-                                                user_groups=user_groups_signal
-                                            />
+                                        <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
+                                            <For
+                                                each=move || {
+                                                    grouped_challenges.get()
+                                                        .into_iter()
+                                                        .find(|(cat, _)| *cat == category)
+                                                        .map(|(_, challenges)| challenges)
+                                                        .unwrap_or_default()
+                                                }
+                                                key=|cwa: &ChallengeWithAttachments| format!("{cwa:?}")
+                                                let(challenge)
+                                            >
+                                                <div class=r#"p-2 challenge"#>
+                                                    <Challenge
+                                                        cwa=challenge
+                                                        editing_ids
+                                                        categories=categories_signal
+                                                        events=events_signal
+                                                        templates=templates_signal
+                                                        hints=all_hints_signal
+                                                        user_groups=user_groups_signal
+                                                    />
+                                                </div>
+                                            </For>
                                         </div>
-                                    </For>
-                                </div>
-                            </div>
+                                    </div>
+                                }
+                            }
                         </For>
                     }
                 }}

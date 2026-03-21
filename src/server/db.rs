@@ -178,14 +178,14 @@ pub mod structs {
         pub vm_ids: Option<String> // comma separated string
     }
 
-    #[derive(Clone, Default, PartialEq, Serialize, Deserialize, Eq)]
+    #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Eq)]
     pub struct ChallengeWithAttachments {
         pub challenge: Challenge,
         pub attachments: Vec<AttachmentWithoutBlob>,
         pub illustration: Option<AttachmentWithoutBlob>
     }
 
-     #[derive(Eq, Clone, PartialEq, Serialize, Deserialize)]
+    #[derive(Debug, Eq, Clone, PartialEq, Serialize, Deserialize)]
     pub struct Event {
         pub id: String,
         pub name: String,
@@ -195,7 +195,7 @@ pub mod structs {
         pub visible_to_groups: String // comma separated string
     }
 
-    #[derive(Clone, PartialEq, Serialize, Deserialize, Eq)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Eq)]
     pub struct EventWithAttachments {
         pub event: Event,
         pub attachments: Vec<AttachmentWithoutBlob>,

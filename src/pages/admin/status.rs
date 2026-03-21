@@ -1,4 +1,4 @@
-use crate::{components::utils::Gauge, server::structs::StatusData};
+use crate::{components::utils::Gauge, server::enums::ServerEventPayload};
 use leptos::prelude::*;
 use leptos::server::codee::string::FromToStringCodec;
 use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
@@ -20,13 +20,17 @@ pub fn Status() -> impl IntoView {
 
     Effect::new(move |_| {
         if let Some(msg) = message.get() {
-            if let Ok(data) = serde_json::from_str::<StatusData>(&msg.data) {
-                uptime.set(data.uptime);
-                active_users.set(data.active_users);
-                cpu_percent.set(data.cpu_usage);
-                ram_percent.set(data.ram_usage);
-                ram_mb.set(data.ram_usage_mb);
-                traffic.set(data.traffic);
+            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
+                Ok(ServerEventPayload::StatusData(data)) => {
+                    uptime.set(data.uptime);
+                    active_users.set(data.active_users);
+                    cpu_percent.set(data.cpu_usage);
+                    ram_percent.set(data.ram_usage);
+                    ram_mb.set(data.ram_usage_mb);
+                    traffic.set(data.traffic);
+                },
+                Ok(_) => {},
+                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
             }
         }
     });

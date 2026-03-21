@@ -1,65 +1,12 @@
 #[cfg(feature = "ssr")]
-use crate::server::{AuthSession, hash_string, build_and_broadcast, is_host_reachable};
-use crate::{error_template::AppError, server::{AdminEventPayloadKind, UserRole, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, User}}, utils::get_context};
+use crate::server::{authenticated_check, hash_string, build_and_broadcast, fetch_cwa, is_host_reachable, fetch_db_user, fetch_ewa, BroadcastScope};
+use crate::{error_template::AppError, server::{ServerEventPayload, UserRole, admin::{ChallengeAction, EventAction, ProxmoxUserInfo, UserAction}, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::ApiResult}};
 use cfg_if::cfg_if;
-use chrono::{DateTime, Local};
 #[cfg(feature = "ssr")]
 use ldap3::{LdapConnAsync, LdapConnSettings};
 use leptos::{prelude::*, server_fn::codec::{MultipartData, MultipartFormData}};
-#[cfg(feature = "ssr")]
-use leptos_axum::ResponseOptions;
-#[cfg(feature = "ssr")]
-use http::StatusCode;
-use serde::{Deserialize, Serialize};
-#[cfg(feature = "ssr")]
-use sqlx::MySqlPool;
 use std::collections::{HashMap, HashSet};
 use tracing::instrument;
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct ProxmoxUserInfo {
-    pub user: DbUser,
-    pub pve_user_id: Option<String>,
-    pub pool: Option<String>,
-    pub vms: Vec<ProxmoxVMInstance>
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ChallengeAction {
-    Create {
-        event_id: String, 
-        name: String, 
-        description: String, 
-        category: String,
-        difficulty: i8, 
-        points: u32, 
-        flag: String,
-        visible_to_groups: String,
-        vm_ids: Option<String>,
-        hints: Option<Vec<DbHint>>,
-        attachments: Option<Vec<AttachmentWithoutBlob>>,
-        illustration: Option<AttachmentWithoutBlob>
-    },
-    Delete {
-        id: String
-    },
-    Edit {
-        id: String,
-        event_id: String, 
-        name: String, 
-        description: String, 
-        category: String,
-        difficulty: i8, 
-        points: u32, 
-        flag: String,
-        visible_to_groups: String,
-        vm_ids: Option<String>,
-        hints: Option<Vec<DbHint>>,
-        attachments: Option<Vec<AttachmentWithoutBlob>>,
-        illustration: Option<AttachmentWithoutBlob>
-    }
-}
 
 #[server(name=AdminChallengeApi, prefix="/api/admin", endpoint="challenge")]
 #[instrument]
@@ -103,13 +50,20 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
                     
+                    let broadcast_id = new_challenge_id.clone();
+                    let broadcast_pool = pool.clone();
                     match illustration {
                         Some(illustration) => {
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::ChallengeId(new_challenge_id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        tokio::spawn(async {
-                                            _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
+                                        tokio::spawn(async move {
+                                            match fetch_cwa(&broadcast_id, &broadcast_pool).await {
+                                                Ok(cwa) => { 
+                                                    _ = build_and_broadcast(ServerEventPayload::NewChallengeCreated(cwa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; 
+                                                },
+                                                Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                            }
                                         });
                                         Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
                                     },
@@ -122,8 +76,11 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                         None => {
                             tx.commit().await?;
-                            tokio::spawn(async {
-                                _ = build_and_broadcast(AdminEventPayloadKind::NewChallengeCreated).await;
+                            tokio::spawn(async move {
+                                match fetch_cwa(&broadcast_id, &broadcast_pool).await {
+                                    Ok(cwa) => { _ = build_and_broadcast(ServerEventPayload::NewChallengeCreated(cwa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                    Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                }
                             });
                             Ok(ApiResult { result: ResultStatus::Success, details: "created challenge".to_string() })
                         }
@@ -132,8 +89,8 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                 ChallengeAction::Delete { id } => {
                     match db::structs::Challenge::delete(&id, &pool).await {
                         Ok(_) => {
-                            tokio::spawn(async {
-                                _ = build_and_broadcast(AdminEventPayloadKind::ChallengeDeleted).await;
+                            tokio::spawn(async move {
+                                _ = build_and_broadcast(ServerEventPayload::ChallengeDeleted(id), vec![BroadcastScope::Events, BroadcastScope::Admin]).await;
                             });
                             Ok(ApiResult { result: ResultStatus::Success, details: "deleted challenge".to_string() })
                         },
@@ -227,13 +184,18 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                         }
                     }
 
+                    let broadcast_id = id.clone();
+                    let broadcast_pool = pool.clone();
                     match illustration {
                         Some(illustration) => {
                             match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::ChallengeId(id), &mut *tx).await {
                                 Ok(_) => {
                                     tx.commit().await?;
-                                    tokio::spawn(async {
-                                        _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                    tokio::spawn(async move {
+                                        match fetch_cwa(&broadcast_id, &broadcast_pool).await {
+                                            Ok(cwa) => { _ = build_and_broadcast(ServerEventPayload::ChallengeEdited(cwa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                            Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                        }
                                     });
                                     Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
                                 },
@@ -255,14 +217,19 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                                     return Err(AppError::InternalError(e.to_string()));
                                 }
                             };
-                            
+
                             if let Some(attachment_id) = existing_illustration_id {
                                 match db::structs::Attachment::delete(&db::enums::AttachmentIdentifier::Id(attachment_id.clone()), &mut *tx).await {
                                     Ok(_) => {
                                         crate::server::invalidate_file_cache(&attachment_id).await;
                                         tx.commit().await?;
-                                        tokio::spawn(async {
-                                            _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                                        let broadcast_id = broadcast_id.clone();
+                                        let broadcast_pool = broadcast_pool.clone();
+                                        tokio::spawn(async move {
+                                            match fetch_cwa(&broadcast_id, &broadcast_pool).await {
+                                                Ok(cwa) => { _ = build_and_broadcast(ServerEventPayload::ChallengeEdited(cwa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                                Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                            }
                                         });
                                         return Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() });
                                     },
@@ -275,8 +242,11 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
                             }
 
                             tx.commit().await?;
-                            tokio::spawn(async {
-                                _ = build_and_broadcast(AdminEventPayloadKind::ChallengeEdited).await;
+                            tokio::spawn(async move {
+                                match fetch_cwa(&broadcast_id, &broadcast_pool).await {
+                                    Ok(cwa) => { _ = build_and_broadcast(ServerEventPayload::ChallengeEdited(cwa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                    Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                }
                             });
                             Ok(ApiResult { result: ResultStatus::Success, details: "edited challenge".to_string() })
                         }
@@ -286,33 +256,6 @@ pub async fn challenge(action: ChallengeAction) -> Result<ApiResult<String>, App
         } else {
             Err(AppError::NoServerConnection)
         }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum EventAction {
-    Create {
-        name: String,  
-        description: String, 
-        start_at: DateTime<Local>, 
-        end_at: DateTime<Local>,
-        visible_to_groups: String,
-        attachments: Option<Vec<AttachmentWithoutBlob>>,
-        illustration: Option<AttachmentWithoutBlob>
-    },
-    Delete {
-        id: String
-    },
-    Edit {
-        id: String,
-        name: String,  
-        description: String, 
-        start_at: DateTime<Local>, 
-        end_at: DateTime<Local>,
-        visible_to_groups: String,
-        attachments: Option<Vec<AttachmentWithoutBlob>>,
-        illustration: Option<AttachmentWithoutBlob>
     }
 }
 
@@ -345,13 +288,17 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                         }
                     }
 
+                    let id = new_event_id.clone();
                     match illustration {
                         Some(illustration) => {
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::EventId(new_event_id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        tokio::spawn(async {
-                                            _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                                        tokio::spawn(async move {
+                                            match fetch_ewa(&id, &pool).await {
+                                                Ok(ewa) => { _ = build_and_broadcast(ServerEventPayload::NewEventCreated(ewa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                                Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                            }
                                         });
                                         Ok(ApiResult { result: ResultStatus::Success, details: "created event".to_string() })
                                     },
@@ -364,8 +311,11 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                         }
                         None => {
                             tx.commit().await?;
-                            tokio::spawn(async {
-                                _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                            tokio::spawn(async move {
+                                match fetch_ewa(&new_event_id, &pool).await {
+                                    Ok(ewa) => { _ = build_and_broadcast(ServerEventPayload::NewEventCreated(ewa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                    Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                }
                             });
                             Ok(ApiResult { result: ResultStatus::Success, details: "created event".to_string() })
                         }
@@ -375,7 +325,7 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                     match db::structs::Event::delete(&id, &pool).await {
                         Ok(_) => {
                             tokio::spawn(async {
-                                _ = build_and_broadcast(AdminEventPayloadKind::EventDeleted).await;
+                                _ = build_and_broadcast(ServerEventPayload::EventDeleted(id), vec![BroadcastScope::Events, BroadcastScope::Admin]).await;
                             });
                             Ok(ApiResult { result: ResultStatus::Success, details: "deleted event".to_string() })
                         },
@@ -422,13 +372,18 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                             }
                         }
                     }
+
+                    let broadcast_id = id.clone();
                     match illustration {
                         Some(illustration) => {
                                 match db::structs::Attachment::edit_illustration(&illustration.id, &db::enums::AttachmentIdentifier::EventId(id), &mut *tx).await {
                                     Ok(_) => {
                                         tx.commit().await?;
-                                        tokio::spawn(async {
-                                            _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                                        tokio::spawn(async move {
+                                            match fetch_ewa(&broadcast_id, &pool).await {
+                                                Ok(ewa) => { _ = build_and_broadcast(ServerEventPayload::EventEdited(ewa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                                Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                            }
                                         });
                                         Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() })
                                     },
@@ -456,8 +411,11 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                                     Ok(_) => {
                                         crate::server::invalidate_file_cache(&attachment_id).await;
                                         tx.commit().await?;
-                                        tokio::spawn(async {
-                                            _ = build_and_broadcast(AdminEventPayloadKind::EventEdited).await;
+                                        tokio::spawn(async move {
+                                            match fetch_ewa(&broadcast_id, &pool).await {
+                                                Ok(ewa) => { _ = build_and_broadcast(ServerEventPayload::EventEdited(ewa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                                Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                            }
                                         });
                                         return Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() });
                                     },
@@ -470,13 +428,33 @@ pub async fn event(action: EventAction) -> Result<ApiResult<String>, AppError> {
                             }
 
                             tx.commit().await?;
-                            tokio::spawn(async {
-                                _ = build_and_broadcast(AdminEventPayloadKind::NewEventCreated).await;
+                            tokio::spawn(async move {
+                                match fetch_ewa(&broadcast_id, &pool).await {
+                                    Ok(ewa) => { _ = build_and_broadcast(ServerEventPayload::EventEdited(ewa), vec![BroadcastScope::Events, BroadcastScope::Admin]).await; },
+                                    Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                }
                             });
                             Ok(ApiResult { result: ResultStatus::Success, details: "edited event".to_string() })
                         }
                     }
                 }
+            }
+        } else {
+            Err(AppError::NoServerConnection)
+        }
+    }
+}
+
+#[server(name=GetAllUserAvatarIds, prefix="/api/users", endpoint="avatar_ids")]
+#[instrument]
+pub async fn get_all_user_avatar_ids() -> Result<Vec<UserAvatar>, AppError> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let (_, pool) = authenticated_check().await?;
+
+            match DbUser::get_all_avatar_ids(&pool).await {
+                Ok(ids) => Ok(ids),
+                Err(e) => Err(e.into())
             }
         } else {
             Err(AppError::NoServerConnection)
@@ -888,39 +866,6 @@ pub async fn get_all_files() -> Result<Vec<AttachmentWithoutBlob>, AppError> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum UserAction {
-    Create {
-        username: String,  
-        email: String, 
-        password: String, 
-        confirm_password: String,
-        role: UserRole,
-        avatar: Option<UserAvatar>,
-        groups: String
-    },
-    Delete {
-        id: String
-    },
-    Edit {
-        id: String,
-        username: String,  
-        email: String, 
-        password: String, 
-        confirm_password: String,
-        points: u32,
-        role: UserRole,
-        avatar: Option<UserAvatar>,
-        groups: String
-    },
-    EditPassword {
-        id: String,
-        password: String, 
-        confirm_password: String
-    }
-}
-
 #[server(name=AdminUserApi, prefix="/api/admin", endpoint="user")]
 #[instrument]
 pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
@@ -961,10 +906,17 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         }
                     };
 
+                    let broadcast_id = new_user_id.clone();
                     if let Some(avatar) = avatar {
                         match AttachmentWithoutBlob::edit_avatar(&avatar.attachment_id, &new_user_id, &mut *tx).await {
                             Ok(_) => {
                                 tx.commit().await?;
+                                tokio::spawn(async move {
+                                    match fetch_db_user(&broadcast_id, &pool).await {
+                                        Ok(db_user) => { _ = build_and_broadcast(ServerEventPayload::UserCreated(db_user), vec![BroadcastScope::Admin]).await; },
+                                        Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                                    }
+                                });
                                 Ok(ApiResult { result: ResultStatus::Success, details: "created user".to_string() })
                             },
                             Err(e) => {
@@ -975,11 +927,17 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         }
                     } else {
                         tx.commit().await?;
+                        tokio::spawn(async move {
+                            match fetch_db_user(&broadcast_id, &pool).await {
+                                Ok(db_user) => { _ = build_and_broadcast(ServerEventPayload::UserCreated(db_user), vec![BroadcastScope::Admin]).await; },
+                                Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                            }
+                        });
                         Ok(ApiResult { result: ResultStatus::Success, details: "created user".to_string() })
                     }
                 }
                 UserAction::Delete { id } => {
-                    let user = match DbUser::get(&UserIdentifier::Id(id), &pool).await {
+                    let user = match DbUser::get(&UserIdentifier::Id(id.clone()), &pool).await {
                         Ok(Some(user)) => {
                             if user.role == UserRole::Admin {
                                 return Err(AppError::InternalError("cannot delete admin users".to_string()));
@@ -995,8 +953,14 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                         }
                     };
 
+                    let broadcast_id = id.clone();
                     match DbUser::delete(&user.id, &pool).await {
-                        Ok(_) => Ok(ApiResult { result: ResultStatus::Success, details: "deleted user".to_string() }),
+                        Ok(_) => {
+                            tokio::spawn(async move {
+                                _ = build_and_broadcast(ServerEventPayload::UserDeleted(broadcast_id), vec![BroadcastScope::Admin]).await;
+                            });
+                            Ok(ApiResult { result: ResultStatus::Success, details: "deleted user".to_string() })
+                        },
                         Err(e) => {
                             tracing::error!(error = ?e);
                             Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() })
@@ -1066,7 +1030,7 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                             return Ok(ApiResult { result: ResultStatus::Fail, details: e.to_string() });
                         }
                     } else {
-                        let existing_avatar = match DbUser::get_avatar(&UserIdentifier::Id(id), &mut *tx).await {
+                        let existing_avatar = match DbUser::get_avatar(&UserIdentifier::Id(id.clone()), &mut *tx).await {
                             Ok(avatar) => avatar,
                             Err(e) => {
                                 tracing::error!(error = ?e);
@@ -1086,6 +1050,13 @@ pub async fn user(action: UserAction) -> Result<ApiResult<String>, AppError> {
                     }
 
                     tx.commit().await?;
+                    let broadcast_id = id.clone();
+                    tokio::spawn(async move {
+                        match fetch_db_user(&broadcast_id, &pool).await {
+                            Ok(db_user) => { _ = build_and_broadcast(ServerEventPayload::UserEdited(db_user), vec![BroadcastScope::Admin]).await; },
+                            Err(e) => tracing::warn!("failed to fetch cwa for broadcast: {e}")
+                        }
+                    });
                     return Ok(ApiResult { result: ResultStatus::Success, details: "edited user".to_string() });
                 }
                 UserAction::EditPassword { id, password, confirm_password } => {
@@ -1436,37 +1407,6 @@ pub async fn test_proxmox(args: ProxmoxArgs) -> Result<ApiResult<String>, AppErr
         } else {
             Err(AppError::NoServerConnection)
         }
-    }
-}
-
-#[cfg(feature = "ssr")]
-#[instrument]
-pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
-    let auth = get_context::<AuthSession>()?;
-    let response = get_context::<ResponseOptions>()?;
-    let user = match auth.user {
-        Some(user) => user,
-        None => {
-            response.set_status(StatusCode::FORBIDDEN);
-            return Err(AppError::Forbidden);
-        }
-    };
-    let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
-        Ok(Some(user)) => user,
-        Ok(None) => {
-            return Err(AppError::InternalError("failed to fetch user from db".to_string()));
-        }
-        Err(e) => {
-            tracing::error!(error = ?e);
-            return Err(AppError::InternalError(e.to_string()));
-        }
-    };
-
-    if db_user.role != UserRole::Admin {
-        response.set_status(StatusCode::FORBIDDEN);
-        return Err(AppError::Forbidden);
-    } else {
-        Ok((user, auth.backend.pool))
     }
 }
 

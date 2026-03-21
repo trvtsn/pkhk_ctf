@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, server::{backend::enums::AuthType, db::structs::DbUserWithoutPII, edit_avatar, edit_password, edit_username, enums::ResultStatus}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, server::{backend::enums::AuthType, db::structs::DbUserWithoutPII, api::{edit_avatar, edit_password, edit_username}, enums::ResultStatus}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlFormElement, HtmlInputElement}};
 use leptos_use::{ColorMode};
 

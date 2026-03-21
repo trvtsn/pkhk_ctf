@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, server::{LogoutUser, db::{enums::UserRole, structs::DbUserWithoutPII}}};
+use crate::{app::RefreshUser, server::{api::LogoutUser, db::{enums::UserRole, structs::DbUserWithoutPII}}};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;

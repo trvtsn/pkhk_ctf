@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, utils::{ComponentSize, HidePasswordButton, Spinner}}, server::{get_user, register_user, user_exists}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, utils::{ComponentSize, HidePasswordButton, Spinner}}, server::api::{get_user, register_user, user_exists}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 

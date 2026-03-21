@@ -11,8 +11,8 @@ cfg_if! {
         };
         use leptos::prelude::provide_context;
         use leptos_axum::handle_server_fns_with_context;
-        use pkhk_ctf::{app::shell, logging::{init_tracing, logs_sse}};
-        use pkhk_ctf::server::{backend::structs::Backend, db::get_db, structs::AppState, init_env, status_data_sse, track_traffic};
+        use pkhk_ctf::{app::shell, logging::init_tracing};
+        use pkhk_ctf::server::{backend::structs::Backend, db::get_db, structs::AppState, init_env, track_traffic};
 
         pub type AuthSession = axum_login::AuthSession<Backend>;
     }
@@ -124,14 +124,6 @@ async fn main() {
             "/api/{*fn_name}",
             get(server_fn_handler).post(server_fn_handler),
         )
-        .route(
-            "/admin/logs", 
-            get(logs_sse)
-        )
-        .route(
-            "/admin/status", 
-            get(status_data_sse)
-        )
         .leptos_routes_with_handler(
             routes, 
             get(leptos_routes_handler)
@@ -140,6 +132,7 @@ async fn main() {
             leptos_axum::file_and_error_handler::<AppState, _>(shell)
         )
         .merge(pkhk_ctf::server::router())
+        .merge(pkhk_ctf::server::admin::router())
         .layer(auth_session_layer)
         .layer(axum::middleware::from_fn(track_traffic))
         .with_state(app_state);

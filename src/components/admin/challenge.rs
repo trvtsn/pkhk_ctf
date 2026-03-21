@@ -1,10 +1,10 @@
 use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::{TruncatedDesc, FileTooltip, Difficulty};
 use crate::pages::admin::challenges::Hint;
-use crate::server::admin::upload_illustration;
+use crate::server::admin::api::{upload_files, upload_illustration};
 use crate::server::db::structs::DbHint;
 use crate::server::proxmox::ProxmoxVMTemplate;
-use crate::server::{admin::{upload_files}, db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
+use crate::server::{db::{self, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments}}, enums::ResultStatus, structs::ApiResult};
 use crate::utils::{action_btn_text, build_multi_file_form_data, build_single_file_form_data, collect_selected_options, csv_contains};
 use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
@@ -13,7 +13,7 @@ use leptos_icons::Icon;
 #[component]
 pub fn Challenge(
     cwa: ChallengeWithAttachments,
-    refresh: RwSignal<i32>,
+    editing_ids: RwSignal<Vec<String>>,
     categories: RwSignal<Vec<String>>,
     events: RwSignal<Vec<db::structs::Event>>,
     templates: RwSignal<Vec<ProxmoxVMTemplate>>,
@@ -56,6 +56,19 @@ pub fn Challenge(
     let editing = RwSignal::new(false);
     let deleting = RwSignal::new(false);
     let deleted = RwSignal::new(false);
+
+    Effect::new(move |_| {
+        let id = id_signal.get_untracked();
+        if editing.get() {
+            editing_ids.update(|ids| {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            });
+        } else {
+            editing_ids.update(|ids| ids.retain(|i| i != &id));
+        }
+    });
 
     let delete_submit_btn_text = action_btn_text(move || deleting.get(), "Confirm Delete", "Delete");
     let edit_submit_btn_text = action_btn_text(move || editing.get(), "Confirm Edit", "Edit");
@@ -582,7 +595,7 @@ pub fn Challenge(
                                         editing.set(false);
                                         push_new_toast(ToastMessageType::NoChangesMade);
                                     } else {
-                                        if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Edit {
+                                        if let Ok(ApiResult { result, .. }) = crate::server::admin::api::challenge(crate::server::admin::ChallengeAction::Edit {
                                                 id: challenge_id.clone(),
                                                 event_id: event_id.clone(),
                                                 name: name.clone(),
@@ -600,14 +613,7 @@ pub fn Challenge(
                                             .await && result == ResultStatus::Success
                                         {
                                             push_new_toast(ToastMessageType::ChallengeEdited);
-                                            refresh.update(|n| *n += 1);
                                             editing.set(false);
-                                            event_id_signal.set(event_id);
-                                            name_signal.set(name);
-                                            description_signal.set(description);
-                                            category_signal.set(category);
-                                            difficulty_signal.set(difficulty);
-                                            points_signal.set(points);
                                         } else {
                                             push_new_toast(ToastMessageType::ChallengeEditFail);
                                         }
@@ -631,7 +637,7 @@ pub fn Challenge(
                             let challenge_id = id_signal.get_untracked();
                             spawn_local(async move {
                                 tracing::debug!("deleting challenge ID: {challenge_id}");
-                                if let Ok(ApiResult { result, .. }) = crate::server::admin::challenge(crate::server::admin::ChallengeAction::Delete {
+                                if let Ok(ApiResult { result, .. }) = crate::server::admin::api::challenge(crate::server::admin::ChallengeAction::Delete {
                                         id: challenge_id,
                                     })
                                     .await && result == ResultStatus::Success
@@ -639,7 +645,6 @@ pub fn Challenge(
                                     push_new_toast(ToastMessageType::ChallengeDeleted);
                                     deleting.set(false);
                                     deleted.set(true);
-                                    refresh.update(|n| *n += 1);
                                 } else {
                                     push_new_toast(ToastMessageType::ChallengeDeleteFail);
                                 }

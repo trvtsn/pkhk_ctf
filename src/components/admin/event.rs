@@ -1,4 +1,4 @@
-use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::FileTooltip}, server::{admin::{upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::FileTooltip}, server::{admin::{api::{upload_files, upload_illustration}}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
 use crate::utils::{action_btn_text, build_multi_file_form_data, build_single_file_form_data, collect_selected_options, csv_contains};
 use chrono::DateTime;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
@@ -6,8 +6,8 @@ use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Even
 #[component]
 pub fn Event(
     ewa: db::structs::EventWithAttachments,
-    user_groups: RwSignal<Vec<String>>, 
-    refresh: RwSignal<i32>
+    editing_ids: RwSignal<Vec<String>>,
+    user_groups: RwSignal<Vec<String>>
 ) -> impl IntoView {
     let attachments_ref = NodeRef::new();
     let illustration_ref = NodeRef::new();
@@ -44,6 +44,19 @@ pub fn Event(
             attachments_signal.get() == attachments_edit.get() &&
             illustration_signal.get() == illustration_edit.get() 
         { false } else { true }
+    });
+
+    Effect::new(move |_| {
+        let id = id_signal.get_untracked();
+        if editing.get() {
+            editing_ids.update(|ids| {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            });
+        } else {
+            editing_ids.update(|ids| ids.retain(|i| i != &id));
+        }
     });
 
     view! {
@@ -315,7 +328,7 @@ pub fn Event(
                                     editing.set(false);
                                     push_new_toast(ToastMessageType::NoChangesMade);
                                 } else {
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Edit {
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::api::event(crate::server::admin::EventAction::Edit {
                                             id: event_id,
                                             name: name.clone(),
                                             description: description.clone().unwrap_or_default(),
@@ -328,11 +341,7 @@ pub fn Event(
                                         .await && result == ResultStatus::Success
                                     {
                                         push_new_toast(ToastMessageType::EventEdited);
-                                        refresh.update(|n| *n += 1);
-                                        name_signal.set(name);
-                                        description_signal.set(description);
-                                        start_at_signal.set(start_at);
-                                        end_at_signal.set(end_at);
+                                        editing.set(false);
                                     } else {
                                         push_new_toast(ToastMessageType::EventEditFail);
                                     }
@@ -357,13 +366,12 @@ pub fn Event(
                             let event_id = ewa.event.id.clone();
                             spawn_local(async move {
                                 tracing::debug!("deleting event: {event_id}");
-                                if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Delete {
+                                if let Ok(ApiResult { result, .. }) = crate::server::admin::api::event(crate::server::admin::EventAction::Delete {
                                         id: event_id.clone(),
                                     })
                                     .await && result == ResultStatus::Success
                                 {
                                     push_new_toast(ToastMessageType::EventDeleted);
-                                    refresh.update(|n| *n += 1);
                                     deleting.set(false);
                                 } else {
                                     push_new_toast(ToastMessageType::EventDeleteFail);

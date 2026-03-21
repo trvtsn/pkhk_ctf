@@ -1,4 +1,4 @@
-use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar, utils::{ComponentSize, Spinner}}, server::{build_leaderboard_data, enums::AdminEventPayloadKind, structs::PivotRow}};
+use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar, utils::{ComponentSize, Spinner}}, server::{api::build_leaderboard_data, enums::ServerEventPayload, structs::PivotRow}};
 use leptos::prelude::*;
 use leptos_chartistry::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -20,13 +20,13 @@ pub fn Leaderboard() -> impl IntoView {
 
     Effect::new(move |_| {
         if let Some(msg) = message.get() {
-            match serde_json::from_str::<AdminEventPayloadKind>(&msg.data) {
-                Ok(AdminEventPayloadKind::NewChallengeCreated) |
-                Ok(AdminEventPayloadKind::ChallengeDeleted) |
-                Ok(AdminEventPayloadKind::ChallengeEdited) |
-                Ok(AdminEventPayloadKind::ChallengeSolved) => refresh.update(|n| *n += 1),
+            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
+                Ok(ServerEventPayload::NewChallengeCreated(_)) |
+                Ok(ServerEventPayload::ChallengeDeleted(_)) |
+                Ok(ServerEventPayload::ChallengeEdited(_)) |
+                Ok(ServerEventPayload::ChallengeSolved) => refresh.update(|n| *n += 1),
                 Ok(_) => {},
-                Err(e) => tracing::warn!("failed to parse AdminEventPayloadKind: {}", e)
+                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
             }
         }
     });

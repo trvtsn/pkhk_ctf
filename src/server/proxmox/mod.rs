@@ -496,7 +496,7 @@ fn schedule_vm_deletion(user: DbUser, vm_id: u32) {
             let end_at = args.end_at.timestamp();
             let now = Local::now().timestamp();
             if now >= end_at {
-                if let Err(e) = super::admin::destroy_vm(vm_id).await {
+                if let Err(e) = super::proxmox::admin::destroy_vm(&vm_id).await {
                     tracing::error!(error = ?e, "failed to destroy expired VM");
                 }
                 return;

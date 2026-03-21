@@ -4,7 +4,7 @@ use crate::app::RefreshUser;
 use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::{Difficulty, TruncatedDesc};
 use crate::server::db::structs::{Challenge, ChallengeWithAttachments};
-use crate::server::{check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
+use crate::server::{api::check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
 use icondata as i;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

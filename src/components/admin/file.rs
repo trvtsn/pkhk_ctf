@@ -96,7 +96,7 @@ pub fn File(
                             if renaming.get_untracked() {
                                 spawn_local(async move {
                                     tracing::debug!("renaming file: {id}");
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::rename_file(
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::api::rename_file(
                                             id,
                                             new_file_name.clone()
                                         )
@@ -129,7 +129,7 @@ pub fn File(
                         if deleting.get_untracked() {
                             spawn_local(async move {
                                 tracing::debug!("deleting file: {id}");
-                                if let Ok(ApiResult { result, .. }) = crate::server::admin::delete_file(
+                                if let Ok(ApiResult { result, .. }) = crate::server::admin::api::delete_file(
                                         id,
                                     )
                                     .await && result == ResultStatus::Success

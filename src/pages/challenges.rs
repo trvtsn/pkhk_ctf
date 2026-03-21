@@ -1,5 +1,5 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db, enums::AdminEventPayloadKind, get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_hint, get_used_hints, get_user_solved_challenges, get_user_vms, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::ServerEventPayload, api::{get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_hint, get_used_hints, get_user_solved_challenges, get_user_vms}, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
 };
 use leptos::prelude::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
@@ -9,14 +9,15 @@ use std::collections::HashMap;
 /// Default Home Page
 #[component]
 pub fn Challenges() -> impl IntoView {
-    let cwa_popup = RwSignal::new(None);
+    let cwa_popup = RwSignal::<Option<ChallengeWithAttachments>>::new(None);
     let overlay_triggered = RwSignal::new(false);
     let refresh = RwSignal::new(0);
     let refresh_solved_challenges = RwSignal::new(0);
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
     let refresh_user_vms = RwSignal::new(0);
 
-    let challenges_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let cwa_signal = RwSignal::<Vec<ChallengeWithAttachments>>::new(vec![]);
+    let cwa_resource = Resource::new(move || refresh.get(), move |_| async move {
         get_all_challenges_with_attachments().await.unwrap_or_default()
     });
 
@@ -59,6 +60,23 @@ pub fn Challenges() -> impl IntoView {
         }
     });
 
+    let grouped_challenges = Memo::new(move |_| {
+        let mut map = HashMap::<Option<String>, Vec<ChallengeWithAttachments>>::new();
+        for ch in cwa_signal.get().into_iter() {
+            map.entry(ch.challenge.category.clone()).or_default().push(ch);
+        }
+        let mut groups = map
+            .into_iter()
+            .collect::<Vec<(Option<String>, Vec<ChallengeWithAttachments>)>>();
+        // alphabetical sort, there's probably a better way to do this
+        groups
+            .sort_by(|(a, _), (b, _)| {
+                a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or(""))
+            });
+
+        groups
+    });
+
     let UseEventSourceReturn { message, .. } = 
         use_event_source_with_options::<String, FromToStringCodec>(
             "/events".to_string(), 
@@ -67,18 +85,39 @@ pub fn Challenges() -> impl IntoView {
 
     Effect::new(move |_| {
         if let Some(msg) = message.get() {
-            match serde_json::from_str::<AdminEventPayloadKind>(&msg.data) {
-                Ok(AdminEventPayloadKind::NewChallengeCreated) | 
-                Ok(AdminEventPayloadKind::ChallengeEdited) |
-                Ok(AdminEventPayloadKind::ChallengeDeleted) |
-                Ok(AdminEventPayloadKind::EventEdited) |
-                Ok(AdminEventPayloadKind::EventDeleted) |
-                Ok(AdminEventPayloadKind::NewEventCreated) => {
+            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
+                Ok(ServerEventPayload::NewChallengeCreated(new_cwa)) => {
+                    cwa_signal.update(|cwa| cwa.push(new_cwa));
+                },
+                Ok(ServerEventPayload::ChallengeEdited(new_cwa)) => {
+                    cwa_signal.update(|challenges| {
+                        if let Some(existing) = challenges.iter_mut().find(|c| c.challenge.id == new_cwa.challenge.id) {
+                            *existing = new_cwa.clone();
+                        }
+                    });
+
+                    if let Some(cwa_popup_value) = cwa_popup.get_untracked() && cwa_popup_value.challenge.id == new_cwa.challenge.id {
+                        cwa_popup.set(Some(new_cwa));
+                    }
+
+                    refresh_user.update(|r| r.iteration += 1);
+                },
+                Ok(ServerEventPayload::ChallengeDeleted(id)) => {
+                    if let Some(cwa_popup) = cwa_popup.get_untracked() && cwa_popup.challenge.id == id {
+                        cwa_signal.update(|cwa| cwa.retain(|cwa| cwa.challenge.id != id));
+                        overlay_triggered.set(false);
+                    }
+                    
+                    refresh_user.update(|r| r.iteration += 1);
+                },
+                Ok(ServerEventPayload::EventEdited(_)) |
+                Ok(ServerEventPayload::EventDeleted(_)) |
+                Ok(ServerEventPayload::NewEventCreated(_)) => {
                     refresh.update(|n| *n += 1);
                     refresh_user.update(|r| r.iteration += 1);
                 }
                 Ok(_) => {},
-                Err(_) => tracing::warn!("failed to parse AdminEventPayloadKind")
+                Err(_) => tracing::warn!("failed to parse ServerEventPayload")
             }
         }
     });
@@ -100,6 +139,9 @@ pub fn Challenges() -> impl IntoView {
                         if active_events_resource.get().unwrap_or_default().is_empty() {
                             view! { <p>"No events currently active"</p> }.into_any()
                         } else {
+                            let cwa = cwa_resource.get().unwrap_or_default();
+                            cwa_signal.set(cwa);
+
                             let all_templates = all_templates_resource.get().unwrap_or_default();
                             all_templates_signal.set(all_templates);
 
@@ -114,28 +156,11 @@ pub fn Challenges() -> impl IntoView {
                             let user_vms = user_vms_resource.get().unwrap_or_default();
                             user_vms_signal.set(user_vms);
 
-                            let mut map = HashMap::<
-                                Option<String>,
-                                Vec<db::structs::ChallengeWithAttachments>,
-                            >::new();
-                            for ch in challenges_resource.get().unwrap_or_default().into_iter() {
-                                map.entry(ch.challenge.category.clone()).or_default().push(ch);
-                            }
-                            let mut groups = map
-                                .into_iter()
-                                .collect::<
-                                    Vec<(Option<String>, Vec<db::structs::ChallengeWithAttachments>)>,
-                                >();
-                            // alphabetical sort, there's probably a better way to do this
-                            groups
-                                .sort_by(|(a, _), (b, _)| {
-                                    a.as_deref().unwrap_or("").cmp(b.as_deref().unwrap_or(""))
-                                });
                             solved_challenge_ids.set(solved_challenges_resource.get().unwrap_or_default());
 
                             view! {
                                 <For
-                                    each=move || groups.clone()
+                                    each=move || grouped_challenges.get()
                                     key=|
                                         group: &(
                                             Option<String>,
@@ -144,51 +169,60 @@ pub fn Challenges() -> impl IntoView {
                                     group.0.clone()
                                     let(group)
                                 >
-                                    <div class=r#"p-2 challenge-category"#>
-                                        <h2 class=r#"text-2xl"#>
-                                            {group.0.clone().unwrap_or("Uncategorized".to_string())}
-                                        </h2>
+                                    {
+                                        let category = group.0.clone();
+                                        view! {
+                                            <div class=r#"p-2 challenge-category"#>
+                                                <h2 class=r#"text-2xl"#>
+                                                    {category.clone().unwrap_or("Uncategorized".to_string())}
+                                                </h2>
 
-                                        <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
-                                            <For
-                                                each=move || group.1.clone()
-                                                key=|cwa: &db::structs::ChallengeWithAttachments| {
-                                                    cwa.challenge.id.clone()
-                                                }
-                                                children=move |cwa| {
-                                                    let cwa = RwSignal::new(cwa);
-                                                    view! {
-                                                        <Show when=move || overlay_triggered.get() && 
-                                                            cwa_popup.get().unwrap_or_default() == cwa.get()
-                                                        >
-                                                            <ChallengePopup 
-                                                                cwa
-                                                                cwa_popup
-                                                                solved_challenges=solved_challenge_ids 
-                                                                overlay_triggered 
-                                                                all_templates=all_templates_signal
-                                                                hints=hints_signal
-                                                                user_vms=user_vms_signal
-                                                                hints_used=hints_used_signal
-                                                                refresh_solved_challenges
-                                                                refresh_user_vms
-                                                            />
-                                                        </Show>
+                                                <div class=r#"grid grid-cols-4 m-4 content-stretch"#>
+                                                    <For
+                                                        each=move || {
+                                                            grouped_challenges.get()
+                                                                .into_iter()
+                                                                .find(|(c, _)| *c == category)
+                                                                .map(|(_, challenges)| challenges)
+                                                                .unwrap_or_default()
+                                                        }
+                                                        key=|cwa: &ChallengeWithAttachments| format!("{cwa:?}")
+                                                        children=move |cwa| {
+                                                            let cwa = RwSignal::new(cwa);
+                                                            view! {
+                                                                <Show when=move || overlay_triggered.get() && 
+                                                                    cwa_popup.get().unwrap_or_default() == cwa.get()
+                                                                >
+                                                                    <ChallengePopup 
+                                                                        cwa
+                                                                        cwa_popup
+                                                                        solved_challenges=solved_challenge_ids 
+                                                                        overlay_triggered 
+                                                                        all_templates=all_templates_signal
+                                                                        hints=hints_signal
+                                                                        user_vms=user_vms_signal
+                                                                        hints_used=hints_used_signal
+                                                                        refresh_solved_challenges
+                                                                        refresh_user_vms
+                                                                    />
+                                                                </Show>
 
-                                                        <div class=r#"p-2 challenge"#>
-                                                            <Challenge
-                                                                cwa
-                                                                solved_challenges=solved_challenge_ids
-                                                                overlay_triggered
-                                                                cwa_popup
-                                                                refresh_solved_challenges
-                                                            />
-                                                        </div>
-                                                    }
-                                                }
-                                            />
-                                        </div>
-                                    </div>
+                                                                <div class=r#"p-2 challenge"#>
+                                                                    <Challenge
+                                                                        cwa
+                                                                        solved_challenges=solved_challenge_ids
+                                                                        overlay_triggered
+                                                                        cwa_popup
+                                                                        refresh_solved_challenges
+                                                                    />
+                                                                </div>
+                                                            }
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+                                        }
+                                    }
                                 </For>
                             }.into_any()
                         }

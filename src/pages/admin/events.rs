@@ -1,7 +1,9 @@
-use crate::{components::{admin::event::Event, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, FileTooltip, Spinner}}, pages::admin::Actions, server::{admin::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::AttachmentWithoutBlob}, enums::ResultStatus, structs::ApiResult}, utils::html_local_to_datetime};
+use crate::{components::{admin::event::Event, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, FileTooltip, Spinner}}, pages::admin::Actions, server::{admin::api::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::{AttachmentWithoutBlob, EventWithAttachments}}, enums::{ServerEventPayload, ResultStatus}, structs::ApiResult}, utils::html_local_to_datetime};
 use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options};
 use leptos::{prelude::*, task:: spawn_local};
 use leptos::{web_sys::{HtmlSelectElement, Event}, wasm_bindgen::JsCast};
+use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
+use leptos::server::codee::string::FromToStringCodec;
 
 /// Default Home Page
 #[component]
@@ -9,9 +11,10 @@ pub fn Events() -> impl IntoView {
     let attachments_ref = NodeRef::new();
     let illustration_ref = NodeRef::new();
 
+    let editing_ids = RwSignal::<Vec<String>>::new(vec![]);
+    let pending_ewa_updates = RwSignal::<Vec<EventWithAttachments>>::new(vec![]);
     let creating = RwSignal::new(false);
     let section = RwSignal::new(Actions::None);
-    let refresh = RwSignal::new(0);
 
     let name_signal = RwSignal::new("".to_string());
     let description_signal = RwSignal::new("".to_string());
@@ -19,16 +22,72 @@ pub fn Events() -> impl IntoView {
     let end_at_signal = RwSignal::new("".to_string());
     let visible_to_groups_signal = RwSignal::new(vec![]);
 
+    let ewa_signal = RwSignal::<Vec<EventWithAttachments>>::new(vec![]);
     let attachments = RwSignal::<Option<Vec<AttachmentWithoutBlob>>>::new(None);
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     
-    let ewa_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let ewa_resource = Resource::new(move || (), move |_| async move {
         get_all_events_with_attachments().await.unwrap_or_default()
     });
     
     let groups_signal = RwSignal::new(vec![]);
-    let groups_resource = Resource::new(move || refresh.get(), move |_| async move {
+    let groups_resource = Resource::new(move || (), move |_| async move {
         get_all_user_groups().await.unwrap_or_default()
+    });
+
+    let UseEventSourceReturn { message, .. } =
+        use_event_source_with_options::<String, FromToStringCodec>(
+            "/admin/events".to_string(),
+            UseEventSourceOptions::default().immediate(true)
+        );
+
+    Effect::new(move |_| {
+        if let Some(msg) = message.get() {
+            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
+                Ok(ServerEventPayload::EventEdited(new_ewa)) => {
+                    if editing_ids.get_untracked().contains(&new_ewa.event.id) {
+                        pending_ewa_updates.update(|pending| {
+                            pending.retain(|p| p.event.id != new_ewa.event.id);
+                            pending.push(new_ewa);
+                        });
+                    } else {
+                        ewa_signal.update(|events| {
+                            if let Some(existing) = events.iter_mut().find(|e| e.event.id == new_ewa.event.id) {
+                                *existing = new_ewa;
+                            }
+                        });
+                    }
+                },
+                Ok(ServerEventPayload::EventDeleted(id)) => {
+                    ewa_signal.update(|ewa| ewa.retain(|ewa| ewa.event.id != id));
+                },
+                Ok(ServerEventPayload::NewEventCreated(new_ewa)) => {
+                    ewa_signal.update(|ewa| ewa.push(new_ewa));
+                }, 
+                Ok(_) => {},
+                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
+            }
+        }
+    });
+
+    // Flush pending SSE updates for events no longer being edited
+    Effect::new(move |_| {
+        let current_editing = editing_ids.get();
+        let pending = pending_ewa_updates.get_untracked();
+        let to_flush: Vec<_> = pending.iter()
+            .filter(|p| !current_editing.contains(&p.event.id))
+            .cloned()
+            .collect();
+        if !to_flush.is_empty() {
+            pending_ewa_updates.update(|p| p.retain(|u| current_editing.contains(&u.event.id)));
+            ewa_signal.update(|events| {
+                for updated_ewa in to_flush {
+                    if let Some(existing) = events.iter_mut().find(|c| c.event.id == updated_ewa.event.id) {
+                        *existing = updated_ewa;
+                    }
+                }
+            });
+        }
     });
 
     view! {
@@ -235,7 +294,7 @@ pub fn Events() -> impl IntoView {
                                             let attachments = attachments.get_untracked();
                                             let illustration = illustration.get_untracked();
 
-                                            if let Ok(ApiResult { result, .. }) = crate::server::admin::event(crate::server::admin::EventAction::Create {
+                                            if let Ok(ApiResult { result, .. }) = crate::server::admin::api::event(crate::server::admin::EventAction::Create {
                                                     name,
                                                     description,
                                                     start_at,
@@ -247,7 +306,6 @@ pub fn Events() -> impl IntoView {
                                                 .await && result == ResultStatus::Success
                                             {
                                                 push_new_toast(ToastMessageType::EventCreated);
-                                                refresh.update(|n| *n += 1);
                                             } else {
                                                 push_new_toast(ToastMessageType::EventCreateFail);
                                             }
@@ -266,18 +324,20 @@ pub fn Events() -> impl IntoView {
                         }>
                             {move || {
                                 let events = ewa_resource.get().unwrap_or_default();
+                                ewa_signal.set(events);
+
                                 view! {
                                     <div class=r#"grid grid-cols-4 content-stretch"#>
                                         <For
-                                            each=move || events.clone()
-                                            key=|ewa: &db::structs::EventWithAttachments| ewa.event.id.clone()
+                                            each=move || ewa_signal.get()
+                                            key=|ewa: &db::structs::EventWithAttachments| format!("{ewa:?}")
                                             let(ewa)
                                         >
                                             <div class=r#"p-2 event"#>
                                                 <Event 
                                                     ewa
+                                                    editing_ids
                                                     user_groups=groups_signal
-                                                    refresh 
                                                 />
                                             </div>
                                         </For>

@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::{navbar::NavBar, utils::{ComponentSize, Spinner}}, pages::not_found::NotFound, server::{db::enums::UserIdentifier, get_avatar_id, get_db_user_without_pii}};
+use crate::{components::{navbar::NavBar, utils::{ComponentSize, Spinner}}, pages::not_found::NotFound, server::{db::enums::UserIdentifier, api::{get_avatar_id, get_db_user_without_pii}}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 

@@ -1,6 +1,6 @@
 pub mod ldap;
 
-use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, error_template::AppError, server::{get_user, is_ldap_enabled, login_user, structs::Credentials}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, error_template::AppError, server::{api::{get_user, is_ldap_enabled, login_user}, structs::Credentials}};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 

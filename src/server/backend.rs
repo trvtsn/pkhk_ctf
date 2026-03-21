@@ -18,8 +18,8 @@ use tracing::instrument;
 #[cfg(feature = "ssr")]
 use crate::server::backend::enums::AuthType;
 #[cfg(feature = "ssr")]
-use crate::server::is_host_reachable;
-use crate::server::db::structs::{Attachment, LdapArgs};
+use crate::server::{BroadcastScope, build_and_broadcast, is_host_reachable};
+use crate::server::{ServerEventPayload, db::structs::{Attachment, LdapArgs}};
 
 #[cfg(feature = "ssr")]
 pub type AuthSession = axum_login::AuthSession<Backend>;
@@ -280,6 +280,10 @@ cfg_if! {
                             match DbUser::get_ldap(&UserIdentifier::Id(new_user_id), &mut *tx).await {
                                 Ok(Some(user)) => {
                                     tx.commit().await?;
+                                    let broadcast_user = user.clone();
+                                    tokio::spawn(async move {
+                                        _ = build_and_broadcast(ServerEventPayload::UserCreated(broadcast_user), vec![BroadcastScope::Admin]).await;
+                                    });
                                     user
                                 },
                                 Ok(None) => {

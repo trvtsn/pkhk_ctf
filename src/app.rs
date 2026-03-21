@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 
 // Top-Level pages
 use crate::{
-    components::toast::{Toasts, ToastMessage}, pages::{
+    components::toast::{ToastMessage, Toasts}, pages::{
         admin::Admin, challenges::Challenges, home::Home, leaderboard::Leaderboard, login,
         not_found::NotFound, register::Register, user,
-    }, server::{db::{enums::UserRole, structs::DbUserWithoutPII}, get_db_user_without_pii}
+    }, server::{api::get_db_user_without_pii, db::{enums::UserRole, structs::DbUserWithoutPII}}
 };
 
 

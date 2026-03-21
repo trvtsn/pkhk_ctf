@@ -1,13 +1,13 @@
-use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::{HidePasswordButton, FileTooltip}}, server::{admin::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
+use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::{HidePasswordButton, FileTooltip}}, server::{admin::api::upload_avatar, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::ResultStatus, structs::ApiResult}};
 use crate::utils::{action_btn_text, build_single_file_form_data, collect_selected_options, csv_contains};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 
 #[component]
 pub fn User(
     user: DbUser,
+    editing_ids: RwSignal<Vec<String>>,
     user_avatars: RwSignal<Vec<UserAvatar>>,
-    groups: RwSignal<Vec<String>>,
-    refresh: RwSignal<i32>
+    groups: RwSignal<Vec<String>>
 ) -> impl IntoView {
     let avatar_ref = NodeRef::new();
     let group_add_new_selected = RwSignal::new(false);
@@ -58,6 +58,19 @@ pub fn User(
             groups_signal.get() == groups_edit.get() &&
             avatar_edit.get() == user_avatar.get()
         { false } else { true }
+    });
+
+    Effect::new(move |_| {
+        let id = id_signal.get_untracked();
+        if editing.get() {
+            editing_ids.update(|ids| {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            });
+        } else {
+            editing_ids.update(|ids| ids.retain(|i| i != &id));
+        }
     });
     
     view! {
@@ -342,7 +355,7 @@ pub fn User(
                                         editing.set(false);
                                         push_new_toast(ToastMessageType::NoChangesMade);
                                     } else {
-                                        if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Edit {
+                                        if let Ok(ApiResult { result, .. }) = crate::server::admin::api::user(crate::server::admin::UserAction::Edit {
                                                 id: user_id,
                                                 username: username.clone(),
                                                 email: email.clone(),
@@ -356,13 +369,7 @@ pub fn User(
                                             .await && result == ResultStatus::Success
                                         {
                                             push_new_toast(ToastMessageType::UserEdited);
-                                            refresh.update(|n| *n += 1);
-                                            username_signal.set(username);
-                                            email_signal.set(email);
-                                            new_password_signal.set(password);
-                                            confirm_new_password_signal.set(confirm_password);
-                                            points_signal.set(points);
-                                            role_signal.set(role);
+                                            editing.set(false);
                                         } else {
                                             push_new_toast(ToastMessageType::UserEditFail);
                                         }
@@ -389,7 +396,7 @@ pub fn User(
                                     tracing::debug!(
                                         "editing user password: {}", id_signal.get_untracked()
                                     );
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::EditPassword {
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::api::user(crate::server::admin::UserAction::EditPassword {
                                             id: id_signal.get_untracked(),
                                             password: new_password_edit.get_untracked(),
                                             confirm_password: confirm_new_password_edit.get_untracked(),
@@ -397,7 +404,6 @@ pub fn User(
                                         .await && result == ResultStatus::Success
                                     {
                                         push_new_toast(ToastMessageType::UserPasswordChanged);
-                                        refresh.update(|n| *n += 1);
                                     } else {
                                         push_new_toast(ToastMessageType::UserPasswordChangeFail);
                                     }
@@ -421,13 +427,12 @@ pub fn User(
                             if deleting.get_untracked() {
                                 spawn_local(async move {
                                     tracing::debug!("deleting user: {id}");
-                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::user(crate::server::admin::UserAction::Delete {
+                                    if let Ok(ApiResult { result, .. }) = crate::server::admin::api::user(crate::server::admin::UserAction::Delete {
                                             id,
                                         })
                                         .await && result == ResultStatus::Success
                                     {
                                         push_new_toast(ToastMessageType::UserDeleted);
-                                        refresh.update(|n| *n += 1);
                                     } else {
                                         push_new_toast(ToastMessageType::UserDeleteFail);
                                     }
