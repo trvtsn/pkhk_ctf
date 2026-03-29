@@ -3,6 +3,7 @@ use chrono::{DateTime, Local};
 use leptos::prelude::*;
 use leptos_chartistry::*;
 
+/// Wrapper around leptos_chartistry that renders the score-over-time line chart.
 #[component]
 pub fn LeaderboardChart(
     series: RwSignal<Series<PivotRow, DateTime<Local>, f64>>,

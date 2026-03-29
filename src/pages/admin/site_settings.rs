@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-/// Default Home Page
+/// Admin site settings (placeholder - currently only a static "Change Favicon" button).
 #[component]
 pub fn SiteSettings() -> impl IntoView {
     view! {

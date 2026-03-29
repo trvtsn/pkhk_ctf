@@ -6,7 +6,7 @@ use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventS
 
 use crate::components::toast::{ToastMessageType, push_new_toast};
 
-/// Default Home Page
+/// Live server log viewer, streamed via SSE.
 #[component]
 pub fn Log() -> impl IntoView {
     let logs = RwSignal::new(Vec::<String>::new());

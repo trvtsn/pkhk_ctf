@@ -5,7 +5,8 @@ use leptos::{web_sys::{HtmlSelectElement, Event}, wasm_bindgen::JsCast};
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
 
-/// Default Home Page
+/// Admin event management.
+/// Create, edit, and delete CTF events.
 #[component]
 pub fn Events() -> impl IntoView {
     let attachments_ref = NodeRef::new();

@@ -1,7 +1,8 @@
 use crate::{components::{admin::file::File, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, Spinner}}, server::{admin::{api::{get_all_files, upload_files}}, db}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{FormData, HtmlFormElement, HtmlInputElement, SubmitEvent}};
 
-/// Default Home Page
+/// Admin file browser.
+/// Upload and manage standalone attachments.
 #[component]
 pub fn Files() -> impl IntoView {
     let refresh = RwSignal::new(0);

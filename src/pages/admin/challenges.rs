@@ -44,7 +44,8 @@ impl From<Hint> for crate::server::db::structs::Hint {
     }
 }
 
-/// Default Home Page
+/// Admin challenge management.
+/// Create, edit, and delete challenges.
 #[component]
 pub fn Challenges() -> impl IntoView {
     let created = RwSignal::new(false);

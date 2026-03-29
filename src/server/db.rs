@@ -1,4 +1,10 @@
 #![allow(clippy::too_many_arguments)]
+/// src/server/db.rs
+/// contains code which is specific to all DB-related operations.
+/// Some code like the `structs` and `enums` modules are accessible everywhere 
+/// else in the code. This allows for easy client-to-server-db communication
+/// without using any sort of middleware. 
+
 use crate::server::db::enums::ProxmoxAuthType;
 use crate::server::db::structs::DbHint;
 use crate::server::db::structs::DbHintWithoutHint;
@@ -468,7 +474,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -494,7 +500,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -512,7 +518,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -532,7 +538,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -552,7 +558,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -572,7 +578,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -592,7 +598,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -612,7 +618,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -632,7 +638,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -652,7 +658,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -672,7 +678,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -694,7 +700,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    log::error!("Failed to get user (ID: {id}): {e}");
                                     Err(e)?
                                 }
                             }
@@ -713,7 +719,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -733,7 +739,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -753,7 +759,7 @@ cfg_if! {
                     .await {
                         Ok(users) => Ok(users),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -785,7 +791,7 @@ cfg_if! {
                             Ok(groups)
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -807,7 +813,7 @@ cfg_if! {
                             .await {
                                 Ok(avatar) => Ok(avatar),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -826,7 +832,7 @@ cfg_if! {
                             .await {
                                 Ok(avatar) => Ok(avatar),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -845,7 +851,7 @@ cfg_if! {
                             .await {
                                 Ok(avatar) => Ok(avatar),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -873,7 +879,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -896,7 +902,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -919,7 +925,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -948,7 +954,7 @@ cfg_if! {
                             Ok(all_avatar_ids)
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -970,7 +976,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -989,7 +995,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1009,7 +1015,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1049,7 +1055,7 @@ cfg_if! {
                             }
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1077,7 +1083,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1105,7 +1111,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1129,7 +1135,7 @@ cfg_if! {
                             }
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1149,7 +1155,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1173,7 +1179,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1192,7 +1198,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1212,7 +1218,7 @@ cfg_if! {
                             .await {
                                 Ok(user) => Ok(user),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1257,7 +1263,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1282,7 +1288,7 @@ cfg_if! {
                             }
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1323,7 +1329,7 @@ cfg_if! {
                         .await {
                             Ok(_) => Ok(()),
                             Err(e) => {
-                                //log::error!("Failed to get user (ID: {id}): {e}");
+                                tracing::error!(error = ?e);
                                 Err(e)?
                             }
                         }
@@ -1350,7 +1356,7 @@ cfg_if! {
                         .await {
                             Ok(_) => Ok(()),
                             Err(e) => {
-                                //log::error!("Failed to get user (ID: {id}): {e}");
+                                tracing::error!(error = ?e);
                                 Err(e)?
                             }
                         }
@@ -1371,7 +1377,7 @@ cfg_if! {
                     .await {
                         Ok(challenge) => Ok(challenge),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1415,7 +1421,7 @@ cfg_if! {
                             Ok(categories)
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1435,7 +1441,7 @@ cfg_if! {
                     .await {
                         Ok(challenges) => Ok(challenges),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1454,7 +1460,7 @@ cfg_if! {
                     .await {
                         Ok(row) => Ok(row.flag_hash),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1492,7 +1498,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1642,7 +1648,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1666,7 +1672,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1690,7 +1696,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1817,7 +1823,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1836,7 +1842,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1855,7 +1861,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1874,7 +1880,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1894,7 +1900,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1915,7 +1921,7 @@ cfg_if! {
                             Ok(rows.into_iter().map(|row| row.file_name).collect())
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -1938,7 +1944,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1958,7 +1964,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1978,7 +1984,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -1998,7 +2004,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2019,7 +2025,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2040,7 +2046,7 @@ cfg_if! {
                     .await {
                         Ok(certificate) => Ok(certificate),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2062,7 +2068,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2081,7 +2087,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2100,7 +2106,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2119,7 +2125,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2139,7 +2145,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2179,7 +2185,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2325,7 +2331,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2349,7 +2355,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2373,7 +2379,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2397,7 +2403,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2419,7 +2425,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2438,7 +2444,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2457,7 +2463,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2476,7 +2482,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2496,7 +2502,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2513,7 +2519,7 @@ cfg_if! {
                             .await {
                                 Ok(attachments) => Ok(attachments),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2534,7 +2540,7 @@ cfg_if! {
                             Ok(rows.into_iter().map(|row| row.file_name).collect())
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2553,7 +2559,7 @@ cfg_if! {
                     .await {
                         Ok(illustrations) => Ok(illustrations),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2572,7 +2578,7 @@ cfg_if! {
                     .await {
                         Ok(certificate) => Ok(certificate),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -2595,7 +2601,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2615,7 +2621,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2635,7 +2641,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2655,7 +2661,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2676,7 +2682,7 @@ cfg_if! {
                                     Ok(rows.into_iter().map(|row| row.file_name).collect())
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2700,7 +2706,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2719,7 +2725,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2738,7 +2744,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2757,7 +2763,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2777,7 +2783,7 @@ cfg_if! {
                             .await {
                                 Ok(attachment) => Ok(attachment),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2805,7 +2811,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2828,7 +2834,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2851,7 +2857,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2874,7 +2880,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2898,7 +2904,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2922,7 +2928,7 @@ cfg_if! {
                             .await {
                                 Ok(illustration) => Ok(illustration),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2941,7 +2947,7 @@ cfg_if! {
                             .await {
                                 Ok(illustration) => Ok(illustration),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2960,7 +2966,7 @@ cfg_if! {
                             .await {
                                 Ok(illustration) => Ok(illustration),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2979,7 +2985,7 @@ cfg_if! {
                             .await {
                                 Ok(illustration) => Ok(illustration),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -2999,7 +3005,7 @@ cfg_if! {
                             .await {
                                 Ok(illustration) => Ok(illustration),
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -3027,7 +3033,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -3050,7 +3056,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -3073,7 +3079,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -3096,7 +3102,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -3120,7 +3126,7 @@ cfg_if! {
                                     }
                                 },
                                 Err(e) => {
-                                    //log::error!("Failed to get user (ID: {id}): {e}");
+                                    tracing::error!(error = ?e);
                                     Err(e)?
                                 }
                             }
@@ -3157,7 +3163,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3213,7 +3219,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3233,7 +3239,7 @@ cfg_if! {
                     .await {
                         Ok(event) => Ok(event),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3251,7 +3257,7 @@ cfg_if! {
                     .await {
                         Ok(events) => Ok(events),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3267,6 +3273,7 @@ cfg_if! {
                     FROM events
                     LEFT JOIN submissions ON submissions.event_id = events.id
                     WHERE events.id = ?
+                    GROUP BY events.id
                     ",
                     id
                 )
@@ -3321,7 +3328,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(id.to_string()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3339,7 +3346,7 @@ cfg_if! {
                     .await {
                         Ok(rows) => Ok(rows),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3451,7 +3458,7 @@ cfg_if! {
                     .await {
                         Ok(row) => Ok(row.points as u32),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3476,7 +3483,7 @@ cfg_if! {
                             Ok(solved_challenge_ids)
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3506,7 +3513,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3535,7 +3542,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3561,7 +3568,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3578,7 +3585,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3616,7 +3623,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3634,7 +3641,7 @@ cfg_if! {
                     .await {
                         Ok(ldap_args) => Ok(ldap_args),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3652,7 +3659,7 @@ cfg_if! {
                     .await {
                         Ok(ldap_args) => Ok(ldap_args),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3675,7 +3682,7 @@ cfg_if! {
                             }
                         },
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3714,7 +3721,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3749,7 +3756,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3770,7 +3777,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3809,7 +3816,7 @@ cfg_if! {
                     .await {
                         Ok(ldap_args) => Ok(ldap_args),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3826,7 +3833,7 @@ cfg_if! {
                     .await {
                         Ok(row) => Ok(row.auth_type.into()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3850,7 +3857,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3891,7 +3898,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3913,7 +3920,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3933,7 +3940,7 @@ cfg_if! {
                     .await {
                         Ok(hint) => Ok(hint),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3951,7 +3958,7 @@ cfg_if! {
                     .await {
                         Ok(hints) => Ok(hints),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3971,7 +3978,7 @@ cfg_if! {
                     .await {
                         Ok(hints) => Ok(hints),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -3991,7 +3998,7 @@ cfg_if! {
                     .await {
                         Ok(hints) => Ok(hints),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -4011,7 +4018,7 @@ cfg_if! {
                     .await {
                         Ok(hints) => Ok(hints),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -4033,7 +4040,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -4053,7 +4060,7 @@ cfg_if! {
                     .await {
                         Ok(hints_used) => Ok(hints_used),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }
@@ -4071,7 +4078,7 @@ cfg_if! {
                     .await {
                         Ok(_) => Ok(()),
                         Err(e) => {
-                            //log::error!("Failed to get user (ID: {id}): {e}");
+                            tracing::error!(error = ?e);
                             Err(e)?
                         }
                     }

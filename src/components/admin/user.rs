@@ -2,6 +2,8 @@ use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::{Hide
 use crate::utils::{action_btn_text, build_single_file_form_data, collect_selected_options, csv_contains};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 
+/// Admin-facing user card in the admin Users section 
+/// Inline editing for username, role, groups, avatar.
 #[component]
 pub fn User(
     user: DbUser,

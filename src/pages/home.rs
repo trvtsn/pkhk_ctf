@@ -1,7 +1,7 @@
 use crate::components::navbar::NavBar;
 use leptos::prelude::*;
 
-/// Default Home Page
+/// Default Home/Landing Page
 #[component]
 pub fn Home() -> impl IntoView {
     view! {

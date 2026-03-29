@@ -4,7 +4,7 @@ use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageT
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 
-/// Default Home Page
+/// Email + password login form. Redirects to / on success.
 #[component]
 pub fn Login() -> impl IntoView {
     let email = RwSignal::new("".to_string());

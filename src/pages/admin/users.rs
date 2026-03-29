@@ -4,7 +4,8 @@ use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Even
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
 
-/// Default Home Page
+/// Admin user management.
+/// Create, edit, delete users and assign roles/groups.
 #[component]
 pub fn Users() -> impl IntoView {
     let avatar_ref = NodeRef::new();

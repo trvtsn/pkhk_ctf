@@ -3,6 +3,8 @@ use crate::utils::{action_btn_text, build_multi_file_form_data, build_single_fil
 use chrono::DateTime;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 
+/// Admin-facing event card in the admin Events section.
+/// Inline editing for name, dates, groups, and attachments.
 #[component]
 pub fn Event(
     ewa: db::structs::EventWithAttachments,

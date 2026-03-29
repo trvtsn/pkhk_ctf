@@ -1,3 +1,8 @@
+/// src/utils.rs
+///
+/// This file contains code for reusable abstractions which don't really belong anywhere else.
+/// They can be used in both server and client code.
+
 use crate::{components::toast::{ToastMessageType, push_new_toast}, error_template::AppError};
 use std::any::type_name;
 use chrono::{DateTime, Local, NaiveDateTime, ParseError, TimeZone, Utc, offset::LocalResult};
@@ -165,4 +170,3 @@ pub fn format_file_size(bytes: u64) -> String {
         format!("{} B", bytes)
     }
 }
-

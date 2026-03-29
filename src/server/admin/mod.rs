@@ -128,6 +128,8 @@ pub enum UserAction {
     }
 }
 
+/// Used at the start of every admin API function. 
+/// Checks if the user is logged in, and if they're of role `UserRole::Admin`.
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
@@ -156,5 +158,20 @@ pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
         return Err(AppError::Forbidden);
     } else {
         Ok((user, auth.backend.pool))
+    }
+}
+
+#[cfg(feature = "ssr")]
+#[instrument]
+async fn fetch_db_user(id: &String, pool: &MySqlPool) -> Result<DbUser, AppError> {
+    match DbUser::get(&UserIdentifier::Id(id.clone()), pool).await {
+        Ok(Some(user)) => Ok(user),
+        Ok(None) => {
+            Err(AppError::InternalError("internal error".to_string()))
+        }
+        Err(e) => {
+            tracing::error!(error = ?e);
+            Err(AppError::InternalError("internal error".to_string()))
+        }
     }
 }

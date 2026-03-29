@@ -1,3 +1,8 @@
+/// src/server/proxmox/admin.rs
+/// contains code which essentially creates an easy wrapper for the API to use for
+/// communicating with the Proxmox server.
+/// All the code here is meant to be accessible only to users with the role `UserRole::Admin`.
+
 #[cfg(feature = "ssr")]
 use crate::server::proxmox::ProxmoxClient;
 use crate::{error_template::AppError, server::proxmox::{Config, Member, VmCurrentStatus}};

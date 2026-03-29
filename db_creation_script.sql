@@ -80,7 +80,7 @@ CREATE UNIQUE INDEX `username_UNIQUE` ON `ctfpkhk`.`users` (`username` ASC) VISI
 
 CREATE UNIQUE INDEX `email_UNIQUE` ON `ctfpkhk`.`users` (`email` ASC) VISIBLE;
 
-CREATE INDEX `email_idx` ON `ctfpkhk`.`users` (`email` ASC) INVISIBLE;
+CREATE INDEX `email_idx` ON `ctfpkhk`.`users` (`email` ASC) VISIBLE;
 
 
 -- -----------------------------------------------------

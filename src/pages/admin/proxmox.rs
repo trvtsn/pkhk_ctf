@@ -2,7 +2,8 @@ use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::{Comp
 use itertools::Itertools;
 use leptos::{prelude::*, task::spawn_local};
 
-/// Default Home Page
+/// Admin Proxmox integration.
+/// API config and per-user VM management.
 #[component]
 pub fn Proxmox() -> impl IntoView {
     let selected = expect_context::<RwSignal<AdminSections>>();
@@ -43,6 +44,8 @@ pub fn Proxmox() -> impl IntoView {
     }
 }
 
+/// Admin-facing proxmox API connection form. 
+/// URL, auth type, token, and connection testing.
 #[component]
 fn Config() -> impl IntoView {
     let api_token_hidden = RwSignal::new(true);
@@ -265,6 +268,7 @@ fn Config() -> impl IntoView {
     }
 }
 
+/// Admin-facing per-user Proxmox VM overview - create/delete pools and users, manage running VMs.
 #[component]
 fn Users() -> impl IntoView {
     let proxmox_users_info = RwSignal::new(Vec::<ProxmoxUserInfo>::new());

@@ -4,7 +4,7 @@ use leptos_chartistry::*;
 use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use leptos::server::codee::string::FromToStringCodec;
 
-/// Default Home Page
+/// Live leaderboard chart. Refreshes when challenges are created, edited, or solved.
 #[component]
 pub fn Leaderboard() -> impl IntoView {
     let refresh = RwSignal::new(0);

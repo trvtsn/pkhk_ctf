@@ -3,6 +3,8 @@ use leptos::prelude::*;
 use leptos::server::codee::string::FromToStringCodec;
 use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
 
+/// Live server status panel.
+/// Shows CPU, RAM, uptime, active users, and traffic via SSE.
 #[component]
 pub fn Status() -> impl IntoView {
     let cpu_percent = RwSignal::new(0_f32);

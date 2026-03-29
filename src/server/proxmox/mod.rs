@@ -1,3 +1,8 @@
+/// src/server/proxmox/mod.rs
+/// contains code which essentially creates an easy wrapper for the API to use for
+/// communicating with the Proxmox server.
+/// All the code here is meant to be accessible to standard authenticated users.
+
 #[cfg(feature = "ssr")]
 use crate::server::{db::get_db_ref, is_host_reachable};
 use crate::{error_template::AppError, server::db::{self, structs::{Challenge, DbUser, LdapArgs, ProxmoxArgs}}, utils::local_string_to_datetime};

@@ -1,9 +1,14 @@
+/// src/components/utils.rs
+/// contains components which can be better abstracted into separate component functions due to
+/// their reusable nature.
+
 use crate::server::db::structs::DbUser;
 use chrono::{DateTime, Local};
 use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
 
+/// Show/hide long description text with a "Show More"/"Show Less" toggle.
 #[component]
 pub fn TruncatedDesc(
     #[prop(into)] 
@@ -71,6 +76,7 @@ pub fn HidePasswordButton(hidden: RwSignal<bool>) -> impl IntoView {
     }
 }
 
+/// Full-screen semi-transparent backdrop. Click to dismiss (used behind popups).
 #[component]
 pub fn DimmingOverlay(overlay_triggered: RwSignal<bool>) -> impl IntoView {
     let result_view = move || if !overlay_triggered.get() {
@@ -144,6 +150,8 @@ pub fn Difficulty(difficulty: i8) -> impl IntoView {
     }
 }
 
+/// Admin-facing hover tooltip
+/// Shows file name with its DB ID, download icon, and remove button.
 #[component]
 pub fn FileTooltip(
     file_name: String,
@@ -189,6 +197,8 @@ pub fn FileTooltip(
     }
 }
 
+/// Admin-facing hover tooltip
+/// Shows user with its DB ID, email, and role.
 #[component]
 pub fn UserTooltip(db_user: DbUser) -> impl IntoView {
     let show_tooltip = RwSignal::new(false);
@@ -225,6 +235,8 @@ pub fn UserTooltip(db_user: DbUser) -> impl IntoView {
     }
 }
 
+/// User-facing hover tooltip
+/// Shows the VM ID with its creation and expiry timestamps.
 #[component]
 pub fn VMTooltip(vm_id: u32, href: String, created_at: DateTime<Local>, end_at: DateTime<Local>) -> impl IntoView {
     let show_tooltip = RwSignal::new(false);
@@ -261,6 +273,8 @@ pub fn VMTooltip(vm_id: u32, href: String, created_at: DateTime<Local>, end_at: 
     }
 }
 
+/// Half-circle gauge rendered with a conic-gradient. 
+/// Used for CPU/RAM on the admin Status section.
 #[component]
 pub fn Gauge(percent: RwSignal<f32>) -> impl IntoView {
     view! {

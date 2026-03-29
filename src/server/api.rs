@@ -1,3 +1,9 @@
+/// src/server/api.rs
+/// contains code which constructs Leptos `#[server]` API functions, exposed under the path `/api`.
+/// These endpoints can be used by all authenticated users, with some exceptions, e.g. `login_user,
+/// `register_user`, `user_exists`, and `logout_user`, which, as expected, do not require the user
+/// to be logged in.
+
 #[cfg(feature = "ssr")]
 use crate::server::{authenticated_check, build_and_broadcast, get_db_user, BroadcastScope, backend::{AuthSession, hash_string, verify_hash}};
 use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{self, enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs}}, enums::{ServerEventPayload, ResultStatus}, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, Credentials, LeaderboardData, PivotRow, User}}, utils::{get_context, offset_to_datetime}};

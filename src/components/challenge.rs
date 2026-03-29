@@ -10,6 +10,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon;
 
+/// User-facing challenge card shown in the challenges grid. 
+/// Clicking on the `LuMaximize2` icon opens the `ChallengePopup` overlay.
 #[component]
 pub fn Challenge(
     cwa: RwSignal<ChallengeWithAttachments>,

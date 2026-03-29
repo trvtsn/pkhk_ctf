@@ -10,6 +10,8 @@ use icondata as i;
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
 use leptos_icons::Icon;
 
+/// Admin-facing challenge card in the admin Challenges section.
+/// Inline editing for name, category, points, attachments, hints, etc.
 #[component]
 pub fn Challenge(
     cwa: ChallengeWithAttachments,

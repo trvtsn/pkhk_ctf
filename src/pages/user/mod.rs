@@ -4,12 +4,7 @@ use crate::{components::{navbar::NavBar, utils::{ComponentSize, Spinner}}, pages
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
-// pub fn router() -> Router<()> {
-//     Router::new()
-//         .route("/user/:username", get(self::get::protected))
-// }
-
-/// Default Home Page
+/// Public user profile page (avatar, points, groups, activity). Routed by :username.
 #[component]
 pub fn User() -> impl IntoView {
     let params = use_params_map();

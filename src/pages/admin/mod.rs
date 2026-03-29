@@ -42,7 +42,8 @@ pub enum Actions {
     None
 }
 
-/// Default Home Page
+/// Admin dashboard shell.
+/// Sidebar nav with swappable section panels.
 #[component]
 pub fn Admin() -> impl IntoView {
     let selected = RwSignal::new(AdminSections::Status);
@@ -100,6 +101,7 @@ pub fn Admin() -> impl IntoView {
     }
 }
 
+/// Sidebar navigation for the admin dashboard. Highlights the active section.
 #[component]
 pub fn AdminNavBar() -> impl IntoView {
     let selected = expect_context::<RwSignal<AdminSections>>();

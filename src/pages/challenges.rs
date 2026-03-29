@@ -6,7 +6,7 @@ use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_w
 use leptos::server::codee::string::FromToStringCodec;
 use std::collections::HashMap;
 
-/// Default Home Page
+/// Challenge grid, grouped by category. Updates in real-time via SSE.
 #[component]
 pub fn Challenges() -> impl IntoView {
     let cwa_popup = RwSignal::<Option<ChallengeWithAttachments>>::new(None);

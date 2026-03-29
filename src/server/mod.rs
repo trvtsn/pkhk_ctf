@@ -1,3 +1,9 @@
+/// src/server/mod.rs 
+/// contains code that is crucial for the server to essentially, operate.
+/// It's the root module for all server-side logic.
+/// Anything that isn't gated behind a `#[cfg(feature = "ssr")]` flag is needed for the client to communicate with the server.
+/// Anything that is behind a `#[cfg(feature = "ssr")]` flag should only be run on the server.
+
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, hash_string}, db::get_db, structs::AppState};
 use crate::{error_template::AppError, server::{db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, EventWithAttachments}}, enums::ServerEventPayload, structs::{StatusData, User}}, utils::get_context};
@@ -475,6 +481,7 @@ cfg_if! {
     }
 }
 
+/// Used at the start of every API function. Checks if the user is logged in.
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
@@ -508,6 +515,9 @@ pub async fn is_host_reachable(url: &String) -> Result<bool, AppError> {
     Err(AppError::NetworkError("host unreachable".to_string()))
 }
 
+/// Used whenever we want the real-time row record of a `server::structs::User`.
+/// We could attach a separate field like 'db_row: DbUser' to `server::structs::User`
+/// to eliminate the use of this function, but let's just keep this for now.
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn get_db_user(user: &User, pool: &MySqlPool) -> Result<DbUser, AppError> {
@@ -523,6 +533,10 @@ async fn get_db_user(user: &User, pool: &MySqlPool) -> Result<DbUser, AppError> 
     }
 }
 
+/// Used to fetch a full instance of an `ChallengeWithAttachments` from the DB whenever we only have
+/// the ID of the `Event` and an active pool instance.
+/// Using sqlx to serialize data from 2 other tables into one struct is kind of difficult, 
+/// but this should do for now.
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn fetch_cwa(id: &str, pool: &MySqlPool) -> Result<ChallengeWithAttachments, AppError> {
@@ -546,6 +560,10 @@ pub async fn fetch_cwa(id: &str, pool: &MySqlPool) -> Result<ChallengeWithAttach
     Ok(ChallengeWithAttachments { challenge, attachments, illustration })
 }
 
+/// Used to fetch a full instance of an `EventWithAttachments` from the DB whenever we only have
+/// the ID of the `Event` and an active pool instance.
+/// Using sqlx to serialize data from 2 other tables into one struct is kind of difficult, 
+/// but this should do for now.
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn fetch_ewa(id: &str, pool: &MySqlPool) -> Result<EventWithAttachments, AppError> {
@@ -567,19 +585,4 @@ pub async fn fetch_ewa(id: &str, pool: &MySqlPool) -> Result<EventWithAttachment
     }
 
     Ok(EventWithAttachments { event, attachments, illustration })
-}
-
-#[cfg(feature = "ssr")]
-#[instrument]
-async fn fetch_db_user(id: &String, pool: &MySqlPool) -> Result<DbUser, AppError> {
-    match DbUser::get(&UserIdentifier::Id(id.clone()), pool).await {
-        Ok(Some(user)) => Ok(user),
-        Ok(None) => {
-            Err(AppError::InternalError("internal error".to_string()))
-        }
-        Err(e) => {
-            tracing::error!(error = ?e);
-            Err(AppError::InternalError("internal error".to_string()))
-        }
-    }
 }

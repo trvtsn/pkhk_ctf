@@ -1,5 +1,9 @@
+/// src/server/api.rs
+/// contains code which constructs Leptos `#[server]` API functions, exposed under the path `/api`.
+/// These endpoints can be used by users with the role `UserRole::Admin`.
+
 #[cfg(feature = "ssr")]
-use crate::server::{authenticated_check, hash_string, build_and_broadcast, fetch_cwa, is_host_reachable, fetch_db_user, fetch_ewa, BroadcastScope};
+use crate::server::{admin::{authenticated_check, fetch_db_user}, hash_string, build_and_broadcast, fetch_cwa, is_host_reachable, fetch_ewa, BroadcastScope};
 use crate::{error_template::AppError, server::{ServerEventPayload, UserRole, admin::{ChallengeAction, EventAction, ProxmoxUserInfo, UserAction}, db::{self, enums::{AttachmentIdentifier, FileType, UserIdentifier}, structs::{Attachment, AttachmentWithoutBlob, DbHint, DbUser, Event, EventWithAttachments, LdapArgs, ProxmoxArgs, UserAvatar}}, enums::ResultStatus, proxmox::ProxmoxVMTemplate, structs::ApiResult}};
 use cfg_if::cfg_if;
 #[cfg(feature = "ssr")]
@@ -1589,6 +1593,8 @@ pub async fn delete_proxmox_pool(user_db_id: String) -> Result<ApiResult<String>
 pub async fn start_vm(vm_id: u32, username: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
+            let (_, _) = authenticated_check().await?;
+
             match crate::server::proxmox::admin::start_vm(&vm_id, &username).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully started VM (ID: {vm_id})") }),
                 Err(e) => return Err(e.into())
@@ -1604,6 +1610,8 @@ pub async fn start_vm(vm_id: u32, username: String) -> Result<ApiResult<String>,
 pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
+            let (_, _) = authenticated_check().await?;
+
             match crate::server::proxmox::admin::restart_vm(&vm_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully restarted VM (ID: {vm_id})") }),
                 Err(e) => Err(e)
@@ -1619,6 +1627,8 @@ pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
+            let (_, _) = authenticated_check().await?;
+
             match crate::server::proxmox::admin::destroy_vm(&vm_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully destroyed VM (ID: {vm_id})") }),
                 Err(e) => return Err(e)
@@ -1634,6 +1644,8 @@ pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
+            let (_, _) = authenticated_check().await?;
+
             match crate::server::proxmox::admin::add_vm_time(&vm_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully added time to VM (ID: {vm_id})") }),
                 Err(e) => Err(e.into())

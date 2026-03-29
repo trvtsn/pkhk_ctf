@@ -3,6 +3,7 @@ use icondata as i;
 use leptos::prelude::*;
 use leptos_icons::Icon;
 
+/// Top navigation bar. Shows links, user dropdown (profile/settings/logout), and points.
 #[component]
 pub fn NavBar() -> impl IntoView {
     let open = RwSignal::new(false);

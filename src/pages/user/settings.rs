@@ -2,7 +2,8 @@ use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageT
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlFormElement, HtmlInputElement}};
 use leptos_use::{ColorMode};
 
-/// Default Home Page
+/// User settings page. 
+/// Change username, password, or avatar, and dark mode toggle.
 #[component]
 pub fn Settings() -> impl IntoView {
     let user = expect_context::<RwSignal<Option<DbUserWithoutPII>>>();

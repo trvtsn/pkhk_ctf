@@ -116,6 +116,7 @@ impl std::fmt::Display for ToastMessageType {
     }
 }
 
+/// Individual toast notification. Slides in, auto-dismisses after 4s, on-click dismisses early.
 #[component]
 pub fn Toast(
     toast_message: ToastMessage,
@@ -169,6 +170,7 @@ pub fn Toast(
     }
 }
 
+/// Fixed toast container (top-right). Renders all active toast messages.
 #[component]
 pub fn Toasts() -> impl IntoView {
     let toast_messages = expect_context::<RwSignal<Vec<ToastMessage>>>();

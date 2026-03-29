@@ -12,6 +12,8 @@ use leptos_icons::Icon;
 use std::collections::HashMap;
 use std::time::Duration;
 
+/// Expanded user-facing challenge detail overlay/popup
+/// Flag submissions, hints, VM controls, and file downloads.
 #[component]
 pub fn ChallengePopup(
     cwa: RwSignal<ChallengeWithAttachments>,

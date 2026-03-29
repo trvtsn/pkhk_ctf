@@ -2,7 +2,7 @@ use crate::{app::RefreshUser, components::{navbar::NavBar, utils::{ComponentSize
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
-/// Default Home Page
+/// Registration form with email availability check and password confirmation.
 #[component]
 pub fn Register() -> impl IntoView {
     let email = RwSignal::new("".to_string());

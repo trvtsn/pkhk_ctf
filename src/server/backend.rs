@@ -1,3 +1,12 @@
+/// src/server/backend.rs
+/// 
+/// Even though the server is technically the backend, I feel like all the code here
+/// deserves to be in its own file, and not combined with `src/server/mod.rs`, as it deals
+/// with stuff that's more specific to authentication, identity, and session handling, a 
+/// whole group of categories that is better categorized into one, backend.rs.
+/// It's more distinct from the rest of the server, and should also be looked at from a 
+/// more security-sensitive side.
+
 use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash};
 use argon2::PasswordHasher;
 #[cfg(feature = "ssr")]

@@ -67,5 +67,5 @@ cargo leptos watch
 - [x] Add toast messages
 
 ### Project Longevity
-- [ ] Add doc comments to pages and components
-- [ ] Add setup docs
+- [x] Add doc comments to pages and components
+- [x] Add setup docs

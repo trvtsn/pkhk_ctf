@@ -3,6 +3,8 @@ use icondata as i;
 use leptos::{prelude::*, task::spawn_local};
 use leptos_icons::Icon;
 
+/// Admin-facing file card in the admin Files section.
+/// Download, rename, and delete.
 #[component]
 pub fn File(
     file: crate::server::db::structs::AttachmentWithoutBlob,

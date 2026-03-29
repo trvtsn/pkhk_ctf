@@ -1,7 +1,8 @@
 use crate::{components::utils::{ComponentSize, FileTooltip, HidePasswordButton, Spinner}, server::{admin::{api::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}, utils::build_single_file_form_data};
 use leptos::{prelude::*, task::spawn_local};
 
-/// Default Home Page
+/// Admin LDAP configuration.
+/// Connection settings, certificate upload, and connection testing.
 #[component]
 pub fn Ldap() -> impl IntoView {
     let certificate_ref = NodeRef::new();
