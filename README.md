@@ -5,14 +5,8 @@
 Prototype of the CTF platform for [Pärnumaa Kutsehariduskeskus](https://hariduskeskus.ee/).
 Full-stack project using Leptos SSR, Axum and Tailwind v4.
 
-## Running the project
-
-1. Install rust & cargo using [rustup](https://rustup.rs/)
-2. Install [cargo-leptos](https://github.com/leptos-rs/cargo-leptos) (*Recommended to install with [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) on Windows due to headaches relating to openssl libraries*)
-
-```bash
-cargo leptos watch
-```
+## Setup
+Refer to the [setup docs](https://github.com/trvtsn/pkhk_ctf/blob/master/docs/INSTALL.md)
 
 ## Updates
 
