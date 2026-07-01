@@ -13,7 +13,7 @@ use tracing::instrument;
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn start_vm(vm_id: &u32, username: &String) -> Result<u32, AppError> {
+pub async fn start_vm(vm_id: &u32, username: &str) -> Result<u32, AppError> {
     let pxc = ProxmoxClient::new().await?;
 
     let start_url = format!("{}/status/start", pxc.append_to_qemu_url(*vm_id));

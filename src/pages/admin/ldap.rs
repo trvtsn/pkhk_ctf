@@ -1,5 +1,6 @@
 use crate::{components::utils::{ComponentSize, FileTooltip, HidePasswordButton, Spinner}, server::{admin::{api::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}, utils::build_single_file_form_data};
 use leptos::{prelude::*, task::spawn_local};
+use zeroize::Zeroizing;
 
 /// Admin LDAP configuration.
 /// Connection settings, certificate upload, and connection testing.
@@ -40,7 +41,7 @@ pub fn Ldap() -> impl IntoView {
             if let Some(ldap_args) = val.clone() {
                 ldap_url.set(ldap_args.url.clone());
                 bind_dn.set(ldap_args.bind_dn.clone());
-                bind_pw.set(ldap_args.bind_pw.clone());
+                bind_pw.set(ldap_args.bind_pw.to_string());
                 base_dn.set(ldap_args.base_dn.clone());
                 enabled.set(ldap_args.enabled);
                 if ldap_args.enabled.0 {
@@ -184,7 +185,7 @@ pub fn Ldap() -> impl IntoView {
 
                                         let url = ldap_url.get_untracked();
                                         let bind_dn = bind_dn.get_untracked();
-                                        let bind_pw = bind_pw.get_untracked();
+                                        let bind_pw = Zeroizing::new(bind_pw.get_untracked());
                                         let base_dn = base_dn.get_untracked();
                                         let enabled = enabled.get_untracked();
                                         spawn_local(async move {
@@ -226,7 +227,7 @@ pub fn Ldap() -> impl IntoView {
 
                                         let url = ldap_url.get_untracked();
                                         let bind_dn = bind_dn.get_untracked();
-                                        let bind_pw = bind_pw.get_untracked();
+                                        let bind_pw = Zeroizing::new(bind_pw.get_untracked());
                                         let base_dn = base_dn.get_untracked();
                                         let enabled = enabled.get_untracked();
                                         spawn_local(async move {

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
 use tracing::instrument;
+use zeroize::Zeroize;
 
 pub mod api;
 
@@ -99,9 +100,9 @@ pub enum EventAction {
 #[serde(rename_all = "lowercase")]
 pub enum UserAction {
     Create {
-        username: String,  
-        email: String, 
-        password: String, 
+        username: String,
+        email: String,
+        password: String,
         confirm_password: String,
         role: UserRole,
         avatar: Option<UserAvatar>,
@@ -112,9 +113,9 @@ pub enum UserAction {
     },
     Edit {
         id: String,
-        username: String,  
-        email: String, 
-        password: String, 
+        username: String,
+        email: String,
+        password: String,
         confirm_password: String,
         points: u32,
         role: UserRole,
@@ -123,8 +124,34 @@ pub enum UserAction {
     },
     EditPassword {
         id: String,
-        password: String, 
+        password: String,
         confirm_password: String
+    }
+}
+
+impl Zeroize for UserAction {
+    fn zeroize(&mut self) {
+        match self {
+            UserAction::Create { username, email, password, confirm_password, .. } => {
+                username.zeroize();
+                email.zeroize();
+                password.zeroize();
+                confirm_password.zeroize();
+            },
+            UserAction::Delete { id } => id.zeroize(),
+            UserAction::Edit { id, username, email, password, confirm_password, .. } => {
+                id.zeroize();
+                username.zeroize();
+                email.zeroize();
+                password.zeroize();
+                confirm_password.zeroize();
+            },
+            UserAction::EditPassword { id, password, confirm_password } => {
+                id.zeroize();
+                password.zeroize();
+                confirm_password.zeroize();
+            }
+        }
     }
 }
 
@@ -163,8 +190,8 @@ pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-async fn fetch_db_user(id: &String, pool: &MySqlPool) -> Result<DbUser, AppError> {
-    match DbUser::get(&UserIdentifier::Id(id.clone()), pool).await {
+async fn fetch_db_user(id: &str, pool: &MySqlPool) -> Result<DbUser, AppError> {
+    match DbUser::get(&UserIdentifier::Id(id.to_owned()), pool).await {
         Ok(Some(user)) => Ok(user),
         Ok(None) => {
             Err(AppError::InternalError("internal error".to_string()))

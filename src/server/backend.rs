@@ -21,6 +21,7 @@ use password_hash::SaltString;
 use password_hash::rand_core::OsRng;
 #[cfg(feature = "ssr")]
 use rand::{rngs::SmallRng, Rng, SeedableRng};
+use zeroize::Zeroizing;
 use std::{collections::HashSet, str::FromStr};
 use tracing::instrument;
 
@@ -35,7 +36,6 @@ pub type AuthSession = axum_login::AuthSession<Backend>;
 
 #[cfg(feature = "ssr")]
 pub mod structs {
-    #[cfg(feature = "ssr")]
     use sqlx::MySqlPool;
 
     #[derive(Debug, Clone)]
@@ -87,25 +87,19 @@ cfg_if! {
 
             /// Insert a new user into the database. Success only if the user doesn't already exist
             /// and the data meets criteria (which are *very* weak in this example!).
-            pub async fn add_user(&self, email: &String, password: &String) -> Result<Option<User>, AppError> {
+            pub async fn add_user(&self, email: &str, password: Zeroizing<String>) -> Result<Option<User>, AppError> {
                 // First validate the data. You must do better than this.
-                if email.len() < 2 || password.len() < 2 {
+                if email.len() < 2 || password.len() < 10 {
                     return Err(AppError::InvalidData("Username and password have to be at least 2 characters each!".into()));
                 }
-                // Hash the password and insert the new user.
-                // This does the hashing
-                let argon2 = Argon2::default();
-                // The salt is used to prevent certain attacks against stored passwords (see the Internet for more)
-                let salt = SaltString::generate(&mut OsRng);
-                // This gives back a data structure with various parts, which can be encoded using
-                // a standard format into a string that's suitable for use in plain-text environments. Argon2id is the
-                // recommended hashing algorithm at the time of this code being published (2024)
-                let pw_hash: PasswordHash = argon2.hash_password(password.as_bytes(), &salt)
-                    .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
-                // Now *this* part is what will be put directly into the database as the user's password hash. This is not just
-                // the 32-byte hash function output, it also has other data attached (like the salt). It has to have
-                // a let-binding outside of the macro or the compiler complains.
-                let pw_hash_str = pw_hash.to_string();
+
+                let pw_hash_str = tokio::task::spawn_blocking(move || {
+                    let argon2 = Argon2::default();
+                    let salt = SaltString::generate(&mut OsRng);
+                    let hash = argon2.hash_password(password.as_bytes(), &salt)?;
+                    Ok::<String, password_hash::Error>(hash.to_string())
+                }).await.map_err(|e| AppError::InternalError(e.to_string()))?
+                  .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
 
                 let username_prefix = email.split_once("@").map(|(l, _)| l).unwrap_or(email);
                 let taken = DbUser::get_taken_usernames(username_prefix, &self.pool)
@@ -130,7 +124,7 @@ cfg_if! {
                     id: "".to_string(), 
                     username, 
                     email: email.to_string(), 
-                    pw_hash: pw_hash_str, 
+                    pw_hash: pw_hash_str.clone(), 
                     created_at: chrono::Local::now(), 
                     last_active_at: chrono::Local::now(), 
                     role: UserRole::Competitor,
@@ -140,9 +134,10 @@ cfg_if! {
                 };
                 let new_user_id = new_user.add(&self.pool).await?;
 
-                // Now we need to make sure we can make a good session key. In this case, we're using the raw bytes
-                // that were output from the password hash (in this case, 32 bytes). This does *not* include the salt
-                // or other associated data that's bulit into the pass_hash_str
+                let pw_hash = PasswordHash::parse(&pw_hash_str, password_hash::Encoding::B64).map_err(|e| 
+                    AppError::InternalError(format!("Decode password: {e}"))
+                )?;
+
                 if let Some(hash_bytes) = pw_hash.hash {
                     Ok(Some(
                         User {
@@ -163,7 +158,7 @@ cfg_if! {
             type Credentials = Credentials;
             type Error = AppError;
 
-            #[instrument]
+            #[instrument(skip(creds))]
             async fn authenticate(&self, creds: Self::Credentials) -> Result<Option<Self::User>, Self::Error> {
                 let user = match creds.auth_type {
                     AuthType::Normal => {
@@ -185,8 +180,8 @@ cfg_if! {
                         is_host_reachable(&ldap_url.to_string()).await?;
 
                         let login_id = match &creds.user_identifier {
-                            UserIdentifier::Email(e) => e.clone(),
-                            UserIdentifier::Username(u) => u.clone(),
+                            UserIdentifier::Email(e) => ldap3::ldap_escape(e.clone()).to_string(),
+                            UserIdentifier::Username(u) => ldap3::ldap_escape(u.clone()).to_string(),
                             _ => return Ok(None),
                         };
                         let mut email = String::new();
@@ -233,7 +228,7 @@ cfg_if! {
                         }
 
                         let mut user_dn = String::new();
-                        for entry in entries {
+                        if let Some(entry) = entries.into_iter().next() {
                             let se = SearchEntry::construct(entry);
 
                             user_dn = se.dn;
@@ -322,8 +317,8 @@ cfg_if! {
             #[instrument]
             async fn get_user(&self, user_id: &UserId<Self>) -> Result<Option<Self::User>, Self::Error> {
                 match DbUser::get(&UserIdentifier::Id(user_id.clone()), &self.pool).await {
-                    Ok(Some(user)) => Ok(Some(user.to_user().await.expect(""))),
-                    Ok(None) => Err(Self::Error::InternalError("".to_string())),
+                    Ok(Some(user)) => Ok(Some(user.to_user().await?)),
+                    Ok(None) => Err(Self::Error::InternalError("User not found".to_string())),
                     Err(e) => Err(Self::Error::DatabaseError(e.to_string()))
                 }
             }
@@ -349,8 +344,8 @@ cfg_if! {
             }
         }
 
-        pub async fn hash_string(string: &String) -> Result<String, AppError> {
-            let string = string.clone();
+        pub async fn hash_string(string: &str) -> Result<String, AppError> {
+            let string = string.to_owned();
             tokio::task::spawn_blocking(move || {
                 let argon2 = Argon2::default();
                 let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
@@ -360,9 +355,9 @@ cfg_if! {
               .map_err(|e| AppError::InternalError(e.to_string()))
         }
 
-        pub async fn verify_hash(string: &String, hash: &String) -> Result<(), AppError> {
-            let string = string.clone();
-            let hash = hash.clone();
+        pub async fn verify_hash(string: &str, hash: &str) -> Result<(), AppError> {
+            let string = string.to_owned();
+            let hash = hash.to_owned();
             tokio::task::spawn_blocking(move || {
                 let hasher = Argon2::default();
                 let parsed = argon2::PasswordHash::parse(hash.as_ref(), argon2::password_hash::Encoding::B64)?;

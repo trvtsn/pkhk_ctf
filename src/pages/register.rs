@@ -1,6 +1,7 @@
 use crate::{app::RefreshUser, components::{navbar::NavBar, utils::{ComponentSize, HidePasswordButton, Spinner}}, server::api::{get_user, register_user, user_exists}};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
+use zeroize::Zeroizing;
 
 /// Registration form with email availability check and password confirmation.
 #[component]
@@ -17,9 +18,9 @@ pub fn Register() -> impl IntoView {
     let refresh_user = expect_context::<RwSignal<RefreshUser>>();
 
     let register = Action::new_local(move |(email, password, confirm_password): &(String, String, String)| {
-        let email = email.clone();
-        let password = password.clone();
-        let confirm_password = confirm_password.clone();
+        let email = Zeroizing::new(email.clone());
+        let password = Zeroizing::new(password.clone());
+        let confirm_password = Zeroizing::new(confirm_password.clone());
         async move {
             register_user(email, password, confirm_password).await
         }

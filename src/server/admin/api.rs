@@ -1175,7 +1175,7 @@ pub async fn get_db_user(username: Option<String>) -> Result<Option<DbUser>, App
 }
 
 #[server(name=TestLdap, prefix="/api/admin", endpoint="test_ldap")]
-#[instrument]
+#[instrument(skip(args))]
 pub async fn test_ldap(args: LdapArgs) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {

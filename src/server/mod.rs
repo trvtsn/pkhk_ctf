@@ -7,6 +7,7 @@
 #[cfg(feature = "ssr")]
 use crate::server::{backend::{AuthSession, hash_string}, db::get_db, structs::AppState};
 use crate::{error_template::AppError, server::{db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, EventWithAttachments}}, enums::ServerEventPayload, structs::{StatusData, User}}, utils::get_context};
+use crate::server::db::enums::AttachmentIdentifier;
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
 use cfg_if::cfg_if;
@@ -20,7 +21,6 @@ use std::time::Duration;
 use sqlx::MySqlPool;
 #[cfg(feature = "ssr")]
 use axum::{response::IntoResponse, http::{StatusCode, header}};
-use crate::server::db::enums::AttachmentIdentifier;
 
 pub mod admin;
 pub mod api;
@@ -33,6 +33,7 @@ pub mod structs {
     use leptos::prelude::LeptosOptions;
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
+    use zeroize::{Zeroize, ZeroizeOnDrop};
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -60,10 +61,12 @@ pub mod structs {
         pub session_auth_hash: Vec<u8>,
     }
 
-    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[derive(Debug, Clone, Deserialize, Serialize, Zeroize, ZeroizeOnDrop)]
     pub struct Credentials {
+        #[zeroize(skip)]
         pub user_identifier: UserIdentifier,
         pub password: String,
+        #[zeroize(skip)]
         pub auth_type: AuthType
     }
 
@@ -498,7 +501,7 @@ async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn is_host_reachable(url: &String) -> Result<bool, AppError> {
+pub async fn is_host_reachable(url: &str) -> Result<bool, AppError> {
     let url = url::Url::parse(url)?;
     let host = url.host_str().unwrap_or_default();
     let port = url.port().unwrap_or_default();

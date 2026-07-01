@@ -638,7 +638,7 @@ async fn get_user_vmid_from_template_id(user: &DbUser, template_id: &u32) -> Res
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn change_pool_owner(user: &DbUser, new_username: &String) -> Result<(), AppError> {
+pub async fn change_pool_owner(user: &DbUser, new_username: &str) -> Result<(), AppError> {
     let pxc = ProxmoxClient::new().await?;
 
     let pools_url = pxc.append_to_api_url("pools");
@@ -674,7 +674,7 @@ pub async fn delete_user(db_user: &DbUser) -> Result<(), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn create_user(email: &String, username: &String, password: &String) -> Result<(), AppError> {
+pub async fn create_user(email: &str, username: &str, password: &str) -> Result<(), AppError> {
     let pxc = ProxmoxClient::new().await?;
 
     let url = pxc.append_to_api_url("access/users");

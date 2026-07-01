@@ -15,6 +15,7 @@ use leptos::{prelude::{use_context}, server, server_fn::codec::{MultipartData, M
 #[cfg(feature = "ssr")]
 use leptos_axum::ResponseOptions;
 use tracing::instrument;
+use zeroize::Zeroizing;
 use std::collections::{BTreeSet, HashMap};
 #[cfg(feature = "ssr")]
 use axum::http::StatusCode;
@@ -301,7 +302,7 @@ pub async fn get_db_user_without_pii(username: Option<String>) -> Result<Option<
 
 #[server(name=Register, prefix="/api", endpoint="register")]
 #[instrument(skip(password))]
-pub async fn register_user(email: String, password: String, confirm_password: String) -> Result<ApiResult<Option<User>>, AppError> {
+pub async fn register_user(email: Zeroizing<String>, password: Zeroizing<String>, confirm_password: Zeroizing<String>) -> Result<ApiResult<Option<User>>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let mut auth_session = get_context::<AuthSession>()?;
@@ -310,7 +311,7 @@ pub async fn register_user(email: String, password: String, confirm_password: St
                 return Err(AppError::BadRequest("password and confirm password must match".to_string()));
             }
 
-            let user: Option<User> = auth_session.backend.add_user(&email, &password).await?;
+            let user: Option<User> = auth_session.backend.add_user(&email, password.clone()).await?;
 
             if let Some(user) = user {
                 auth_session.login(&user).await?;
@@ -605,7 +606,7 @@ pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
 }
 
 #[server(name=EditPassword, prefix="/api/user", endpoint="password")]
-#[instrument(skip(old_password, new_password))]
+#[instrument(skip(old_password, new_password, confirm_new_password))]
 pub async fn edit_password(old_password: String, new_password: String, confirm_new_password: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {

@@ -79,19 +79,13 @@ pub fn HidePasswordButton(hidden: RwSignal<bool>) -> impl IntoView {
 /// Full-screen semi-transparent backdrop. Click to dismiss (used behind popups).
 #[component]
 pub fn DimmingOverlay(overlay_triggered: RwSignal<bool>) -> impl IntoView {
-    let result_view = move || if !overlay_triggered.get() {
-        "".into_any()
-    } else {
-        view! {
+    view! {
+        <Show when=move || overlay_triggered.get()>
             <div
                 class="fixed inset-0 bg-black/45 backdrop-blur-[1px] z-10"
                 on:click=move |_| overlay_triggered.set(false)
             ></div>
-        }.into_any()
-    };
-
-    view! {
-        {result_view}
+        </Show>
     }
 }
 
@@ -101,8 +95,8 @@ pub enum ComponentSize {
     Big,
 }
 
-/// Thanks to devAaus (https://github.com/devAaus)
-/// https://uiverse.io/devAaus/funny-catfish-94
+// Thanks to devAaus (https://github.com/devAaus)
+// https://uiverse.io/devAaus/funny-catfish-94
 #[component]
 pub fn Spinner(component_size: ComponentSize) -> impl IntoView {
     let blue_indicator_classes_base = "border-4 border-transparent text-blue-400 text-4xl animate-spin flex items-center justify-center border-t-blue-400 rounded-full".to_string();

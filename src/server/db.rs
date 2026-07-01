@@ -16,6 +16,7 @@ use super::db::structs::{Attachment, Challenge, Event, DbUser, Submission};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Local};
 use leptos::prelude::ServerFnError;
+use secrecy::ExposeSecret;
 use std::collections::BTreeSet;
 use std::time::Duration;
 
@@ -47,12 +48,12 @@ cfg_if! {
         }
 
         pub async fn add_admin() -> Result<(), AppError> {
-            let username = &constants::config::ADMIN_USERNAME.to_string();
-            let email = &constants::config::ADMIN_EMAIL.to_string();
-            let password = &constants::config::ADMIN_PASSWORD.to_string();
+            let username = &constants::config::ADMIN_USERNAME.expose_secret();
+            let email = &constants::config::ADMIN_EMAIL.expose_secret();
+            let password = &constants::config::ADMIN_PASSWORD.expose_secret();
             let pw_hash = hash_string(&password).await?;
 
-            match DbUser::get(&UserIdentifier::Email(email.clone()), get_db_ref()).await {
+            match DbUser::get(&UserIdentifier::Email(email.to_string()), get_db_ref()).await {
                 Ok(Some(_)) => return Ok(()),
                 Ok(None) => {},
                 Err(e) => return Err(e.into())
@@ -96,7 +97,7 @@ cfg_if! {
                 .max_lifetime(Duration::from_secs(1800))
                 .idle_timeout(Duration::from_secs(600))
                 .acquire_timeout(Duration::from_secs(10))
-                .connect(&constants::config::DATABASE_URL)
+                .connect(&constants::config::DATABASE_URL.expose_secret())
                 .await
                 .map_err(|e| {
                     log::error!("Failed to connect to the database: {e}");
@@ -115,6 +116,7 @@ pub mod structs {
     use leptos::prelude::RwSignal;
     use serde::{Deserialize, Serialize};
     use time::OffsetDateTime;
+use zeroize::{Zeroize, Zeroizing};
 
     pub type DbUser = User;
     pub type DbUserWithoutPII = UserWithoutPII;
@@ -231,7 +233,7 @@ pub mod structs {
     pub struct LdapArgs {
         pub url: String,
         pub bind_dn: String,
-        pub bind_pw: String,
+        pub bind_pw: Zeroizing<String>,
         pub base_dn: String,
         pub enabled: SqlBool
     }
@@ -307,6 +309,23 @@ pub mod structs {
                 challenge_id: self.challenge_id,
                 points_penalty: self.points_penalty
             }
+        }
+    }
+
+    impl Zeroize for LdapArgs {
+        fn zeroize(&mut self) {
+            self.base_dn.zeroize();
+            self.bind_dn.zeroize();
+            self.bind_pw.zeroize();
+        }
+    }
+
+    impl Zeroize for ProxmoxArgs {
+        fn zeroize(&mut self) {
+            self.api_token.zeroize();
+            self.password.zeroize();
+            self.username.zeroize();
+            self.api_path.zeroize();
         }
     }
 
@@ -450,7 +469,7 @@ pub mod enums {
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         impl DbUser {
-            pub async fn add_admin(username: &String, email: &String, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
+            pub async fn add_admin(username: &str, email: &str, pw_hash: &str, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
@@ -480,7 +499,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_avatar(user_id: &String, file_name: &String, file_blob: &Vec<u8>, mime_type: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_avatar(user_id: &str, file_name: &str, file_blob: &Vec<u8>, mime_type: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
@@ -506,7 +525,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete_avatar(user_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete_avatar(user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE FROM attachments
@@ -544,7 +563,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_password(id: &String, pw_hash: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_password(id: &str, pw_hash: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -564,7 +583,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_username(id: &String, username: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_username(id: &str, username: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -584,7 +603,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_email(id: &String, email: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_email(id: &str, email: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -604,7 +623,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_role(id: &String, role: &UserRole, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_role(id: &str, role: &UserRole, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -624,7 +643,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_points(id: &String, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_points(id: &str, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -644,7 +663,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_groups(id: &String, group: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_groups(id: &str, group: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -664,7 +683,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit_last_active(id: &String, last_active_at: &DateTime<Local>, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_last_active(id: &str, last_active_at: &DateTime<Local>, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -1037,7 +1056,7 @@ cfg_if! {
                     .await
             }
 
-            pub async fn is_user_available(email: &String, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
+            pub async fn is_user_available(email: &str, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT email
@@ -1117,7 +1136,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE FROM users
@@ -1141,7 +1160,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn add_points(id: &String, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn add_points(id: &str, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE users
@@ -1229,14 +1248,14 @@ cfg_if! {
 
         impl Challenge {
             pub async fn add(
-                event_id: &String, 
-                name: &String, 
-                description: &String, 
-                category: &String,
+                event_id: &str, 
+                name: &str, 
+                description: &str, 
+                category: &str,
                 difficulty: &i8, 
                 points: &u32, 
-                flag_hash: &String, 
-                visible_to_groups: &String, 
+                flag_hash: &str, 
+                visible_to_groups: &str, 
                 vm_ids: &Option<String>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
@@ -1269,7 +1288,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE
@@ -1295,15 +1314,15 @@ cfg_if! {
             }
 
             pub async fn edit(
-                id: &String,
-                event_id: &String, 
-                name: &String, 
-                description: &String, 
-                category: &String,
+                id: &str,
+                event_id: &str, 
+                name: &str, 
+                description: &str, 
+                category: &str,
                 difficulty: &i8, 
                 points: &u32, 
-                flag_hash: &String, 
-                visible_to_groups: &String, 
+                flag_hash: &str, 
+                visible_to_groups: &str, 
                 vm_ids: &Option<String>, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
@@ -1363,7 +1382,7 @@ cfg_if! {
                 }
             }
 
-            pub async fn get(id: &String, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
+            pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -1447,7 +1466,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_flag_hash(id: &String, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
+            pub async fn get_flag_hash(id: &str, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT flag_hash
@@ -1472,7 +1491,7 @@ cfg_if! {
                 challenge_id: &Option<String>, 
                 event_id: &Option<String>, 
                 user_id: &Option<String>, 
-                file_name: &String,
+                file_name: &str,
                 file_blob: &Vec<u8>,
                 file_type: &FileType,
                 mime_type: &Option<String>,
@@ -1631,8 +1650,8 @@ cfg_if! {
             }
 
             pub async fn edit_event(
-                id: &String,
-                event_id: &String, 
+                id: &str,
+                event_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -1655,8 +1674,8 @@ cfg_if! {
             }
 
             pub async fn edit_challenge(
-                id: &String,
-                challenge_id: &String, 
+                id: &str,
+                challenge_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -1679,8 +1698,8 @@ cfg_if! {
             }
 
             pub async fn edit_file_name(
-                id: &String,
-                file_name: &String, 
+                id: &str,
+                file_name: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -1703,7 +1722,7 @@ cfg_if! {
             }
 
             pub async fn edit_illustration(
-                id: &String, 
+                id: &str, 
                 target_identifier: &AttachmentIdentifier, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<Option<()>, sqlx::Error> {
@@ -2159,7 +2178,7 @@ cfg_if! {
                 challenge_id: &Option<String>, 
                 event_id: &Option<String>, 
                 user_id: &Option<String>, 
-                file_name: &String,
+                file_name: &str,
                 file_blob: &Vec<u8>,
                 file_type: &FileType,
                 mime_type: &Option<String>,
@@ -2317,7 +2336,7 @@ cfg_if! {
                 }
             }
 
-            pub async fn edit_avatar(id: &String, user_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit_avatar(id: &str, user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE attachments
@@ -2338,8 +2357,8 @@ cfg_if! {
             }
             
             pub async fn edit_challenge(
-                id: &String,
-                challenge_id: &String, 
+                id: &str,
+                challenge_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -2362,8 +2381,8 @@ cfg_if! {
             }
 
             pub async fn edit_event(
-                id: &String,
-                event_id: &String, 
+                id: &str,
+                event_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -2386,8 +2405,8 @@ cfg_if! {
             }
 
             pub async fn edit_file_name(
-                id: &String,
-                file_name: &String, 
+                id: &str,
+                file_name: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -3137,11 +3156,11 @@ cfg_if! {
 
         impl Event {
             pub async fn add(
-                name: &String, 
-                description: &String, 
+                name: &str, 
+                description: &str, 
                 start_at: &DateTime<Local>, 
                 end_at: &DateTime<Local>, 
-                visible_to_groups: &String, 
+                visible_to_groups: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
@@ -3169,7 +3188,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE
@@ -3194,12 +3213,12 @@ cfg_if! {
             }
 
             pub async fn edit(
-                id: &String,
-                name: &String, 
-                description: &String, 
+                id: &str,
+                name: &str, 
+                description: &str, 
                 start_at: &DateTime<Local>, 
                 end_at: &DateTime<Local>, 
-                visible_to_groups: &String, 
+                visible_to_groups: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -3225,7 +3244,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get(id: &String, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
+            pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -3263,7 +3282,7 @@ cfg_if! {
                     }
             }
             
-            pub async fn get_metadata(id: &String, executor: impl MySqlExecutor<'_>) -> Result<EventMetadata, sqlx::Error> {
+            pub async fn get_metadata(id: &str, executor: impl MySqlExecutor<'_>) -> Result<EventMetadata, sqlx::Error> {
                 match sqlx::query_as!(
                     EventMetadata,
                     "
@@ -3284,7 +3303,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_total_possible_points(id: &String, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
+            pub async fn get_total_possible_points(id: &str, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT CAST(COALESCE(SUM(points), 0) AS UNSIGNED) AS total_possible_points
@@ -3303,9 +3322,9 @@ cfg_if! {
 
         impl Submission {
             pub async fn add(
-                challenge_id: &String, 
-                event_id: &String, 
-                user_id: &String, 
+                challenge_id: &str, 
+                event_id: &str, 
+                user_id: &str, 
                 points: &u32, 
                 solved_at: &DateTime<Local>, 
                 executor: impl MySqlExecutor<'_>
@@ -3445,7 +3464,7 @@ cfg_if! {
                 }
             }
 
-            pub async fn get_user_points(user_id: &String, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
+            pub async fn get_user_points(user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT CAST(COALESCE(SUM(points), 0) AS UNSIGNED) as points
@@ -3464,7 +3483,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_user_solved_challenges(user_id: &String, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
+            pub async fn get_user_solved_challenges(user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 match sqlx::query!(
                     "
                     SELECT challenge_id
@@ -3492,10 +3511,10 @@ cfg_if! {
     
         impl LdapArgs {
             pub async fn insert(
-                url: &String, 
-                bind_dn: &String, 
-                bind_pw: &String, 
-                base_dn: &String, 
+                url: &str, 
+                bind_dn: &str, 
+                bind_pw: &str, 
+                base_dn: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -3520,11 +3539,11 @@ cfg_if! {
             }
 
             pub async fn update(
-                url: &String, 
-                bind_dn: &String, 
-                bind_pw: &String, 
-                base_dn: &String, 
-                enabled: &bool, 
+                url: &str,
+                bind_dn: &str,
+                bind_pw: &str,
+                base_dn: &str,
+                enabled: &bool,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -3691,10 +3710,10 @@ cfg_if! {
 
         impl ProxmoxArgs {
             pub async fn insert(
-                base_url: &String, 
-                api_path: &String, 
-                templates_pool_id: &String, 
-                node: &String, 
+                base_url: &str, 
+                api_path: &str, 
+                templates_pool_id: &str, 
+                node: &str, 
                 username: &Option<String>, 
                 password: &Option<String>, 
                 api_token: &Option<String>, 
@@ -3728,14 +3747,14 @@ cfg_if! {
             }
 
             pub async fn update(
-                base_url: &String, 
-                api_path: &String, 
-                templates_pool_id: &String, 
-                node: &String, 
-                username: &Option<String>, 
-                password: &Option<String>, 
-                api_token: &Option<String>, 
-                auth_type: &ProxmoxAuthType, 
+                base_url: &str, 
+                api_path: &str, 
+                templates_pool_id: &str, 
+                node: &str, 
+                username: &Option<String>,
+                password: &Option<String>,
+                api_token: &Option<String>,
+                auth_type: &ProxmoxAuthType,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
@@ -3841,7 +3860,7 @@ cfg_if! {
         }
 
         impl DbHint {
-            pub async fn add(hint: &String, challenge_id: &String, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn add(hint: &str, challenge_id: &str, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
@@ -3863,7 +3882,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete(id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE FROM hints
@@ -3886,7 +3905,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete_all_from_challenge(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete_all_from_challenge(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE FROM hints
@@ -3904,7 +3923,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn edit(id: &String, hint: &String, challenge_id: &String, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn edit(id: &str, hint: &str, challenge_id: &str, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     UPDATE hints
@@ -3926,7 +3945,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get(id: &String, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
+            pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -3964,7 +3983,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_all_from_challenge(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+            pub async fn get_all_from_challenge(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -4004,7 +4023,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_challenge_hints(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
+            pub async fn get_challenge_hints(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -4026,7 +4045,7 @@ cfg_if! {
         }
 
         impl HintsUsed {
-            pub async fn add(challenge_id: &String, user_id: &String, hint_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn add(challenge_id: &str, user_id: &str, hint_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     INSERT INTO hints_used (challenge_id, user_id, hint_id)
@@ -4066,7 +4085,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn delete_all_from_challenge(challenge_id: &String, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
+            pub async fn delete_all_from_challenge(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match sqlx::query!(
                     "
                     DELETE FROM hints_used
