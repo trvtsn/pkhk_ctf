@@ -466,27 +466,31 @@ fn Users() -> impl IntoView {
                                         <td class="grid gap-2 py-2 px-4">
                                             {info.get().vms.into_iter().map(|vm| {
                                                 let vm_id = vm.id;
+                                                let template_id = vm.origin_id;
                                                 
-                                                let start_vm_action = Action::new_local(move |(vm_id, username): &(u32, String)| {
-                                                        let vm_id = vm_id.clone();
-                                                        let username = username.clone();
-                                                        async move {
-                                                            if let Ok(result) = start_vm(vm_id, username).await {
-                                                                spawn_local(async move {
-                                                                    push_new_toast(ToastMessageType::Custom(result.details));
-                                                                });
-                                                                proxmox_users_resource.refetch();
-                                                            } else {
-                                                                spawn_local(async move {
-                                                                    push_new_toast(ToastMessageType::VMStartFail);
-                                                                });
-                                                            }
-                                                        }
-                                                    });
-                                                let restart_vm_action = Action::new_local(move |vm_id: &u32| {
+                                                let start_vm_action = Action::new_local(move |(vm_id, template_id, user_id): &(u32, u32, String)| {
                                                     let vm_id = vm_id.clone();
+                                                    let template_id = template_id.clone();
+                                                    let user_id = user_id.clone();
                                                     async move {
-                                                        if let Ok(result) = restart_vm(vm_id).await {
+                                                        if let Ok(result) = start_vm(vm_id, template_id, user_id).await {
+                                                            spawn_local(async move {
+                                                                push_new_toast(ToastMessageType::Custom(result.details));
+                                                            });
+                                                            proxmox_users_resource.refetch();
+                                                        } else {
+                                                            spawn_local(async move {
+                                                                push_new_toast(ToastMessageType::VMStartFail);
+                                                            });
+                                                        }
+                                                    }
+                                                });
+                                                let restart_vm_action = Action::new_local(move |(vm_id, template_id, user_id): &(u32, u32, String)| {
+                                                    let vm_id = vm_id.clone();
+                                                    let template_id = template_id.clone();
+                                                    let user_id = user_id.clone();
+                                                    async move {
+                                                        if let Ok(result) = restart_vm(vm_id, template_id, user_id).await {
                                                             spawn_local(async move {
                                                                 push_new_toast(ToastMessageType::Custom(result.details));
                                                             });
@@ -498,10 +502,12 @@ fn Users() -> impl IntoView {
                                                         }
                                                     }
                                                 });
-                                                let add_vm_time_action = Action::new_local(move |vm_id: &u32| {
+                                                let add_vm_time_action = Action::new_local(move |(vm_id, template_id, user_id): &(u32, u32, String)| {
                                                     let vm_id = vm_id.clone();
+                                                    let template_id = template_id.clone();
+                                                    let user_id = user_id.clone();
                                                     async move {
-                                                        if let Ok(result) = add_vm_time(vm_id).await {
+                                                        if let Ok(result) = add_vm_time(vm_id, template_id, user_id).await {
                                                             spawn_local(async move {
                                                                 push_new_toast(ToastMessageType::Custom(result.details));
                                                             });
@@ -513,10 +519,12 @@ fn Users() -> impl IntoView {
                                                         }
                                                     }
                                                 });
-                                                let destroy_vm_action = Action::new_local(move |vm_id: &u32| {
+                                                let destroy_vm_action = Action::new_local(move |(vm_id, template_id, user_id): &(u32, u32, String)| {
                                                     let vm_id = vm_id.clone();
+                                                    let template_id = template_id.clone();
+                                                    let user_id = user_id.clone();
                                                     async move {
-                                                        if let Ok(result) = destroy_vm(vm_id).await {
+                                                        if let Ok(result) = destroy_vm(vm_id, template_id, user_id).await {
                                                             spawn_local(async move {
                                                                 push_new_toast(ToastMessageType::Custom(result.details));
                                                             });
@@ -552,8 +560,8 @@ fn Users() -> impl IntoView {
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                                 disabled=move || start_vm_action.pending().get()
                                                                 on:click=move |_| {
-                                                                    let username = info.get().user.username;
-                                                                    start_vm_action.dispatch((vm_id, username));
+                                                                    let user_id = info.get_untracked().user.id;
+                                                                    start_vm_action.dispatch((vm_id, template_id, user_id));
                                                                 }
                                                             >
                                                                 {move || {
@@ -573,7 +581,8 @@ fn Users() -> impl IntoView {
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                                 disabled=move || restart_vm_action.pending().get()
                                                                 on:click=move |_| {
-                                                                    restart_vm_action.dispatch(vm_id);
+                                                                    let user_id = info.get_untracked().user.id;
+                                                                    restart_vm_action.dispatch((vm_id, template_id, user_id));
                                                                 }
                                                             >
                                                                 {move || {
@@ -591,7 +600,8 @@ fn Users() -> impl IntoView {
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                                 disabled=move || add_vm_time_action.pending().get()
                                                                 on:click=move |_| {
-                                                                    add_vm_time_action.dispatch(vm_id);
+                                                                    let user_id = info.get_untracked().user.id;
+                                                                    add_vm_time_action.dispatch((vm_id, template_id, user_id));
                                                                 }
                                                             >
                                                                 {move || {
@@ -609,7 +619,8 @@ fn Users() -> impl IntoView {
                                                                 bg-yale-blue-600 hover:bg-yale-blue-700 focus:ring-yale-blue-400"#
                                                                 disabled=move || destroy_vm_action.pending().get()
                                                                 on:click=move |_| {
-                                                                    destroy_vm_action.dispatch(vm_id);
+                                                                    let user_id = info.get_untracked().user.id;
+                                                                    destroy_vm_action.dispatch((vm_id, template_id, user_id));
                                                                 }
                                                             >
                                                                 {move || {

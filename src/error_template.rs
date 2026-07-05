@@ -32,6 +32,8 @@ pub enum AppError {
     Forbidden,
     #[error("Network Error: {0}")]
     NetworkError(String),
+    #[error("Poison Error: {0}")]
+    PoisonError(String),
 }
 
 impl AppError {
@@ -50,6 +52,7 @@ impl AppError {
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::Forbidden => StatusCode::FORBIDDEN,
             AppError::NetworkError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::PoisonError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -147,6 +150,12 @@ cfg_if! {
 
         impl From<serde_urlencoded::de::Error> for AppError {
             fn from(value: serde_urlencoded::de::Error) -> Self {
+                Self::InternalError(value.to_string())
+            }
+        }
+
+        impl<T> From<std::sync::PoisonError<T>> for AppError {
+            fn from(value: std::sync::PoisonError<T>) -> Self {
                 Self::InternalError(value.to_string())
             }
         }

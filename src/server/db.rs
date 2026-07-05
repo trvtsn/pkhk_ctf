@@ -91,6 +91,12 @@ cfg_if! {
             }
         }
 
+        pub fn is_unique_violation(e: &sqlx::Error) -> bool {
+            e.as_database_error()
+                .map(|db| db.is_unique_violation())
+                .unwrap_or(false)
+        }
+
         async fn connect() -> Result<MySqlPool, sqlx::Error> {
             let pool = MySqlPoolOptions::new()
                 .max_connections(50)
@@ -113,7 +119,7 @@ cfg_if! {
 pub mod structs {
     use crate::server::db::enums::{FileType, ProxmoxAuthType, UserRole};
     use chrono::{DateTime, Local};
-    use leptos::prelude::RwSignal;
+    use leptos::prelude::ArcRwSignal;
     use serde::{Deserialize, Serialize};
     use time::OffsetDateTime;
 use zeroize::{Zeroize, Zeroizing};
@@ -288,12 +294,14 @@ use zeroize::{Zeroize, Zeroizing};
         fn into(self) -> crate::pages::admin::challenges::Hint {
             crate::pages::admin::challenges::Hint {
                 id: self.id,
-                value: RwSignal::new(self.hint),
-                points_penalty: RwSignal::new(Some(self.points_penalty))
+                value: ArcRwSignal::new(self.hint),
+                points_penalty: ArcRwSignal::new(Some(self.points_penalty))
             }
         }
     }
 
+    // I should really find a better name for this, it drives me absolutely crazy
+    /// Basically the same struct as `Hint` but without the `hint` field in it
     #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Eq)]
     pub struct HintWithoutHint {
         pub id: String,
@@ -1042,6 +1050,66 @@ cfg_if! {
                 }
             }
 
+            pub async fn get_password_hash(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
+                match identifier {
+                    UserIdentifier::Id(id) => {
+                        match sqlx::query!(
+                            "
+                            SELECT pw_hash
+                            FROM users 
+                            WHERE id = ?
+                            ", 
+                            id
+                        )
+                            .fetch_one(executor)
+                            .await {
+                                Ok(row) => Ok(row.pw_hash),
+                                Err(e) => {
+                                    tracing::error!(error = ?e);
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    UserIdentifier::Email(email) => {
+                        match sqlx::query!(
+                            "
+                            SELECT pw_hash
+                            FROM users 
+                            WHERE email = ?
+                            ", 
+                            email
+                        )
+                            .fetch_one(executor)
+                            .await {
+                                Ok(row) => Ok(row.pw_hash),
+                                Err(e) => {
+                                    tracing::error!(error = ?e);
+                                    Err(e)?
+                                }
+                            }
+                    }
+                    UserIdentifier::Username(username) => {
+                        //let pattern = format!("%{username}%");
+                        match sqlx::query!(
+                            "
+                            SELECT pw_hash
+                            FROM users 
+                            WHERE username = ?
+                            ", 
+                            username
+                        )
+                            .fetch_one(executor)
+                            .await {
+                                Ok(row) => Ok(row.pw_hash),
+                                Err(e) => {
+                                    tracing::error!(error = ?e);
+                                    Err(e)?
+                                }
+                            }
+                    }
+                }
+            }
+
             pub async fn get_taken_usernames(prefix: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 let pattern = format!("{prefix}%");
                 sqlx::query_scalar!(
@@ -1108,7 +1176,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn add_ldap(&self, executor: impl MySqlExecutor<'_>) -> anyhow::Result<String> {
+            pub async fn add_ldap(&self, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
                 match sqlx::query!(
                     "
@@ -1382,7 +1450,7 @@ cfg_if! {
                 }
             }
 
-            pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
+            pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -3244,7 +3312,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> anyhow::Result<Self> {
+            pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "
@@ -3264,7 +3332,7 @@ cfg_if! {
                     }
             }
 
-            pub async fn get_all(executor: impl MySqlExecutor<'_>) -> anyhow::Result<Vec<Self>> {
+            pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
                 match sqlx::query_as!(
                     Self,
                     "

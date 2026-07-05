@@ -6,8 +6,8 @@ pub type ToastAppear = bool;
 #[derive(Clone, PartialEq, Debug)]
 pub struct ToastMessage {
     pub id: u32,
-    pub message_type: RwSignal<ToastMessageType>,
-    pub appear: RwSignal<ToastAppear>,
+    pub message_type: ArcRwSignal<ToastMessageType>,
+    pub appear: ArcRwSignal<ToastAppear>,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -135,18 +135,25 @@ pub fn Toast(
     });
 
     Effect::watch(
-        move || toast_message.appear.get(),
-        move |appearing, prev, _| {
-            if *appearing {
-                mounted.set(true);
-                set_timeout(move || entered.set(true), Duration::from_millis(16));
-                set_timeout(move || toast_message.appear.set(false), Duration::from_secs(4));
-            } else if prev.is_some() {
-                entered.set(false);
-                set_timeout(move || mounted.set(false), Duration::from_millis(1000));
-                set_timeout(move || {
-                    toast_messages.update(|t| t.retain(|tm| tm.id != toast_message.id))
-                }, Duration::from_millis(1000));
+        {
+            let toast_message = toast_message.clone();
+            move || toast_message.appear.get()
+        },
+        {
+            let toast_message = toast_message.clone();
+            move |appearing, prev, _| {
+                if *appearing {
+                    mounted.set(true);
+                    set_timeout(move || entered.set(true), Duration::from_millis(16));
+                    let toast_message = toast_message.clone();
+                    set_timeout(move || toast_message.appear.set(false), Duration::from_secs(4));
+                } else if prev.is_some() {
+                    entered.set(false);
+                    set_timeout(move || mounted.set(false), Duration::from_millis(1000));
+                    set_timeout(move || {
+                        toast_messages.update(|t| t.retain(|tm| tm.id != toast_message.id))
+                    }, Duration::from_millis(1000));
+                }
             }
         },
         true
@@ -159,11 +166,17 @@ pub fn Toast(
             >
                 <div 
                     class="flex bg-toast rounded px-8 py-4 text-text transition-all duration-1000 ease-in-out shadow-sm cursor-pointer pointer-events-auto"
-                    on:click=move |_| {
-                        toast_message.appear.set(false);
+                    on:click={
+                        let toast_message = toast_message.clone();
+                        move |_| {
+                            toast_message.appear.set(false);
+                        }
                     }
                 >
-                    {move || toast_message.message_type.get().to_string()}
+                    {
+                        let toast_message = toast_message.clone();
+                        move || toast_message.message_type.get().to_string()
+                    }
                 </div>
             </div>
         </Show>
@@ -196,7 +209,7 @@ pub fn push_new_toast(message_type: ToastMessageType) {
     let max_id = toast_messages.get_untracked().iter().max_by_key(|t| t.id).map(|t| t.id).unwrap_or_default() + 1;
     toast_messages.update(|t| t.push(ToastMessage { 
         id: max_id, 
-        message_type: RwSignal::new(message_type), 
-        appear: RwSignal::new(true) 
+        message_type: ArcRwSignal::new(message_type), 
+        appear: ArcRwSignal::new(true) 
     }));
 }

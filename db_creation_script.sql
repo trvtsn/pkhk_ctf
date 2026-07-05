@@ -80,7 +80,11 @@ CREATE UNIQUE INDEX `username_UNIQUE` ON `ctfpkhk`.`users` (`username` ASC) VISI
 
 CREATE UNIQUE INDEX `email_UNIQUE` ON `ctfpkhk`.`users` (`email` ASC) VISIBLE;
 
-CREATE INDEX `email_idx` ON `ctfpkhk`.`users` (`email` ASC) VISIBLE;
+-- Uncomment this line if the line after it is giving you problems (not 
+-- sure if there's any significant difference between a VISIBLE and an 
+-- INVISIBLE index, so use it with caution):
+-- CREATE INDEX `email_idx` ON `ctfpkhk`.`users` (`email` ASC) VISIBLE;
+CREATE INDEX `email_idx` ON `ctfpkhk`.`users` (`email` ASC) INVISIBLE;
 
 
 -- -----------------------------------------------------
@@ -174,6 +178,8 @@ ENGINE = InnoDB
 AUTO_INCREMENT = 90
 DEFAULT CHARACTER SET = utf8mb3;
 
+CREATE UNIQUE INDEX `user_hint_UNIQUE` ON `ctfpkhk`.`hints_used` (`user_id` ASC, `hint_id` ASC) VISIBLE;
+
 CREATE INDEX `fk_hints_used_challenges1_idx` ON `ctfpkhk`.`hints_used` (`challenge_id` ASC) VISIBLE;
 
 CREATE INDEX `fk_hints_used_users1_idx` ON `ctfpkhk`.`hints_used` (`user_id` ASC) VISIBLE;
@@ -242,6 +248,8 @@ CREATE TABLE IF NOT EXISTS `ctfpkhk`.`submissions` (
     ON UPDATE CASCADE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb3;
+
+CREATE UNIQUE INDEX `user_challenge_UNIQUE` ON `ctfpkhk`.`submissions` (`user_id` ASC, `challenge_id` ASC) VISIBLE;
 
 CREATE INDEX `fk_leaderboard_users1_idx` ON `ctfpkhk`.`submissions` (`user_id` ASC) VISIBLE;
 

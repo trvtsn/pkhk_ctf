@@ -7,14 +7,16 @@
 use crate::server::proxmox::ProxmoxClient;
 use crate::{error_template::AppError, server::proxmox::{Config, Member, VmCurrentStatus}};
 #[cfg(feature = "ssr")]
-use crate::server::proxmox::extract_args_from_description;
+use crate::server::proxmox::{acquire_vm_lock, extract_args_from_description};
 use std::time::Duration;
 use tracing::instrument;
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn start_vm(vm_id: &u32, username: &str) -> Result<u32, AppError> {
+pub async fn start_vm(vm_id: &u32, template_id: &u32, user_id: &str) -> Result<u32, AppError> {
     let pxc = ProxmoxClient::new().await?;
+
+    let _guard = acquire_vm_lock(&user_id, template_id)?;
 
     let start_url = format!("{}/status/start", pxc.append_to_qemu_url(*vm_id));
     let status_url = format!("{}/status/current", pxc.append_to_qemu_url(*vm_id));
@@ -34,8 +36,10 @@ pub async fn start_vm(vm_id: &u32, username: &str) -> Result<u32, AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn restart_vm(vm_id: &u32) -> Result<u32, AppError> {
+pub async fn restart_vm(vm_id: &u32, template_id: &u32, user_id: &str) -> Result<u32, AppError> {
     let pxc = ProxmoxClient::new().await?;
+
+    let _guard = acquire_vm_lock(&user_id, template_id)?;
 
     let reboot_url = format!("{}/status/reboot", pxc.append_to_qemu_url(*vm_id));
     let status_url = format!("{}/status/current", pxc.append_to_qemu_url(*vm_id));
@@ -64,8 +68,10 @@ pub async fn restart_vm(vm_id: &u32) -> Result<u32, AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn add_vm_time(vm_id: &u32) -> Result<u32, AppError> {
+pub async fn add_vm_time(vm_id: &u32, template_id: &u32, user_id: &str) -> Result<u32, AppError> {
     let pxc = ProxmoxClient::new().await?;
+
+    let _guard = acquire_vm_lock(&user_id, template_id)?;
 
     let conf_url = format!("{}/config", pxc.append_to_qemu_url(*vm_id));
 
@@ -98,8 +104,10 @@ pub async fn add_vm_time(vm_id: &u32) -> Result<u32, AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn destroy_vm(vm_id: &u32) -> Result<u32, AppError> {
+pub async fn destroy_vm(vm_id: &u32, template_id: &u32, user_id: &str) -> Result<u32, AppError> {
     let pxc = ProxmoxClient::new().await?;
+
+    let _guard = acquire_vm_lock(&user_id, template_id)?;
 
     let stop_url = format!("{}/status/stop", pxc.append_to_qemu_url(*vm_id));
     let status_url = format!("{}/status/current", pxc.append_to_qemu_url(*vm_id));

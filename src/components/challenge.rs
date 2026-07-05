@@ -62,11 +62,11 @@ pub fn Challenge(
 
     let check_flag_action = Action::new(move |(flag, challenge): &(String, Challenge)| {
         let flag = flag.clone();
-        let challenge = challenge.clone();
+        let challenge_id = challenge.id.clone();
         let challenge_points = challenge.points.clone();
         checking_flag.set(true);
         async move {
-            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge).await {
+            if let Ok(ApiResult { result, details }) = check_flag(flag, challenge_id).await {
                 if result == ResultStatus::Fail && details == "incorrect solution" {
                     incorrect.set(true);
                 } else if result == ResultStatus::Success {

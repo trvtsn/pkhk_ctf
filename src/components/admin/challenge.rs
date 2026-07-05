@@ -392,8 +392,8 @@ pub fn Challenge(
                                     hints.into_iter()
                                         .map(|h| crate::pages::admin::challenges::Hint {
                                             id: h.id,
-                                            value: RwSignal::new(h.hint),
-                                            points_penalty: RwSignal::new(Some(h.points_penalty))
+                                            value: ArcRwSignal::new(h.hint),
+                                            points_penalty: ArcRwSignal::new(Some(h.points_penalty))
                                         })
                                         .collect::<Vec<crate::pages::admin::challenges::Hint>>()
                                 );
@@ -405,26 +405,29 @@ pub fn Challenge(
                                     each=move || hints_edit.get()
                                     key=|hint: &Hint| hint.id.clone()
                                     children={move |index, hint| {
+                                        let value = hint.value.clone();
+                                        let value_input = hint.value.clone();
+                                        let penalty = hint.points_penalty.clone();
+                                        let penalty_input = hint.points_penalty.clone();
                                         view! {
                                             <div class="flex gap-2">
                                                 <input
-                                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border 
+                                                    class=r#"bg-background py-2 px-3 w-full text-sm rounded-md border border-input-border
                                                     focus:ring-2 focus:outline-none focus:ring-yale-blue-500"#
                                                     name="hint"
-                                                    prop:value=move || hint.value.get()
+                                                    prop:value=move || value.get()
                                                     on:input=move |ev| {
-                                                        let value = event_target_value(&ev);
-                                                        hint.value.set(value);
+                                                        value_input.set(event_target_value(&ev));
                                                     }
                                                 />
                                                 <input
                                                     class="w-1/2"
                                                     type="number"
                                                     min=0
-                                                    prop:value=move || hint.points_penalty.get()
+                                                    prop:value=move || penalty.get()
                                                     on:input=move |ev| {
                                                         let value = event_target_value(&ev);
-                                                        hint.points_penalty.set(Some(value.parse::<u32>().unwrap_or_default()));
+                                                        penalty_input.set(Some(value.parse::<u32>().unwrap_or_default()));
                                                     }
                                                     placeholder="0"
                                                 />

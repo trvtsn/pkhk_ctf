@@ -23,44 +23,15 @@ Refer to the [setup docs](https://github.com/trvtsn/pkhk_ctf/blob/master/docs/IN
 ### Functionality
 - [ ] Mitigate any unnecessary hydration/data-processing loops or cycles (to save resources)
 - [ ] Clean up code for better readability, get rid of placeholder code
-- [x] Properly handle all errors, remove all .unwrap()'s where necessary
-- [x] Actually make dark mode work
-- [x] Add "group" column to DB in "users" table
-- [x] Filter challenges and leaderboard by user group
-- [x] Add multi-select for "visible to group" on admin event/challenge create/edit
-- [x] Add "Group" select to admin create challenge view
-- [x] Add LDAP/AD functionality
-- [ ] Add LDAPS/ work in progress needs certs from DC2 
-- [x] Create CTF Realm to Proxmox
-- [x] Create competitor pools, permissions, accesses in Proxmox
-- [x] Create Kali Linux Proxmox !!template!! (that means vm is already preconfigured)
-- [x] Create script to automate clone & start process in Proxmox
-- [x] Create option to attach mulitple VM-s to a challenge
-- [x] When user inputs STOP VM (in proxmox use HARD STOP + additional vm remove api call)
-- [x] Add start/stop/console permissions to users in their proxmox pools, disallow editing of VM description and other metadata
-- [x] Remove VMs from user challenge popup view after solve
-- [x] Fix LDAP login auto-refresh
-- [x] Fix refresh on start VM
-- [x] Fix signals not allowing writing on admin LDAP inputs
-- [x] Add hints to challenges
+- [ ] Add LDAPS/ work in progress needs certs from DC2
 - [ ] Find or implement a new and more configurable chart builder for the leaderboard
-- [x] Allow formatting of challenge descriptions (newline support)
-- [x] Allow for multiple toast messages to appear instead of one at a time
 
 ### Security
 - [ ] Sanitize text inputs
 - [ ] Disallow special characters in text inputs where necessary
 - [ ] Replace sensitive data storage like plaintext passwords from LDAP and Proxmox configurations in DB to RAM
-- [ ] Use Zeroizing/SecretString in more spots where sensitive data is being transferred
+- [x] Use Zeroizing/SecretString in more spots where sensitive data is being transferred
 
 ### Styling
-- [x] Create fitting style for dark mode
-- [x] Remove flag input box on challenge solve
-- [x] Fix tooltip color on leaderboard hover
-- [x] Fix select option color
-- [x] Add spinner for indicating pending tasks
-- [x] Add toast messages
 
 ### Project Longevity
-- [x] Add doc comments to pages and components
-- [x] Add setup docs

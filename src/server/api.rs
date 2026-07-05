@@ -5,8 +5,8 @@
 /// to be logged in.
 
 #[cfg(feature = "ssr")]
-use crate::server::{authenticated_check, build_and_broadcast, get_db_user, BroadcastScope, backend::{AuthSession, hash_string, verify_hash}};
-use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{self, enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, Challenge, ChallengeWithAttachments, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs}}, enums::{ServerEventPayload, ResultStatus}, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, Credentials, LeaderboardData, PivotRow, User}}, utils::{get_context, offset_to_datetime}};
+use crate::server::{authenticated_check, build_and_broadcast, db::is_unique_violation, get_db_user, BroadcastScope, backend::{AuthSession, hash_string, verify_hash}};
+use crate::{error_template::AppError, server::{backend::enums::AuthType, db::{self, enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbHint, DbUser, DbUserWithoutPII, Event, HintWithoutHint, HintsUsed, LdapArgs}}, enums::{ResultStatus, ServerEventPayload}, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}, structs::{ApiResult, Credentials, LeaderboardData, PivotRow, User}}, utils::{get_context, offset_to_datetime}};
 #[cfg(feature = "ssr")]
 use axum_login::AuthnBackend;
 use cfg_if::cfg_if;
@@ -202,7 +202,8 @@ pub async fn login_user(creds: Credentials) -> Result<ApiResult<Option<User>>, A
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let mut auth = get_context::<AuthSession>()?;
-            let user: Option<User> = auth.backend.authenticate(creds.clone()).await?;
+            let auth_type = creds.auth_type.clone();
+            let user = auth.backend.authenticate(creds).await?;
 
             if let Some(user) = user.as_ref() {
                 match auth.login(user).await {
@@ -213,7 +214,7 @@ pub async fn login_user(creds: Credentials) -> Result<ApiResult<Option<User>>, A
                         
                         // normal users have a user + pool created on register,
                         // ldap users already have a user, but no pool, so create one on login
-                        if creds.auth_type == AuthType::Ldap {
+                        if auth_type == AuthType::Ldap {
                             _ = crate::server::proxmox::create_user_pool(&db_user).await;
                         }
                         
@@ -332,14 +333,23 @@ pub async fn register_user(email: Zeroizing<String>, password: Zeroizing<String>
 }
 
 #[server(name=CheckFlag, prefix="/api", endpoint="check_flag")]
-#[instrument(skip(challenge))]
-pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Challenge) -> Result<ApiResult<String>, AppError> {
+#[instrument]
+pub async fn check_flag(flag: String, challenge_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
 
             let mut tx = pool.begin().await?;
+
+            let challenge = match db::structs::Challenge::get(&challenge_id, &mut *tx).await {
+                Ok(challenge) => challenge,
+                Err(e) => {
+                    tracing::error!(error = ?e);
+                    tx.rollback().await?;
+                    return Err(AppError::InternalError("failed to get challenge".to_string()));
+                }
+            };
 
             // check if the challenge is already solved, and if so, return Error
             match db::structs::Submission::get_user_solved_challenges(&user.id, &mut *tx).await {
@@ -391,8 +401,8 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
 
                     if let Some(vm_ids_string) = challenge.vm_ids {
                         let template_ids = vm_ids_string.split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>();
-                        for template_id in template_ids {
-                            _ = crate::server::proxmox::destroy_vm(&db_user, &template_id).await;
+                        for template_id in template_ids.iter() {
+                            _ = crate::server::proxmox::destroy_vm(&db_user, template_id).await;
                         }
                     };
 
@@ -400,7 +410,10 @@ pub async fn check_flag(flag: String, challenge: crate::server::db::structs::Cha
                         _ = build_and_broadcast(ServerEventPayload::ChallengeSolved, vec![BroadcastScope::Events]).await;
                     });
                     Ok(ApiResult { result: ResultStatus::Success, details: "correct solution".to_string() })
-                }
+                },
+                Err(e) if is_unique_violation(&e) => {
+                    Ok(ApiResult { result: ResultStatus::Fail, details: "challenge already solved".to_string() })
+                },
                 Err(e) => {
                     tx.rollback().await?;
                     Err(e.into())
@@ -607,10 +620,15 @@ pub async fn get_active_events() -> Result<Vec<Event>, AppError> {
 
 #[server(name=EditPassword, prefix="/api/user", endpoint="password")]
 #[instrument(skip(old_password, new_password, confirm_new_password))]
-pub async fn edit_password(old_password: String, new_password: String, confirm_new_password: String) -> Result<ApiResult<String>, AppError> {
+pub async fn edit_password(old_password: Zeroizing<String>, new_password: Zeroizing<String>, confirm_new_password: Zeroizing<String>) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
+
+            let old_password_hash = DbUser::get_password_hash(&UserIdentifier::Id(user.id.clone()), &pool).await?;
+            if verify_hash(&old_password, &old_password_hash).await.is_err() {
+                return Err(AppError::BadRequest("old password does not match current password".to_string()));
+            }
 
             if new_password != confirm_new_password {
                 return Err(AppError::BadRequest("new password and confirm new password must match".to_string()));
@@ -678,13 +696,19 @@ pub async fn is_ldap_enabled() -> Result<bool, AppError> {
 
 #[server(name=StartVM, prefix="/api", endpoint="start_vm")]
 #[instrument]
-pub async fn start_vm(template_id: u32, challenge: Challenge) -> Result<ApiResult<String>, AppError> {
+pub async fn start_vm(template_id: u32, challenge_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (user, pool) = authenticated_check().await?;
             let db_user = get_db_user(&user, &pool).await?;
 
-            match crate::server::proxmox::start_vm(&template_id, &challenge, &db_user).await {
+            let challenge = db::structs::Challenge::get(&challenge_id, &pool).await?;
+            let template_ids = challenge.vm_ids.as_deref().map(|s| s.split(",").filter_map(|c| c.parse::<u32>().ok()).collect::<Vec<u32>>()).unwrap_or_default();
+            if !template_ids.contains(&template_id) {
+                return Err(AppError::BadRequest("invalid template id".to_string()));
+            }
+
+            match crate::server::proxmox::start_vm(&template_id, &challenge_id, &db_user).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully started VM (ID: {vm_id})") }),
                 Err(e) => return Err(e.into())
             }
@@ -829,28 +853,43 @@ pub async fn get_hint(challenge_id: String, hint_id: String) -> Result<crate::se
                     }
                 }
             } else {
-                if let Err(e) = HintsUsed::add(&challenge_id, &user.id, &hint_id, &mut *tx).await {
+                let hint = DbHint::get(&hint_id, &mut *tx).await?;
+                if hint.challenge_id != challenge_id {
                     tx.rollback().await?;
-                    return Err(e.into());
+                    return Err(AppError::BadRequest("invalid hint id".to_string()));
                 }
+                
+                match HintsUsed::add(&challenge_id, &user.id, &hint_id, &mut *tx).await {
+                    Ok(_) => {
+                        let hint = match crate::server::db::structs::Hint::get(&hint_id, &mut *tx).await {
+                            Ok(hint) => hint,
+                            Err(e) => {
+                                tx.rollback().await?;
+                                return Err(e.into());
+                            }
+                        };
 
-                let hint = match crate::server::db::structs::Hint::get(&hint_id, &mut *tx).await {
-                    Ok(hint) => hint,
+                        if let Err(e) = db_user.deduct_points(&hint.points_penalty, &mut *tx).await {
+                            tx.rollback().await?;
+                            return Err(e.into());
+                        }
+
+                        tx.commit().await?;
+
+                        Ok(hint)
+                    },
+                    Err(e) if is_unique_violation(&e) => {
+                        tx.rollback().await?;
+                        match crate::server::db::structs::Hint::get(&hint_id, &pool).await {
+                            Ok(hint) => Ok(hint),
+                            Err(e) => Err(e.into())
+                        }
+                    },
                     Err(e) => {
                         tx.rollback().await?;
-                        return Err(e.into());
-                    }
-                };
-
-                match db_user.deduct_points(&hint.points_penalty, &mut *tx).await {
-                    Ok(_) => tx.commit().await?,
-                    Err(e) => {
-                        tx.rollback().await?;
-                        return Err(e.into());
+                        Err(e.into())
                     }
                 }
-
-                Ok(hint)
             }
         } else {
             Err(AppError::NoServerConnection)

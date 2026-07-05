@@ -1498,7 +1498,7 @@ pub async fn get_proxmox_users_info() -> Result<Vec<ProxmoxUserInfo>, AppError> 
 
 #[server(name=CreateProxmoxUser, prefix="/api/admin/proxmox", endpoint="create_user")]
 #[instrument]
-pub async fn create_proxmox_user(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+pub async fn create_proxmox_user(#[server(rename = "user_id")] user_db_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -1521,7 +1521,7 @@ pub async fn create_proxmox_user(user_db_id: String) -> Result<ApiResult<String>
 
 #[server(name=DeleteProxmoxUser, prefix="/api/admin/proxmox", endpoint="delete_user")]
 #[instrument]
-pub async fn delete_proxmox_user(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+pub async fn delete_proxmox_user(#[server(rename = "user_id")] user_db_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -1544,7 +1544,7 @@ pub async fn delete_proxmox_user(user_db_id: String) -> Result<ApiResult<String>
 
 #[server(name=CreateProxmoxPool, prefix="/api/admin/proxmox", endpoint="create_pool")]
 #[instrument]
-pub async fn create_proxmox_pool(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+pub async fn create_proxmox_pool(#[server(rename = "user_id")] user_db_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -1567,7 +1567,7 @@ pub async fn create_proxmox_pool(user_db_id: String) -> Result<ApiResult<String>
 
 #[server(name=DeleteProxmoxPool, prefix="/api/admin/proxmox", endpoint="delete_pool")]
 #[instrument]
-pub async fn delete_proxmox_pool(user_db_id: String) -> Result<ApiResult<String>, AppError> {
+pub async fn delete_proxmox_pool(#[server(rename = "user_id")] user_db_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, pool) = authenticated_check().await?;
@@ -1590,12 +1590,12 @@ pub async fn delete_proxmox_pool(user_db_id: String) -> Result<ApiResult<String>
 
 #[server(name=StartVM, prefix="/api/admin", endpoint="start_vm")]
 #[instrument]
-pub async fn start_vm(vm_id: u32, username: String) -> Result<ApiResult<String>, AppError> {
+pub async fn start_vm(vm_id: u32, template_id: u32, user_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
 
-            match crate::server::proxmox::admin::start_vm(&vm_id, &username).await {
+            match crate::server::proxmox::admin::start_vm(&vm_id, &template_id, &user_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully started VM (ID: {vm_id})") }),
                 Err(e) => return Err(e.into())
             }
@@ -1607,12 +1607,12 @@ pub async fn start_vm(vm_id: u32, username: String) -> Result<ApiResult<String>,
 
 #[server(name=RestartVM, prefix="/api/admin", endpoint="restart_vm")]
 #[instrument]
-pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+pub async fn restart_vm(vm_id: u32, template_id: u32, user_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
 
-            match crate::server::proxmox::admin::restart_vm(&vm_id).await {
+            match crate::server::proxmox::admin::restart_vm(&vm_id, &template_id, &user_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully restarted VM (ID: {vm_id})") }),
                 Err(e) => Err(e)
             }
@@ -1624,12 +1624,12 @@ pub async fn restart_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 
 #[server(name=DestroyVM, prefix="/api/admin", endpoint="destroy_vm")]
 #[instrument]
-pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+pub async fn destroy_vm(vm_id: u32, template_id: u32, user_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
 
-            match crate::server::proxmox::admin::destroy_vm(&vm_id).await {
+            match crate::server::proxmox::admin::destroy_vm(&vm_id, &template_id, &user_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully destroyed VM (ID: {vm_id})") }),
                 Err(e) => return Err(e)
             }
@@ -1641,12 +1641,12 @@ pub async fn destroy_vm(vm_id: u32) -> Result<ApiResult<String>, AppError> {
 
 #[server(name=AddVMTime, prefix="/api/admin", endpoint="add_vm_time")]
 #[instrument]
-pub async fn add_vm_time(vm_id: u32) -> Result<ApiResult<String>, AppError> {
+pub async fn add_vm_time(vm_id: u32, template_id: u32, user_id: String) -> Result<ApiResult<String>, AppError> {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
             let (_, _) = authenticated_check().await?;
 
-            match crate::server::proxmox::admin::add_vm_time(&vm_id).await {
+            match crate::server::proxmox::admin::add_vm_time(&vm_id, &template_id, &user_id).await {
                 Ok(vm_id) => Ok(ApiResult { result: ResultStatus::Success, details: format!("Successfully added time to VM (ID: {vm_id})") }),
                 Err(e) => Err(e.into())
             }

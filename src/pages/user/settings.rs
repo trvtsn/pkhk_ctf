@@ -1,6 +1,7 @@
 use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::HidePasswordButton}, server::{backend::enums::AuthType, db::structs::DbUserWithoutPII, api::{edit_avatar, edit_password, edit_username}, enums::ResultStatus}};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, FormData, HtmlFormElement, HtmlInputElement}};
 use leptos_use::{ColorMode};
+use zeroize::Zeroizing;
 
 /// User settings page. 
 /// Change username, password, or avatar, and dark mode toggle.
@@ -102,9 +103,9 @@ pub fn Settings() -> impl IntoView {
                                 class="flex flex-col gap-4"
                                 on:submit=move |ev| {
                                     ev.prevent_default();
-                                    let old_password = old_password.get();
-                                    let new_password = new_password.get();
-                                    let confirm_new_password = confirm_new_password.get();
+                                    let old_password = Zeroizing::new(old_password.get_untracked());
+                                    let new_password = Zeroizing::new(new_password.get_untracked());
+                                    let confirm_new_password = Zeroizing::new(confirm_new_password.get_untracked());
 
                                     if new_password == confirm_new_password {
                                         spawn_local(async move {

@@ -5,8 +5,10 @@
 
 #[cfg(feature = "ssr")]
 use crate::server::{db::get_db_ref, is_host_reachable};
-use crate::{error_template::AppError, server::db::{self, structs::{Challenge, DbUser, LdapArgs, ProxmoxArgs}}, utils::local_string_to_datetime};
+use crate::{error_template::AppError, server::db::{self, structs::{DbUser, LdapArgs, ProxmoxArgs}}, utils::local_string_to_datetime};
 use chrono::{DateTime, Local};
+#[cfg(feature = "ssr")]
+use once_cell::sync::Lazy;
 #[cfg(feature = "ssr")]
 use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
@@ -14,11 +16,52 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::OnceCell;
 use std::{collections::HashMap, time::Duration};
 use tracing::instrument;
+#[cfg(feature = "ssr")]
+use std::sync::{Arc, Mutex as StdMutex};
+#[cfg(feature = "ssr")]
+use tokio::sync::Mutex as AsyncMutex;
 
 pub mod admin;
 
 #[cfg(feature = "ssr")]
 static REQWEST_CLIENT: OnceCell<Client> = OnceCell::const_new();
+
+// These locking functions might become redundant in the future if ever this 
+// application is run in multiple instances. Consider using a DB-based lock, 
+// a table like `active_vms` or `proxmox_vms`. For now, this is acceptable.
+#[cfg(feature = "ssr")]
+static VM_LOCKS: Lazy<StdMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
+    Lazy::new(|| StdMutex::new(HashMap::new()));
+
+#[cfg(feature = "ssr")]
+pub struct VmLockGuard {
+    key: String,
+    guard: Option<tokio::sync::OwnedMutexGuard<()>>,
+}
+
+#[cfg(feature = "ssr")]
+impl Drop for VmLockGuard {
+    fn drop(&mut self) {
+        self.guard.take();
+        if let Ok(mut map) = VM_LOCKS.lock() {
+            let is_idle = map.get(&self.key).map(|arc| Arc::strong_count(arc) == 1).unwrap_or(false);
+            if is_idle { map.remove(&self.key); }
+        }
+    }
+}
+
+#[cfg(feature = "ssr")]
+pub fn acquire_vm_lock(user_id: &str, template_id: &u32) -> Result<VmLockGuard, AppError> {
+    let key = format!("{user_id}:{template_id}");
+    let arc = {
+        let mut map = VM_LOCKS.lock()?;
+        map.entry(key.clone()).or_insert_with(|| Arc::new(AsyncMutex::new(()))).clone()
+    };
+    match arc.try_lock_owned() {
+        Ok(guard) => Ok(VmLockGuard { key, guard: Some(guard) }),
+        Err(_) => Err(AppError::BadRequest("An action is already in progress".into()))
+    }
+}
 
 #[cfg(feature = "ssr")]
 pub fn init_reqwest_client() {
@@ -265,8 +308,10 @@ async fn get_next_free_vm_id() -> Result<u32, AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Result<u32, AppError> {
+pub async fn start_vm(template_id: &u32, challenge_id: &str, user: &DbUser) -> Result<u32, AppError> {
     let pxc = ProxmoxClient::new().await?;
+
+    let _guard = acquire_vm_lock(&user.id, template_id)?;
 
     match get_user_vmid_from_template_id(user, template_id).await? {
         Some(vm_id) => {
@@ -280,25 +325,29 @@ pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -
                 let vm = pxc.get_req::<Member>(&status_url).await?;
 
                 let vm_status = vm.data.status.unwrap_or_default();
-                if vm_status == "running" { return Ok(vm_id); }
+                if vm_status == "running" { 
+                    return Ok(vm_id);
+                }
             }
 
             Err(AppError::InternalError("VM failed to start within timeout".to_string()))
         },
         None => {
-            let new_vm_id = clone_vm(template_id, challenge, user).await?;
+            let new_vm_id = clone_vm(template_id, challenge_id, user).await?;
             let start_url = format!("{}/status/start", pxc.append_to_qemu_url(new_vm_id));
             let status_url = format!("{}/status/current", pxc.append_to_qemu_url(new_vm_id));
 
             pxc.post_req(&start_url, None).await?;
-            schedule_vm_deletion(user.clone(), new_vm_id);
+            schedule_vm_deletion(user.clone(), new_vm_id, *template_id);
 
             for _ in 0..60 {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 let vm = pxc.get_req::<Member>(&status_url).await?;
 
                 let vm_status = vm.data.status.unwrap_or_default();
-                if vm_status == "running" { return Ok(new_vm_id); }
+                if vm_status == "running" { 
+                    return Ok(new_vm_id);
+                }
             }
 
             Err(AppError::InternalError("VM failed to start within timeout".to_string()))
@@ -308,7 +357,7 @@ pub async fn start_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -
 
 #[cfg(feature = "ssr")]
 #[instrument]
-async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Result<u32, AppError> {
+async fn clone_vm(template_id: &u32, challenge_id: &str, user: &DbUser) -> Result<u32, AppError> {
     let pxc = ProxmoxClient::new().await?;
 
     let new_vm_id = get_next_free_vm_id().await?;
@@ -332,7 +381,7 @@ async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Re
 
     let vm_description = serde_urlencoded::to_string(&[
         ("id", new_vm_id.to_string()),
-        ("challenge_id", challenge.id.to_string()),
+        ("challenge_id", challenge_id.to_string()),
         ("origin_id", template_id.to_string()),
         ("user_id", user.id.to_string()),
         ("created_at", created_at),
@@ -352,6 +401,8 @@ async fn clone_vm(template_id: &u32, challenge: &Challenge, user: &DbUser) -> Re
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn restart_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
+    let _guard = acquire_vm_lock(&user.id, template_id)?;
+
     let pxc = ProxmoxClient::new().await?;
 
     let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
@@ -386,6 +437,8 @@ pub async fn restart_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppErro
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn destroy_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
+    let _guard = acquire_vm_lock(&user.id, template_id)?;
+    
     let pxc = ProxmoxClient::new().await?;
 
     let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
@@ -475,7 +528,7 @@ pub async fn test_auth(args: &ProxmoxArgs) -> Result<(), AppError> {
 
 #[cfg(feature = "ssr")]
 #[instrument]
-fn schedule_vm_deletion(user: DbUser, vm_id: u32) {
+fn schedule_vm_deletion(user: DbUser, vm_id: u32, template_id: u32) {
     tokio::spawn(async move {
         let pxc = match ProxmoxClient::new().await {
             Ok(p) => p,
@@ -501,10 +554,10 @@ fn schedule_vm_deletion(user: DbUser, vm_id: u32) {
             let end_at = args.end_at.timestamp();
             let now = Local::now().timestamp();
             if now >= end_at {
-                if let Err(e) = super::proxmox::admin::destroy_vm(&vm_id).await {
+                let result = super::proxmox::admin::destroy_vm(&vm_id, &template_id, &user.id).await;
+                if result.is_ok() { return; } else if let Err(e) = result { 
                     tracing::error!(error = ?e, "failed to destroy expired VM");
                 }
-                return;
             }
         }
     });
@@ -513,6 +566,8 @@ fn schedule_vm_deletion(user: DbUser, vm_id: u32) {
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn add_vm_time(user: &DbUser, template_id: &u32) -> Result<u32, AppError> {
+    let _guard = acquire_vm_lock(&user.id, template_id)?;
+    
     let pxc = ProxmoxClient::new().await?;
 
     let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
