@@ -1,26 +1,15 @@
+use crate::components::toast::{ToastMessageType, push_new_toast};
+use crate::utils::use_sse;
 use base64::Engine;
 use chrono::Local;
 use leptos::{prelude::*, wasm_bindgen::JsCast};
-use leptos::server::codee::string::FromToStringCodec;
-use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
-
-use crate::components::toast::{ToastMessageType, push_new_toast};
 
 /// Live server log viewer, streamed via SSE.
 #[component]
 pub fn Log() -> impl IntoView {
     let logs = RwSignal::new(Vec::<String>::new());
-    let UseEventSourceReturn { message, .. } = 
-        use_event_source_with_options::<String, FromToStringCodec>(
-            "/admin/logs".to_string(), 
-            UseEventSourceOptions::default().immediate(true)
-        );
-
-    Effect::new(move |_| {
-        if let Some(msg) = message.get() {
-            let text = format!("[{}] {}\n", msg.event_type, msg.data);
-            logs.update(|v| v.push(text));
-        }
+    use_sse("/admin/logs", move |event_type, data| {
+        logs.update(|v| v.push(format!("[{event_type}] {data}\n")));
     });
 
     view! {

@@ -1,7 +1,5 @@
-use crate::{components::utils::Gauge, server::enums::ServerEventPayload};
+use crate::{components::utils::Gauge, server::enums::ServerEventPayload, utils::use_server_events};
 use leptos::prelude::*;
-use leptos::server::codee::string::FromToStringCodec;
-use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
 
 /// Live server status panel.
 /// Shows CPU, RAM, uptime, active users, and traffic via SSE.
@@ -14,26 +12,14 @@ pub fn Status() -> impl IntoView {
     let active_users = RwSignal::new(0_u32);
     let traffic = RwSignal::new(String::from("0 B"));
 
-    let UseEventSourceReturn { message, .. } =
-        use_event_source_with_options::<String, FromToStringCodec>(
-            "/admin/status".to_string(),
-            UseEventSourceOptions::default().immediate(true),
-        );
-
-    Effect::new(move |_| {
-        if let Some(msg) = message.get() {
-            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
-                Ok(ServerEventPayload::StatusData(data)) => {
-                    uptime.set(data.uptime);
-                    active_users.set(data.active_users);
-                    cpu_percent.set(data.cpu_usage);
-                    ram_percent.set(data.ram_usage);
-                    ram_mb.set(data.ram_usage_mb);
-                    traffic.set(data.traffic);
-                },
-                Ok(_) => {},
-                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
-            }
+    use_server_events("/admin/status", move |payload| {
+        if let ServerEventPayload::StatusData(data) = payload {
+            uptime.set(data.uptime);
+            active_users.set(data.active_users);
+            cpu_percent.set(data.cpu_usage);
+            ram_percent.set(data.ram_usage);
+            ram_mb.set(data.ram_usage_mb);
+            traffic.set(data.traffic);
         }
     });
 

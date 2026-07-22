@@ -5,6 +5,7 @@ use crate::server::db::structs::{Challenge, ChallengeWithAttachments, DbHintWith
 use crate::server::proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate};
 use crate::server::{api::{add_vm_time, destroy_vm, get_hint, get_proxmox_base_url, restart_vm, start_vm}};
 use crate::server::{api::check_flag, db::structs::AttachmentWithoutBlob, enums::ResultStatus, structs::ApiResult};
+use crate::utils::parse_vm_ids;
 use icondata as i;
 use leptos::task::spawn_local;
 use leptos::{prelude::*};
@@ -280,12 +281,7 @@ pub fn ChallengePopup(
                     if !solved.get() {
                         let all_templates = all_templates.get();
                         let challenge = cwa.get().challenge;
-                        let challenge_vm_ids = challenge.clone().vm_ids;
-                        let template_ids = if let Some(challenge_vm_ids) = challenge_vm_ids {
-                            challenge_vm_ids.split(",").map(|c| c.parse::<u32>().unwrap_or_default()).collect::<Vec<u32>>()
-                        } else {
-                            Vec::<u32>::new()
-                        };
+                        let template_ids = challenge.vm_ids.as_deref().map(parse_vm_ids).unwrap_or_default();
                         let templates = all_templates.into_iter().filter(|t| template_ids.contains(&t.id)).collect::<Vec<ProxmoxVMTemplate>>();
                         view! {
                             <div class="grid auto-rows-auto gap-2 pt-2">

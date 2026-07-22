@@ -1,4 +1,5 @@
 use crate::{components::{toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner, UserTooltip, VMTooltip}}, pages::admin::{AdminSections, ProxmoxSubSection}, server::{admin::{ProxmoxUserInfo, api::{add_vm_time, create_proxmox_pool, create_proxmox_user, delete_proxmox_pool, delete_proxmox_user, destroy_vm, get_proxmox_conf, get_proxmox_users_info, restart_vm, start_vm, test_proxmox, update_proxmox}}, db::{enums::ProxmoxAuthType, structs::ProxmoxArgs}, enums::ResultStatus, api::get_proxmox_base_url, structs::ApiResult}};
+use crate::utils::OrToast;
 use itertools::Itertools;
 use leptos::{prelude::*, task::spawn_local};
 
@@ -69,13 +70,13 @@ fn Config() -> impl IntoView {
     });
 
     let proxmox_resource = Resource::new(move || (), move |_| async move {
-        get_proxmox_conf().await.unwrap_or_default().unwrap_or_default()
+        get_proxmox_conf().await.or_toast_and_default("Failed to load Proxmox config")
     });
 
     Effect::watch(
         move || proxmox_resource.get(),
         move |val, _, _| {
-            if let Some(proxmox_args) = val.clone() {
+            if let Some(Some(proxmox_args)) = val.clone() {
                 api_path.set(proxmox_args.api_path.clone());
                 api_token.set(proxmox_args.api_token.clone());
                 auth_type.set(proxmox_args.auth_type.clone());

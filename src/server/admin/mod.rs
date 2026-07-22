@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use sqlx::MySqlPool;
 use tracing::instrument;
-use zeroize::Zeroize;
 
 pub mod api;
 
@@ -129,32 +128,6 @@ pub enum UserAction {
     }
 }
 
-impl Zeroize for UserAction {
-    fn zeroize(&mut self) {
-        match self {
-            UserAction::Create { username, email, password, confirm_password, .. } => {
-                username.zeroize();
-                email.zeroize();
-                password.zeroize();
-                confirm_password.zeroize();
-            },
-            UserAction::Delete { id } => id.zeroize(),
-            UserAction::Edit { id, username, email, password, confirm_password, .. } => {
-                id.zeroize();
-                username.zeroize();
-                email.zeroize();
-                password.zeroize();
-                confirm_password.zeroize();
-            },
-            UserAction::EditPassword { id, password, confirm_password } => {
-                id.zeroize();
-                password.zeroize();
-                confirm_password.zeroize();
-            }
-        }
-    }
-}
-
 /// Used at the start of every admin API function. 
 /// Checks if the user is logged in, and if they're of role `UserRole::Admin`.
 #[cfg(feature = "ssr")]
@@ -162,22 +135,12 @@ impl Zeroize for UserAction {
 pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
     let auth = get_context::<AuthSession>()?;
     let response = get_context::<ResponseOptions>()?;
-    let user = match auth.user {
-        Some(user) => user,
-        None => {
-            response.set_status(StatusCode::FORBIDDEN);
-            return Err(AppError::Forbidden);
-        }
+    let Some(user) = auth.user else {
+        response.set_status(StatusCode::FORBIDDEN);
+        return Err(AppError::Forbidden);
     };
-    let db_user = match DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await {
-        Ok(Some(user)) => user,
-        Ok(None) => {
-            return Err(AppError::InternalError("failed to fetch user from db".to_string()));
-        }
-        Err(e) => {
-            tracing::error!(error = ?e);
-            return Err(AppError::InternalError(e.to_string()));
-        }
+    let Some(db_user) = DbUser::get(&UserIdentifier::Id(user.id.clone()), &auth.backend.pool).await? else { 
+        return Err(AppError::BadRequest("Invalid session".to_string()));
     };
 
     if db_user.role != UserRole::Admin {
@@ -191,14 +154,8 @@ pub async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn fetch_db_user(id: &str, pool: &MySqlPool) -> Result<DbUser, AppError> {
-    match DbUser::get(&UserIdentifier::Id(id.to_owned()), pool).await {
-        Ok(Some(user)) => Ok(user),
-        Ok(None) => {
-            Err(AppError::InternalError("internal error".to_string()))
-        }
-        Err(e) => {
-            tracing::error!(error = ?e);
-            Err(AppError::InternalError("internal error".to_string()))
-        }
+    match DbUser::get(&UserIdentifier::Id(id.to_owned()), pool).await? {
+        Some(user) => Ok(user),
+        None => Err(AppError::DatabaseError("Failed to fetch user".to_string())),
     }
 }

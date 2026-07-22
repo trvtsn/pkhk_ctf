@@ -1,4 +1,4 @@
-use crate::{components::utils::{ComponentSize, FileTooltip, HidePasswordButton, Spinner}, server::{admin::{api::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}, utils::build_single_file_form_data};
+use crate::{components::utils::{ComponentSize, FileTooltip, HidePasswordButton, Spinner}, server::{admin::{api::{disable_ldap, enable_ldap, get_certificate_without_blob, get_ldap, test_ldap, update_ldap, upload_certificate}}, db::structs::{LdapArgs, SqlBool}, enums::ResultStatus, structs::ApiResult}, utils::{build_single_file_form_data, OrToast}};
 use leptos::{prelude::*, task::spawn_local};
 use zeroize::Zeroizing;
 
@@ -20,10 +20,10 @@ pub fn Ldap() -> impl IntoView {
     let enabled = RwSignal::new(SqlBool(true));
 
     let certificate_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_certificate_without_blob().await.unwrap_or_default()
+        get_certificate_without_blob().await.or_toast_and_default("Failed to load certificate")
     });
     let ldap_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_ldap().await.unwrap_or_default().unwrap_or_default()
+        get_ldap().await.or_toast_and_default("Failed to load LDAP config")
     });
 
     let connect_status_classes = Memo::new(move |_| {
@@ -38,9 +38,9 @@ pub fn Ldap() -> impl IntoView {
     Effect::watch(
         move || ldap_resource.get(),
         move |val, _, _| {
-            if let Some(ldap_args) = val.clone() {
+            if let Some(Some(ldap_args)) = val.clone() {
                 ldap_url.set(ldap_args.url.clone());
-                bind_dn.set(ldap_args.bind_dn.clone());
+                bind_dn.set(ldap_args.bind_dn.to_string());
                 bind_pw.set(ldap_args.bind_pw.to_string());
                 base_dn.set(ldap_args.base_dn.clone());
                 enabled.set(ldap_args.enabled);
@@ -184,7 +184,7 @@ pub fn Ldap() -> impl IntoView {
                                         let certificate_ref = certificate_ref.get_untracked();
 
                                         let url = ldap_url.get_untracked();
-                                        let bind_dn = bind_dn.get_untracked();
+                                        let bind_dn = Zeroizing::new(bind_dn.get_untracked());
                                         let bind_pw = Zeroizing::new(bind_pw.get_untracked());
                                         let base_dn = base_dn.get_untracked();
                                         let enabled = enabled.get_untracked();
@@ -226,7 +226,7 @@ pub fn Ldap() -> impl IntoView {
                                         let certificate_ref = certificate_ref.get_untracked();
 
                                         let url = ldap_url.get_untracked();
-                                        let bind_dn = bind_dn.get_untracked();
+                                        let bind_dn = Zeroizing::new(bind_dn.get_untracked());
                                         let bind_pw = Zeroizing::new(bind_pw.get_untracked());
                                         let base_dn = base_dn.get_untracked();
                                         let enabled = enabled.get_untracked();

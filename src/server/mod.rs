@@ -5,8 +5,8 @@
 /// Anything that is behind a `#[cfg(feature = "ssr")]` flag should only be run on the server.
 
 #[cfg(feature = "ssr")]
-use crate::server::{backend::{AuthSession, hash_string}, db::get_db, structs::AppState};
-use crate::{error_template::AppError, server::{db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, EventWithAttachments}}, enums::ServerEventPayload, structs::{StatusData, User}}, utils::get_context};
+use crate::{server::db::DbResultExt, server::{backend::{AuthSession, hash_string}, db::get_db, structs::AppState}};
+use crate::{error_template::{AppError, LogErr}, server::{db::{enums::{FileType, UserIdentifier, UserRole}, structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbUser, EventWithAttachments}}, enums::ServerEventPayload, structs::{StatusData, User}}, utils::get_context};
 use crate::server::db::enums::AttachmentIdentifier;
 #[cfg(feature = "ssr")]
 use axum::{extract::Path, Router, routing::get};
@@ -70,6 +70,12 @@ pub mod structs {
         pub auth_type: AuthType
     }
 
+
+    /// A response envelope designed to give the user a short curated message, e.g. 
+    /// "incorrect solution" or "username already exists" on failure. It signifies 
+    /// that the request was handled correctly but the intended outcome was negative. 
+    /// Use `Result<ApiResult<T>, AppError>` when a function has these expected negative 
+    /// outcomes, and use `Result<T, AppError>` when it doesn't.
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub struct ApiResult<T> {
         pub result: ResultStatus,
@@ -217,10 +223,7 @@ pub async fn download_blob(
         let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id.clone()), &pool).await {
             Ok(Some(f)) => f,
             Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
-            Err(e) => {
-                tracing::error!(error = ?e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
-            }
+            Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response(),
         };
 
         let entry = file_cache::CachedFile {
@@ -277,10 +280,7 @@ pub async fn serve_image(
         let file = match db::structs::Attachment::get(AttachmentIdentifier::Id(id.clone()), &pool).await {
             Ok(Some(f)) => f,
             Ok(None) => return (StatusCode::NOT_FOUND).into_response(),
-            Err(e) => {
-                tracing::error!(error = ?e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
-            }
+            Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response(),
         };
 
         let entry = file_cache::CachedFile {
@@ -412,7 +412,7 @@ cfg_if! {
                     }
                     Err(e) => {
                         tracing::error!(error = ?e, "serializing server event failed");
-                        return Err(AppError::InternalError(e.to_string()));
+                        return Err(e.into());
                     }
                 }
             }
@@ -457,7 +457,7 @@ cfg_if! {
                     if tick_count % 10 == 0 {
                         let count: i64 = sqlx::query_scalar(
                             "SELECT COUNT(*) FROM ctfpkhk.sessions WHERE expiry_date > NOW()"
-                        ).fetch_one(&status_pool).await.unwrap_or(0);
+                        ).fetch_one(&status_pool).await.log_err().unwrap_or(0);
                         cached_active_users = count as u32;
                     }
                     tick_count = tick_count.wrapping_add(1);
@@ -503,19 +503,21 @@ async fn authenticated_check() -> Result<(User, MySqlPool), AppError> {
 #[instrument]
 pub async fn is_host_reachable(url: &str) -> Result<bool, AppError> {
     let url = url::Url::parse(url)?;
-    let host = url.host_str().unwrap_or_default();
-    let port = url.port().unwrap_or_default();
-    let timeout = Duration::from_millis(1000);
-    let addrs = tokio::net::lookup_host(format!("{host}:{port}")).await?;
+    if let Some(host) = url.host_str() && let Some(port) = url.port() {
+        let timeout = Duration::from_millis(1000);
+        let addrs = tokio::net::lookup_host(format!("{host}:{port}")).await?;
 
-    for addr in addrs {
-        match tokio::time::timeout(timeout, TcpStream::connect(addr)).await {
-            Ok(Ok(_)) => return Ok(true),
-            _ => continue,
+        for addr in addrs {
+            match tokio::time::timeout(timeout, TcpStream::connect(addr)).await {
+                Ok(Ok(_)) => return Ok(true),
+                _ => continue,
+            }
         }
-    }
 
-    Err(AppError::NetworkError("host unreachable".to_string()))
+        Ok(false)
+    } else {
+        Err(AppError::InternalError("invalid host or port".to_string()))
+    }
 }
 
 /// Used whenever we want the real-time row record of a `server::structs::User`.
@@ -524,15 +526,10 @@ pub async fn is_host_reachable(url: &str) -> Result<bool, AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn get_db_user(user: &User, pool: &MySqlPool) -> Result<DbUser, AppError> {
-    match DbUser::get(&UserIdentifier::Id(user.id.clone()), pool).await {
-        Ok(Some(user)) => Ok(user),
-        Ok(None) => {
-            Err(AppError::InternalError("internal error".to_string()))
-        }
-        Err(e) => {
-            tracing::error!(error = ?e);
-            Err(AppError::InternalError("internal error".to_string()))
-        }
+    if let Some(user) = DbUser::get(&UserIdentifier::Id(user.id.clone()), pool).await? {
+        Ok(user)
+    } else {
+        Err(AppError::BadRequest("Invalid session".to_string()))
     }
 }
 
@@ -543,12 +540,15 @@ async fn get_db_user(user: &User, pool: &MySqlPool) -> Result<DbUser, AppError> 
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn fetch_cwa(id: &str, pool: &MySqlPool) -> Result<ChallengeWithAttachments, AppError> {
-    let challenge = db::structs::Challenge::get(&id.to_string(), pool).await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+    let challenge = db::structs::Challenge::get(&id.to_string(), pool).await.or_not_found(
+        AppError::BadRequest("Invalid challenge id".to_string())
+    )?;
 
-    let attachments_all = AttachmentWithoutBlob::get_all(
+    let Ok(attachments_all) = AttachmentWithoutBlob::get_all(
         &Some(db::enums::AttachmentIdentifier::ChallengeId(id.to_string())), pool
-    ).await?;
+    ).await else {
+        return Err(AppError::InternalError("Failed to get attachments for challenge".to_string()))
+    };
 
     let mut attachments = vec![];
     let mut illustration = None;
@@ -570,12 +570,15 @@ pub async fn fetch_cwa(id: &str, pool: &MySqlPool) -> Result<ChallengeWithAttach
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn fetch_ewa(id: &str, pool: &MySqlPool) -> Result<EventWithAttachments, AppError> {
-    let event = db::structs::Event::get(&id.to_string(), pool).await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+    let event = db::structs::Event::get(&id.to_string(), pool).await.or_not_found(
+        AppError::BadRequest("Invalid event id".to_string())
+    )?;
 
-    let attachments_all = AttachmentWithoutBlob::get_all(
+    let Ok(attachments_all) = AttachmentWithoutBlob::get_all(
         &Some(db::enums::AttachmentIdentifier::EventId(id.to_string())), pool
-    ).await?;
+    ).await else {
+        return Err(AppError::InternalError("Failed to get attachments for event".to_string()))
+    };
 
     let mut attachments = vec![];
     let mut illustration = None;

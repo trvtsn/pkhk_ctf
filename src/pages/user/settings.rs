@@ -199,9 +199,9 @@ pub fn Settings() -> impl IntoView {
                                     Some(target) => target.unchecked_into::<HtmlFormElement>(),
                                     None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                                 };
-                                let fd = match FormData::new_with_form(&form) {
-                                    Ok(fd) => fd,
-                                    Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                                let Ok(fd) = FormData::new_with_form(&form) else {
+                                    push_new_toast(ToastMessageType::ErrorOccurred);
+                                    return;
                                 };
                                 spawn_local(async move {
                                     if edit_avatar(fd.into()).await.is_ok() {

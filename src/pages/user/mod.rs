@@ -1,6 +1,6 @@
 pub mod settings;
 
-use crate::{components::{navbar::NavBar, utils::{ComponentSize, Spinner}}, pages::not_found::NotFound, server::{db::enums::UserIdentifier, api::{get_avatar_id, get_db_user_without_pii}}};
+use crate::{components::{navbar::NavBar, utils::{ComponentSize, Spinner}}, pages::not_found::NotFound, server::{db::enums::UserIdentifier, api::{get_avatar_id, get_db_user_without_pii}}, utils::OrToast};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
@@ -11,12 +11,12 @@ pub fn User() -> impl IntoView {
     
     let user_resource = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
-        async move { get_db_user_without_pii(Some(username)).await.unwrap_or_default() }
+        async move { get_db_user_without_pii(Some(username)).await.or_toast_and_default("Failed to load user") }
     });
 
     let user_avatar = Resource::new(move || (), move |_| {
         let username = params.read().get("username").unwrap_or_default();
-        async move { get_avatar_id(UserIdentifier::Username(username)).await.unwrap_or_default() }
+        async move { get_avatar_id(UserIdentifier::Username(username)).await.or_toast_and_default("Failed to load avatar") }
     });
 
     view! {

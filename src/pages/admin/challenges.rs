@@ -1,6 +1,6 @@
 use crate::components::toast::{ToastMessageType, push_new_toast};
 use crate::components::utils::{ComponentSize, FileTooltip};
-use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options};
+use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options, use_server_events, OrToast};
 use crate::server::admin::{api::{get_all_challenge_templates, get_all_hints, get_all_user_groups, upload_illustration}};
 use crate::server::db::structs::{AttachmentWithoutBlob, ChallengeWithAttachments, DbHint};
 use crate::server::enums::{ServerEventPayload, ResultStatus};
@@ -11,8 +11,6 @@ use icondata as i;
 use leptos::prelude::*;
 use leptos::{web_sys::{Event, HtmlSelectElement}, wasm_bindgen::JsCast, task::spawn_local};
 use leptos_icons::Icon;
-use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
-use leptos::server::codee::string::FromToStringCodec;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
 
@@ -80,22 +78,22 @@ pub fn Challenges() -> impl IntoView {
     let all_hints_signal = RwSignal::new(vec![]);
 
     let cwa_resource = Resource::new(move || (), move |_| async move {
-        get_all_challenges_with_attachments().await.unwrap_or_default()
+        get_all_challenges_with_attachments().await.or_toast_and_default("Failed to load challenges")
     });
     let categories_resource = Resource::new(move || (), move |_| async move {
-        get_all_challenge_categories().await.unwrap_or_default()
+        get_all_challenge_categories().await.or_toast_and_default("Failed to load categories")
     });
     let events_resource = Resource::new(move || (), move |_| async move {
-        get_all_events().await.unwrap_or_default()
+        get_all_events().await.or_toast_and_default("Failed to load events")
     });
     let groups_resource = Resource::new(move || (), move |_| async move {
-        get_all_user_groups().await.unwrap_or_default()
+        get_all_user_groups().await.or_toast_and_default("Failed to load user groups")
     });
     let challenge_templates_resource = Resource::new(move || (), move |_| async move {
-        get_all_challenge_templates().await.unwrap_or_default()
+        get_all_challenge_templates().await.or_toast_and_default("Failed to load VM templates")
     });
     let all_hints_resource = Resource::new(move || (), move |_| async move {
-        get_all_hints().await.unwrap_or_default()
+        get_all_hints().await.or_toast_and_default("Failed to load hints")
     });
 
     let create_submit_btn_text = Memo::new(move |_| {
@@ -119,39 +117,28 @@ pub fn Challenges() -> impl IntoView {
         groups
     });
 
-    let UseEventSourceReturn { message, .. } =
-        use_event_source_with_options::<String, FromToStringCodec>(
-            "/admin/events".to_string(),
-            UseEventSourceOptions::default().immediate(true)
-        );
-
-    Effect::new(move |_| {
-        if let Some(msg) = message.get() {
-            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
-                Ok(ServerEventPayload::ChallengeEdited(new_cwa)) => {
-                    if editing_ids.get_untracked().contains(&new_cwa.challenge.id) {
-                        pending_cwa_updates.update(|pending| {
-                            pending.retain(|p| p.challenge.id != new_cwa.challenge.id);
-                            pending.push(new_cwa);
-                        });
-                    } else {
-                        cwa_signal.update(|challenges| {
-                            if let Some(existing) = challenges.iter_mut().find(|c| c.challenge.id == new_cwa.challenge.id) {
-                                *existing = new_cwa;
-                            }
-                        });
+    use_server_events("/admin/events", move |payload| match payload {
+        ServerEventPayload::ChallengeEdited(new_cwa) => {
+            if editing_ids.get_untracked().contains(&new_cwa.challenge.id) {
+                pending_cwa_updates.update(|pending| {
+                    pending.retain(|p| p.challenge.id != new_cwa.challenge.id);
+                    pending.push(new_cwa);
+                });
+            } else {
+                cwa_signal.update(|challenges| {
+                    if let Some(existing) = challenges.iter_mut().find(|c| c.challenge.id == new_cwa.challenge.id) {
+                        *existing = new_cwa;
                     }
-                },
-                Ok(ServerEventPayload::ChallengeDeleted(id)) => {
-                    cwa_signal.update(|cwa| cwa.retain(|cwa| cwa.challenge.id != id));
-                },
-                Ok(ServerEventPayload::NewChallengeCreated(new_cwa)) => {
-                    cwa_signal.update(|cwa| cwa.push(new_cwa));
-                }, 
-                Ok(_) => {},
-                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
+                });
             }
-        }
+        },
+        ServerEventPayload::ChallengeDeleted(id) => {
+            cwa_signal.update(|cwa| cwa.retain(|cwa| cwa.challenge.id != id));
+        },
+        ServerEventPayload::NewChallengeCreated(new_cwa) => {
+            cwa_signal.update(|cwa| cwa.push(new_cwa));
+        }, 
+        _ => {},
     });
 
     // Flush pending SSE updates for challenges no longer being edited

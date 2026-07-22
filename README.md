@@ -30,7 +30,7 @@ Refer to the [setup docs](https://github.com/trvtsn/pkhk_ctf/blob/master/docs/IN
 - [ ] Sanitize text inputs
 - [ ] Disallow special characters in text inputs where necessary
 - [ ] Replace sensitive data storage like plaintext passwords from LDAP and Proxmox configurations in DB to RAM
-- [x] Use Zeroizing/SecretString in more spots where sensitive data is being transferred
+- [ ] Handle errors carefully, replace all verbose error returns with minimized error messages and log the verbose errors.
 
 ### Styling
 

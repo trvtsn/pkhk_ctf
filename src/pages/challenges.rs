@@ -1,9 +1,7 @@
 use crate::{
-    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::ServerEventPayload, api::{get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_hint, get_used_hints, get_user_solved_challenges, get_user_vms}, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}
+    app::RefreshUser, components::{challenge::Challenge, challenge_popup::ChallengePopup, navbar::NavBar, utils::{ComponentSize, DimmingOverlay, Spinner}}, server::{db::{self, structs::ChallengeWithAttachments}, enums::ServerEventPayload, api::{get_active_events, get_all_challenges_with_attachments, get_all_hints_without_hints, get_all_templates, get_hint, get_used_hints, get_user_solved_challenges, get_user_vms}, proxmox::{ProxmoxVMInstance, ProxmoxVMTemplate}}, utils::{use_server_events, OrToast}
 };
 use leptos::prelude::*;
-use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
-use leptos::server::codee::string::FromToStringCodec;
 use std::collections::HashMap;
 
 /// Challenge grid, grouped by category. Updates in real-time via SSE.
@@ -18,36 +16,36 @@ pub fn Challenges() -> impl IntoView {
 
     let cwa_signal = RwSignal::<Vec<ChallengeWithAttachments>>::new(vec![]);
     let cwa_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_challenges_with_attachments().await.unwrap_or_default()
+        get_all_challenges_with_attachments().await.or_toast_and_default("Failed to load challenges")
     });
 
     let active_events_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_active_events().await.unwrap_or_default()
+        get_active_events().await.or_toast_and_default("Failed to load active events")
     });
 
     let user_vms_signal = RwSignal::new(Vec::<ProxmoxVMInstance>::default());
     let user_vms_resource = Resource::new(move || refresh_user_vms.get(), move |_| async move { 
-        get_user_vms().await.unwrap_or_default()
+        get_user_vms().await.or_toast_and_default("Failed to load your VMs")
     });
 
     let solved_challenge_ids = RwSignal::new(Vec::<String>::default());
     let solved_challenges_resource = Resource::new(move || refresh_solved_challenges.get(), move |_| async move {
-        get_user_solved_challenges().await.unwrap_or_default()
+        get_user_solved_challenges().await.or_toast_and_default("Failed to load solved challenges")
     });
 
     let all_templates_signal = RwSignal::<Vec<ProxmoxVMTemplate>>::new(vec![]);
     let all_templates_resource = Resource::new(move || refresh_user_vms.get(), move |_| async move {
-        get_all_templates().await.unwrap_or_default()
+        get_all_templates().await.or_toast_and_default("Failed to load VM templates")
     });
 
     let hints_signal = RwSignal::new(vec![]);
     let hints_resource = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_hints_without_hints().await.unwrap_or_default()
+        get_all_hints_without_hints().await.or_toast_and_default("Failed to load hints")
     });
 
     let hints_used_signal = RwSignal::new(HashMap::<String, String>::new());
     let hints_used_resource = Resource::new(move || (), move |_| async move { 
-        get_used_hints().await.unwrap_or_default() 
+        get_used_hints().await.or_toast_and_default("Failed to load used hints")
     });
     
     let get_hint_action = Action::new(move |(challenge_id, hint_id): &(String, String)| {
@@ -77,49 +75,38 @@ pub fn Challenges() -> impl IntoView {
         groups
     });
 
-    let UseEventSourceReturn { message, .. } = 
-        use_event_source_with_options::<String, FromToStringCodec>(
-            "/events".to_string(), 
-            UseEventSourceOptions::default().immediate(true)
-        );
-
-    Effect::new(move |_| {
-        if let Some(msg) = message.get() {
-            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
-                Ok(ServerEventPayload::NewChallengeCreated(new_cwa)) => {
-                    cwa_signal.update(|cwa| cwa.push(new_cwa));
-                },
-                Ok(ServerEventPayload::ChallengeEdited(new_cwa)) => {
-                    cwa_signal.update(|challenges| {
-                        if let Some(existing) = challenges.iter_mut().find(|c| c.challenge.id == new_cwa.challenge.id) {
-                            *existing = new_cwa.clone();
-                        }
-                    });
-
-                    if let Some(cwa_popup_value) = cwa_popup.get_untracked() && cwa_popup_value.challenge.id == new_cwa.challenge.id {
-                        cwa_popup.set(Some(new_cwa));
-                    }
-
-                    refresh_user.update(|r| r.iteration += 1);
-                },
-                Ok(ServerEventPayload::ChallengeDeleted(id)) => {
-                    if let Some(cwa_popup) = cwa_popup.get_untracked() && cwa_popup.challenge.id == id {
-                        cwa_signal.update(|cwa| cwa.retain(|cwa| cwa.challenge.id != id));
-                        overlay_triggered.set(false);
-                    }
-                    
-                    refresh_user.update(|r| r.iteration += 1);
-                },
-                Ok(ServerEventPayload::EventEdited(_)) |
-                Ok(ServerEventPayload::EventDeleted(_)) |
-                Ok(ServerEventPayload::NewEventCreated(_)) => {
-                    refresh.update(|n| *n += 1);
-                    refresh_user.update(|r| r.iteration += 1);
+    use_server_events("/events", move |payload| match payload {
+        ServerEventPayload::NewChallengeCreated(new_cwa) => {
+            cwa_signal.update(|cwa| cwa.push(new_cwa));
+        },
+        ServerEventPayload::ChallengeEdited(new_cwa) => {
+            cwa_signal.update(|challenges| {
+                if let Some(existing) = challenges.iter_mut().find(|c| c.challenge.id == new_cwa.challenge.id) {
+                    *existing = new_cwa.clone();
                 }
-                Ok(_) => {},
-                Err(_) => tracing::warn!("failed to parse ServerEventPayload")
+            });
+
+            if let Some(cwa_popup_value) = cwa_popup.get_untracked() && cwa_popup_value.challenge.id == new_cwa.challenge.id {
+                cwa_popup.set(Some(new_cwa));
             }
+
+            refresh_user.update(|r| r.iteration += 1);
+        },
+        ServerEventPayload::ChallengeDeleted(id) => {
+            if let Some(cwa_popup) = cwa_popup.get_untracked() && cwa_popup.challenge.id == id {
+                cwa_signal.update(|cwa| cwa.retain(|cwa| cwa.challenge.id != id));
+                overlay_triggered.set(false);
+            }
+
+            refresh_user.update(|r| r.iteration += 1);
+        },
+        ServerEventPayload::EventEdited(_) |
+        ServerEventPayload::EventDeleted(_) |
+        ServerEventPayload::NewEventCreated(_) => {
+            refresh.update(|n| *n += 1);
+            refresh_user.update(|r| r.iteration += 1);
         }
+        _ => {},
     });
 
     view! {

@@ -1,34 +1,21 @@
-use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar, utils::{ComponentSize, Spinner}}, server::{api::build_leaderboard_data, enums::ServerEventPayload, structs::PivotRow}};
+use crate::{components::{leaderboard_chart::LeaderboardChart, navbar::NavBar, utils::{ComponentSize, Spinner}}, server::{api::build_leaderboard_data, enums::ServerEventPayload, structs::PivotRow}, utils::{use_server_events, OrToast}};
 use leptos::prelude::*;
 use leptos_chartistry::*;
-use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
-use leptos::server::codee::string::FromToStringCodec;
 
 /// Live leaderboard chart. Refreshes when challenges are created, edited, or solved.
 #[component]
 pub fn Leaderboard() -> impl IntoView {
     let refresh = RwSignal::new(0);
     let leaderboard_data_resource = Resource::new(move || refresh.get(), move |_| async move {
-        build_leaderboard_data().await.unwrap_or_default()
+        build_leaderboard_data().await.or_toast_and_default("Failed to load leaderboard")
     });
 
-    let UseEventSourceReturn { message, .. } = 
-        use_event_source_with_options::<String, FromToStringCodec>(
-            "/events".to_string(), 
-            UseEventSourceOptions::default().immediate(true)
-        );
-
-    Effect::new(move |_| {
-        if let Some(msg) = message.get() {
-            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
-                Ok(ServerEventPayload::NewChallengeCreated(_)) |
-                Ok(ServerEventPayload::ChallengeDeleted(_)) |
-                Ok(ServerEventPayload::ChallengeEdited(_)) |
-                Ok(ServerEventPayload::ChallengeSolved) => refresh.update(|n| *n += 1),
-                Ok(_) => {},
-                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
-            }
-        }
+    use_server_events("/events", move |payload| match payload {
+        ServerEventPayload::NewChallengeCreated(_) |
+        ServerEventPayload::ChallengeDeleted(_) |
+        ServerEventPayload::ChallengeEdited(_) |
+        ServerEventPayload::ChallengeSolved => refresh.update(|n| *n += 1),
+        _ => {},
     });
 
     view! {

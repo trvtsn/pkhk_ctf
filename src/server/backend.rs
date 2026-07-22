@@ -16,7 +16,6 @@ use cfg_if::cfg_if;
 use ldap3::{LdapConnAsync, LdapConnSettings, SearchEntry};
 #[cfg(feature = "ssr")]
 use of_dn_parser::{DistinguishedName, RdnType};
-use password_hash::SaltString;
 #[cfg(feature = "ssr")]
 use password_hash::rand_core::OsRng;
 #[cfg(feature = "ssr")]
@@ -27,6 +26,8 @@ use tracing::instrument;
 
 #[cfg(feature = "ssr")]
 use crate::server::backend::enums::AuthType;
+#[cfg(feature = "ssr")]
+use crate::server::db::DbResultExt;
 #[cfg(feature = "ssr")]
 use crate::server::{BroadcastScope, build_and_broadcast, is_host_reachable};
 use crate::server::{ServerEventPayload, db::structs::{Attachment, LdapArgs}};
@@ -87,19 +88,17 @@ cfg_if! {
 
             /// Insert a new user into the database. Success only if the user doesn't already exist
             /// and the data meets criteria (which are *very* weak in this example!).
-            pub async fn add_user(&self, email: &str, password: Zeroizing<String>) -> Result<Option<User>, AppError> {
+            pub async fn add_user(&self, email: &str, password: Zeroizing<String>) -> Result<User, AppError> {
                 // First validate the data. You must do better than this.
                 if email.len() < 2 || password.len() < 10 {
                     return Err(AppError::InvalidData("Username and password have to be at least 2 characters each!".into()));
                 }
 
-                let pw_hash_str = tokio::task::spawn_blocking(move || {
-                    let argon2 = Argon2::default();
-                    let salt = SaltString::generate(&mut OsRng);
-                    let hash = argon2.hash_password(password.as_bytes(), &salt)?;
-                    Ok::<String, password_hash::Error>(hash.to_string())
-                }).await.map_err(|e| AppError::InternalError(e.to_string()))?
-                  .map_err(|e| AppError::InternalError(format!("Password hashing error: {e}")))?;
+                if !DbUser::is_user_available(&email, &self.pool).await? {
+                    return Err(AppError::BadRequest("User already exists".to_string()));
+                }
+
+                let pw_hash_str = hash_string(&password).await?;
 
                 let username_prefix = email.split_once("@").map(|(l, _)| l).unwrap_or(email);
                 let taken = DbUser::get_taken_usernames(username_prefix, &self.pool)
@@ -132,19 +131,17 @@ cfg_if! {
                     groups: "unassigned".to_string(),
                     auth_type: "normal".to_string()
                 };
-                let new_user_id = new_user.add(&self.pool).await?;
+                let Some(new_user_id) = new_user.add(&self.pool).await.none_on_unique_violation()? else {
+                    return Err(AppError::BadRequest("User already exists".to_string()));
+                };
 
-                let pw_hash = PasswordHash::parse(&pw_hash_str, password_hash::Encoding::B64).map_err(|e| 
-                    AppError::InternalError(format!("Decode password: {e}"))
-                )?;
+                let pw_hash = PasswordHash::parse(&pw_hash_str, password_hash::Encoding::B64)?;
 
                 if let Some(hash_bytes) = pw_hash.hash {
-                    Ok(Some(
-                        User {
-                            id: new_user_id,
-                            session_auth_hash: hash_bytes.as_bytes().to_owned(),
-                        }
-                    ))
+                    Ok(User {
+                        id: new_user_id,
+                        session_auth_hash: hash_bytes.as_bytes().to_owned(),
+                    })
                 } else {
                     Err(AppError::InternalError("Password hash/digest empty?".to_string()))
                 }
@@ -152,7 +149,6 @@ cfg_if! {
             }
         }
 
-        //#[async_trait]
         impl AuthnBackend for Backend {
             type User = User;
             type Credentials = Credentials;
@@ -162,22 +158,21 @@ cfg_if! {
             async fn authenticate(&self, creds: Self::Credentials) -> Result<Option<Self::User>, Self::Error> {
                 let user = match creds.auth_type {
                     AuthType::Normal => {
-                        match DbUser::get(&creds.user_identifier, &self.pool).await {
-                            Ok(Some(user)) => user,
-                            Ok(None) => return Ok(None),
-                            Err(e) => return Err(e.into())
-                        }
+                        let Some(user) = DbUser::get(&creds.user_identifier, &self.pool).await? else {
+                            return Ok(None);
+                        };
+                        user
                     },
                     AuthType::Ldap => {
                         crate::server::proxmox::sync_realm().await?;
                         
-                        let ldap_args = match LdapArgs::get(&self.pool).await {
-                            Ok(Some(args)) => args,
-                            Ok(None) => return Ok(None),
-                            Err(e) => return Err(e.into())
+                        let Some(ldap_args) = LdapArgs::get(&self.pool).await? else {
+                            return Ok(None);
                         };
                         let ldap_url = url::Url::parse(&ldap_args.url)?;
-                        is_host_reachable(&ldap_url.to_string()).await?;
+                        if !is_host_reachable(&ldap_url.to_string()).await? {
+                            return Err(AppError::NetworkError("LDAP host unreachable".to_string()));
+                        }
 
                         let login_id = match &creds.user_identifier {
                             UserIdentifier::Email(e) => ldap3::ldap_escape(e.clone()).to_string(),
@@ -188,10 +183,7 @@ cfg_if! {
                         let mut username = String::new();
                         let mut groups_result = String::new();
 
-                        let certificate = match Attachment::get_certificate(&self.pool).await {
-                            Ok(cert) => cert,
-                            Err(e) => return Err(e.into())
-                        };
+                        let certificate = Attachment::get_certificate(&self.pool).await?;
 
                         #[allow(unused)]
                         let mut settings = LdapConnSettings::default();
@@ -258,7 +250,7 @@ cfg_if! {
                         ldap.unbind().await?;
                         let pw_hash = hash_string(&creds.password).await?;
 
-                        if let Ok(None) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
+                        if DbUser::get_ldap(&creds.user_identifier, &self.pool).await?.is_none() {
                             let mut tx = self.pool.begin().await?;
                             let new_user = DbUser { 
                                 id: "".to_string(), 
@@ -273,33 +265,19 @@ cfg_if! {
                                 auth_type: "ldap".to_string()
                             };
 
-                            let new_user_id = match new_user.add_ldap(&mut *tx).await {
-                                Ok(id) => id,
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    return Err(e.into());
-                                }
-                            };
+                            let new_user_id = new_user.add_ldap(&mut *tx).await?;
                             
-                            match DbUser::get_ldap(&UserIdentifier::Id(new_user_id), &mut *tx).await {
-                                Ok(Some(user)) => {
-                                    tx.commit().await?;
-                                    let broadcast_user = user.clone();
-                                    tokio::spawn(async move {
-                                        _ = build_and_broadcast(ServerEventPayload::UserCreated(broadcast_user), vec![BroadcastScope::Admin]).await;
-                                    });
-                                    user
-                                },
-                                Ok(None) => {
-                                    tx.rollback().await?;
-                                    return Ok(None)
-                                },
-                                Err(e) => {
-                                    tx.rollback().await?;
-                                    return Err(e.into())
-                                }
-                            }
-                        } else if let Ok(Some(user)) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await {
+                            let Some(user) = DbUser::get_ldap(&UserIdentifier::Id(new_user_id), &mut *tx).await? else {
+                                return Ok(None);
+                            };
+                            tx.commit().await?;
+                            let broadcast_user = user.clone();
+                            tokio::spawn(async move {
+                                _ = build_and_broadcast(ServerEventPayload::UserCreated(broadcast_user), vec![BroadcastScope::Admin]).await;
+                            });
+
+                            user
+                        } else if let Some(user) = DbUser::get_ldap(&creds.user_identifier, &self.pool).await? {
                             user
                         } else {
                             return Ok(None)
@@ -319,7 +297,7 @@ cfg_if! {
                 match DbUser::get(&UserIdentifier::Id(user_id.clone()), &self.pool).await {
                     Ok(Some(user)) => Ok(Some(user.to_user().await?)),
                     Ok(None) => Err(Self::Error::InternalError("User not found".to_string())),
-                    Err(e) => Err(Self::Error::DatabaseError(e.to_string()))
+                    Err(e) => Err(e.into())
                 }
             }
         }
@@ -327,15 +305,15 @@ cfg_if! {
 
         impl DbUser {
             #[instrument]
-            pub async fn to_user(self) -> anyhow::Result<User> {
+            pub async fn to_user(self) -> Result<User, AppError> {
                 // parse the hash data out of the string representation that we kept in the database
-                let PasswordHash {hash, ..} = PasswordHash::parse(&self.pw_hash, password_hash::Encoding::B64).map_err(|e| AppError::InternalError(format!("Decode password: {e}")))?;
+                let PasswordHash {hash, ..} = PasswordHash::parse(&self.pw_hash, password_hash::Encoding::B64)?;
                 // This is where we dig into the password hash data structure and pull out just
                 // the actual hash bytes that came out of argon2. These are used to identify the session
                 // so that this user always gets the same session data.
                 let hash: Vec<u8> = hash.map(|output| {
                     output.as_bytes().to_owned()
-                }).ok_or_else(||AppError::InternalError("Badly formatted password hash".into()))?;
+                }).ok_or_else(|| AppError::InternalError("Badly formatted password hash".into()))?;
                 
                 Ok(User {
                     id: self.id,
@@ -346,26 +324,29 @@ cfg_if! {
 
         pub async fn hash_string(string: &str) -> Result<String, AppError> {
             let string = string.to_owned();
-            tokio::task::spawn_blocking(move || {
+
+            let result = tokio::task::spawn_blocking(move || {
                 let argon2 = Argon2::default();
                 let salt = argon2::password_hash::SaltString::generate(&mut OsRng);
                 let flag_hash = argon2.hash_password(string.as_bytes(), &salt)?;
                 Ok::<String, argon2::password_hash::Error>(flag_hash.to_string())
-            }).await.map_err(|e| AppError::InternalError(e.to_string()))?
-              .map_err(|e| AppError::InternalError(e.to_string()))
+            }).await??;
+
+            Ok(result)
         }
 
         pub async fn verify_hash(string: &str, hash: &str) -> Result<(), AppError> {
             let string = string.to_owned();
             let hash = hash.to_owned();
-            tokio::task::spawn_blocking(move || {
+            
+            let result = tokio::task::spawn_blocking(move || {
                 let hasher = Argon2::default();
                 let parsed = argon2::PasswordHash::parse(hash.as_ref(), argon2::password_hash::Encoding::B64)?;
                 hasher.verify_password(string.as_bytes(), &parsed)
-            }).await.map_err(|e| AppError::InternalError(e.to_string()))?
-              .map_err(|e| AppError::InternalError(e.to_string()))
+            }).await??;
+
+            Ok(result)
         }
 
     }
 }
-

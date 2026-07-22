@@ -1,8 +1,6 @@
 use crate::{components::{admin::user::User, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, FileTooltip, HidePasswordButton, Spinner}}, pages::admin::Actions, server::{admin::api::{get_all_user_avatar_ids, get_all_user_groups, get_all_users, upload_avatar}, db::{enums::UserRole, structs::{DbUser, UserAvatar}}, enums::{ServerEventPayload, ResultStatus}, structs::ApiResult}};
-use crate::utils::{build_single_file_form_data, collect_selected_options};
+use crate::utils::{build_single_file_form_data, collect_selected_options, use_server_events, OrToast};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{Event, HtmlSelectElement}};
-use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
-use leptos::server::codee::string::FromToStringCodec;
 
 /// Admin user management.
 /// Create, edit, delete users and assign roles/groups.
@@ -30,51 +28,40 @@ pub fn Users() -> impl IntoView {
 
     let avatars_signal = RwSignal::new(vec![]);
     let avatars_resource = Resource::new(move || (), move |_| async move {
-        get_all_user_avatar_ids().await.unwrap_or_default()
+        get_all_user_avatar_ids().await.or_toast_and_default("Failed to load avatars")
     });
 
     let users_resource = Resource::new(move || (), move |_| async move {
-        get_all_users().await.unwrap_or_default()
+        get_all_users().await.or_toast_and_default("Failed to load users")
     });
 
     let user_groups_signal = RwSignal::new(vec![]);
     let user_groups_resource = Resource::new(move || (), move |_| async move {
-        get_all_user_groups().await.unwrap_or_default()
+        get_all_user_groups().await.or_toast_and_default("Failed to load user groups")
     });
 
-    let UseEventSourceReturn { message, .. } =
-        use_event_source_with_options::<String, FromToStringCodec>(
-            "/admin/events".to_string(),
-            UseEventSourceOptions::default().immediate(true)
-        );
-
-    Effect::new(move |_| {
-        if let Some(msg) = message.get() {
-            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
-                Ok(ServerEventPayload::UserEdited(new_user)) => {
-                    if editing_ids.get_untracked().contains(&new_user.id) {
-                        pending_user_updates.update(|pending| {
-                            pending.retain(|p| p.id != new_user.id);
-                            pending.push(new_user);
-                        });
-                    } else {
-                        users_signal.update(|users| {
-                            if let Some(existing) = users.iter_mut().find(|u| u.id == new_user.id) {
-                                *existing = new_user;
-                            }
-                        });
+    use_server_events("/admin/events", move |payload| match payload {
+        ServerEventPayload::UserEdited(new_user) => {
+            if editing_ids.get_untracked().contains(&new_user.id) {
+                pending_user_updates.update(|pending| {
+                    pending.retain(|p| p.id != new_user.id);
+                    pending.push(new_user);
+                });
+            } else {
+                users_signal.update(|users| {
+                    if let Some(existing) = users.iter_mut().find(|u| u.id == new_user.id) {
+                        *existing = new_user;
                     }
-                },
-                Ok(ServerEventPayload::UserDeleted(id)) => {
-                    users_signal.update(|users| users.retain(|user| user.id != id));
-                },
-                Ok(ServerEventPayload::UserCreated(new_user)) => {
-                    users_signal.update(|users| users.push(new_user));
-                }, 
-                Ok(_) => {},
-                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
+                });
             }
-        }
+        },
+        ServerEventPayload::UserDeleted(id) => {
+            users_signal.update(|users| users.retain(|user| user.id != id));
+        },
+        ServerEventPayload::UserCreated(new_user) => {
+            users_signal.update(|users| users.push(new_user));
+        },
+        _ => {},
     });
 
     // Flush pending SSE updates for users no longer being edited

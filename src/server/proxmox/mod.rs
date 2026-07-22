@@ -158,7 +158,9 @@ pub struct ProxmoxClient {
 impl ProxmoxClient {
     pub async fn new() -> Result<Self, AppError> {
         let proxmox_args = get_proxmox_args().await?;
-        is_host_reachable(&proxmox_args.base_url).await?;
+        if !is_host_reachable(&proxmox_args.base_url).await? {
+            return Err(AppError::NetworkError("Proxmox host unreachable".to_string()));
+        }
 
         let client = get_reqwest_client();
         let api_token = proxmox_args.api_token.ok_or(
@@ -233,10 +235,8 @@ pub async fn create_realm() -> Result<(), AppError> {
         }
     }
 
-    let ldap_args = match LdapArgs::get(get_db_ref()).await {
-        Ok(Some(res)) => res,
-        Ok(None) => return Err(AppError::InternalError("LDAP not configured".to_string())),
-        Err(e) => return Err(e.into())
+    let Some(ldap_args) = LdapArgs::get(get_db_ref()).await? else {
+        return Err(AppError::InternalError("LDAP not configured".to_string()));
     };
 
     let ldap_url = url::Url::parse(&ldap_args.url)?;
@@ -268,7 +268,7 @@ pub async fn create_realm() -> Result<(), AppError> {
             Err(AppError::InternalError("failed to create realm for Proxmox".to_string()))
         }
     } else {
-        Err(AppError::InternalError("".to_string()))
+        Err(AppError::InternalError("Request returned non-200 status code".to_string()))
     }
 }
 
@@ -405,9 +405,8 @@ pub async fn restart_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppErro
 
     let pxc = ProxmoxClient::new().await?;
 
-    let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
-        Some(vm_id) => vm_id,
-        None => return Err(AppError::InternalError("".to_string()))
+    let Some(vm_id) = get_user_vmid_from_template_id(user, template_id).await? else {
+        return Err(AppError::InternalError("Failed to get user VM ID from template ID".to_string()))
     };
     let reboot_url = format!("{}/status/reboot", pxc.append_to_qemu_url(vm_id));
     let status_url = format!("{}/status/current", pxc.append_to_qemu_url(vm_id));
@@ -418,9 +417,8 @@ pub async fn restart_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppErro
 
     for _ in 0..90 {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let status = match pxc.get_req::<VmCurrentStatus>(&status_url).await {
-            Ok(s) => s,
-            Err(_) => continue
+        let Ok(status) = pxc.get_req::<VmCurrentStatus>(&status_url).await else {
+            continue
         };
 
         let vm_status = status.data.status.unwrap_or_default();
@@ -441,9 +439,8 @@ pub async fn destroy_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppErro
     
     let pxc = ProxmoxClient::new().await?;
 
-    let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
-        Some(vm_id) => vm_id,
-        None => return Err(AppError::InternalError("".to_string()))
+    let Some(vm_id) = get_user_vmid_from_template_id(user, template_id).await? else {
+        return Err(AppError::InternalError("Failed to get user VM ID from template ID".to_string()))
     };
     let stop_url = format!("{}/status/stop", pxc.append_to_qemu_url(vm_id));
     let status_url = format!("{}/status/current", pxc.append_to_qemu_url(vm_id));
@@ -457,9 +454,8 @@ pub async fn destroy_vm(user: &DbUser, template_id: &u32) -> Result<u32, AppErro
     // poll until stopped
     for _ in 0..30 {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let status = match pxc.get_req::<VmCurrentStatus>(&status_url).await {
-            Ok(s) => s,
-            Err(_) => continue
+        let Ok(status) = pxc.get_req::<VmCurrentStatus>(&status_url).await else {
+            continue
         };
 
         if status.data.status.unwrap_or_default() == "stopped" {
@@ -510,7 +506,9 @@ pub async fn create_user_pool(user: &DbUser) -> Result<(), AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 pub async fn test_auth(args: &ProxmoxArgs) -> Result<(), AppError> {
-    is_host_reachable(&args.base_url).await?;
+    if !is_host_reachable(&args.base_url).await? {
+        return Err(AppError::NetworkError("Proxmox host unreachable".to_string()));
+    }
 
     let client = get_reqwest_client();
 
@@ -520,10 +518,8 @@ pub async fn test_auth(args: &ProxmoxArgs) -> Result<(), AppError> {
     let api_path = args.api_path.trim_start_matches("/").trim_end_matches("/");
     let url = format!("{base_url}/{api_path}/nodes/status");
 
-    match client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await {
-        Ok(res) => if res.status().is_success() { Ok(()) } else { Err(AppError::Unauthorized) },
-        Err(e) => return Err(e.into())
-    }
+    let res = client.get(&url).header(header::AUTHORIZATION, &auth_value).send().await?;
+    if res.status().is_success() { Ok(()) } else { Err(AppError::Unauthorized) }
 }
 
 #[cfg(feature = "ssr")]
@@ -570,9 +566,8 @@ pub async fn add_vm_time(user: &DbUser, template_id: &u32) -> Result<u32, AppErr
     
     let pxc = ProxmoxClient::new().await?;
 
-    let vm_id = match get_user_vmid_from_template_id(user, template_id).await? {
-        Some(vm_id) => vm_id,
-        None => return Err(AppError::InternalError("".to_string()))
+    let Some(vm_id) = get_user_vmid_from_template_id(user, template_id).await? else {
+        return Err(AppError::InternalError("Failed to get user VM ID from template ID".to_string()))
     };
     let conf_url = format!("{}/config", pxc.append_to_qemu_url(vm_id));
 
@@ -724,7 +719,7 @@ pub async fn delete_user(db_user: &DbUser) -> Result<(), AppError> {
     let url = pxc.append_to_api_url(&format!("access/users/{}@pve", db_user.username));
 
     let res = pxc.delete_req(&url).await?;
-    if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("".to_string())) }
+    if res.status().is_success() { Ok(()) } else { Err(AppError::InternalError("Request returned non-200 status code".to_string())) }
 }
 
 #[cfg(feature = "ssr")]
@@ -899,18 +894,9 @@ pub async fn create_proxmox_user(db_user: &DbUser) -> Result<(), AppError> {
 #[cfg(feature = "ssr")]
 #[instrument]
 async fn get_proxmox_args() -> Result<ProxmoxArgs, AppError> {
-    match db::structs::ProxmoxArgs::get(get_db_ref()).await {
-        Ok(res) => {
-            if let Some(res) = res {
-                Ok(res)
-            } else {
-                tracing::error!("failed to fetch proxmox args");
-                Err(AppError::InternalError("internal error".to_string()))
-            }
-        }
-        Err(e) => {
-            tracing::error!(error = ?e);
-            Err(AppError::InternalError("internal error".to_string()))
-        }
+    if let Some(args) = db::structs::ProxmoxArgs::get(get_db_ref()).await? {
+        Ok(args)
+    } else {
+        Err(AppError::InternalError("Proxmox config not setup".to_string()))
     }
 }

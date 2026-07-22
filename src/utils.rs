@@ -3,12 +3,30 @@
 /// This file contains code for reusable abstractions which don't really belong anywhere else.
 /// They can be used in both server and client code.
 
-use crate::{components::toast::{ToastMessageType, push_new_toast}, error_template::AppError};
+use crate::{components::toast::{ToastMessageType, push_new_toast}, error_template::AppError, server::{db::{enums::UserRole, structs::DbUser}, enums::ServerEventPayload}};
 use std::any::type_name;
 use chrono::{DateTime, Local, NaiveDateTime, ParseError, TimeZone, Utc, offset::LocalResult};
-use leptos::{prelude::*, web_sys::FormData, wasm_bindgen::JsCast, web_sys::{HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
+use leptos::{prelude::*, server::codee::string::FromToStringCodec, wasm_bindgen::JsCast, web_sys::{FormData, HtmlInputElement, HtmlOptionElement, HtmlSelectElement}};
+use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
 use time::OffsetDateTime;
 use tracing::instrument;
+
+pub trait OrToast<T> {
+    // A method that returns `T::default()` on error, while also notifying 
+    // the user with `push_new_toast`
+    fn or_toast_and_default(self, context: &str) -> T where T: Default;
+}
+
+impl<T: Default, E: std::fmt::Display> OrToast<T> for Result<T, E> {
+    fn or_toast_and_default(self, context: &str) -> T where T: Default {
+        self.unwrap_or_else(|e| {
+            let msg = format!("{context}: {e}");
+            leptos::logging::log!("{msg}");
+            push_new_toast(ToastMessageType::Custom(msg));
+            T::default()
+        })
+    }
+}
 
 pub fn offset_to_naive(offset_dt: OffsetDateTime) -> NaiveDateTime {
     let offset_dt_secs = offset_dt.unix_timestamp();
@@ -57,7 +75,11 @@ pub fn get_context<T: 'static + Clone>() -> Result<T, AppError> {
 }
 
 pub fn csv_contains(csv: &str, value: &str) -> bool {
-    csv.split(',').any(|s| s == value)
+    csv.split(',').map(str::trim).any(|s| s == value)
+}
+
+pub fn parse_vm_ids(csv: &str) -> Vec<u32> {
+    csv.split(',').filter_map(|c| c.trim().parse().ok()).collect()
 }
 
 pub fn collect_selected_options(select: &HtmlSelectElement) -> Vec<String> {
@@ -77,17 +99,17 @@ pub fn build_single_file_form_data(node_ref: Option<HtmlInputElement>) -> Option
     let el = node_ref?;
     let files = el.files()?;
     if files.length() == 0 { return None; }
-    let file = match files.get(0) {
-        Some(f) => f,
-        None => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    let Some(file) = files.get(0) else {
+        push_new_toast(ToastMessageType::ErrorOccurred); 
+        return None; 
     };
-    let fd = match FormData::new() {
-        Ok(fd) => fd,
-        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    let Ok(fd) = FormData::new() else {
+        push_new_toast(ToastMessageType::ErrorOccurred); 
+        return None;
     };
-    match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-        Ok(_) => {},
-        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    if fd.append_with_blob_and_filename("file", &file, &file.name()).is_err() {
+        push_new_toast(ToastMessageType::ErrorOccurred); 
+        return None;
     }
     Some(fd)
 }
@@ -106,18 +128,18 @@ pub fn build_multi_file_form_data(node_ref: Option<HtmlInputElement>) -> Option<
     let el = node_ref?;
     let files = el.files()?;
     if files.length() == 0 { return None; }
-    let fd = match FormData::new() {
-        Ok(fd) => fd,
-        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+    let Ok(fd) = FormData::new() else {
+        push_new_toast(ToastMessageType::ErrorOccurred); 
+        return None;
     };
     for i in 0..files.length() {
-        let file = match files.get(i) {
-            Some(f) => f,
-            None => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+        let Some(file) = files.get(i) else {
+            push_new_toast(ToastMessageType::ErrorOccurred); 
+            return None;
         };
-        match fd.append_with_blob_and_filename("file", &file, &file.name()) {
-            Ok(_) => {},
-            Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return None; }
+        if fd.append_with_blob_and_filename("file", &file, &file.name()).is_err() {
+            push_new_toast(ToastMessageType::ErrorOccurred); 
+            return None;
         }
     }
     Some(fd)
@@ -169,4 +191,45 @@ pub fn format_file_size(bytes: u64) -> String {
     } else {
         format!("{} B", bytes)
     }
+}
+
+pub fn parse_groups(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(str::trim)
+        .filter(|g| !g.is_empty())
+        .map(String::from)
+        .collect()
+}
+
+pub fn is_visible_to(user: &DbUser, visible_to_groups: &str) -> bool {
+    if user.role == UserRole::Admin {
+        return true;
+    }
+    let user_groups = parse_groups(&user.groups);
+    parse_groups(visible_to_groups)
+        .iter()
+        .any(|g| g == "all" || user_groups.contains(g))
+}
+
+pub fn use_sse(url: &str, handler: impl Fn(String, String) + 'static) {
+    let UseEventSourceReturn { message, .. } =
+        use_event_source_with_options::<String, FromToStringCodec>(
+            url.to_string(),
+            UseEventSourceOptions::default().immediate(true),
+        );
+
+    Effect::new(move |_| {
+        if let Some(msg) = message.get() {
+            handler(msg.event_type, msg.data);
+        }
+    });
+}
+
+pub fn use_server_events(url: &str, handler: impl Fn(ServerEventPayload) + 'static) {
+    use_sse(url, move |_, data| {
+        match serde_json::from_str::<ServerEventPayload>(&data) {
+            Ok(payload) => handler(payload),
+            Err(e) => tracing::warn!("failed to parse ServerEventPayload: {e}"),
+        }
+    });
 }

@@ -1,4 +1,4 @@
-use crate::{components::{admin::file::File, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, Spinner}}, server::{admin::{api::{get_all_files, upload_files}}, db}};
+use crate::{components::{admin::file::File, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, Spinner}}, server::{admin::{api::{get_all_files, upload_files}}, db}, utils::OrToast};
 use leptos::{prelude::*, task::spawn_local, wasm_bindgen::JsCast, web_sys::{FormData, HtmlFormElement, HtmlInputElement, SubmitEvent}};
 
 /// Admin file browser.
@@ -8,7 +8,7 @@ pub fn Files() -> impl IntoView {
     let refresh = RwSignal::new(0);
     let has_files_signal = RwSignal::new(false);
     let all_files = Resource::new(move || refresh.get(), move |_| async move {
-        get_all_files().await.unwrap_or_default()
+        get_all_files().await.or_toast_and_default("Failed to load files")
     });
 
     view! {
@@ -23,9 +23,9 @@ pub fn Files() -> impl IntoView {
                         Some(target) => target.unchecked_into::<HtmlFormElement>(),
                         None => { push_new_toast(ToastMessageType::ErrorOccurred); return }
                     };
-                    let fd = match FormData::new_with_form(&form) {
-                        Ok(fd) => fd,
-                        Err(_) => { push_new_toast(ToastMessageType::ErrorOccurred); return }
+                    let Ok(fd) = FormData::new_with_form(&form) else {
+                        push_new_toast(ToastMessageType::ErrorOccurred); 
+                        return;
                     };
                     spawn_local(async move {
                         if upload_files(fd.into()).await.is_ok() {

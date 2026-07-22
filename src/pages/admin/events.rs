@@ -1,9 +1,7 @@
 use crate::{components::{admin::event::Event, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, FileTooltip, Spinner}}, pages::admin::Actions, server::{admin::api::{get_all_events_with_attachments, get_all_user_groups, upload_files, upload_illustration}, db::{self, structs::{AttachmentWithoutBlob, EventWithAttachments}}, enums::{ServerEventPayload, ResultStatus}, structs::ApiResult}, utils::html_local_to_datetime};
-use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options};
+use crate::utils::{build_multi_file_form_data, build_single_file_form_data, collect_selected_options, use_server_events, OrToast};
 use leptos::{prelude::*, task:: spawn_local};
 use leptos::{web_sys::{HtmlSelectElement, Event}, wasm_bindgen::JsCast};
-use leptos_use::{UseEventSourceOptions, UseEventSourceReturn, use_event_source_with_options};
-use leptos::server::codee::string::FromToStringCodec;
 
 /// Admin event management.
 /// Create, edit, and delete CTF events.
@@ -28,47 +26,36 @@ pub fn Events() -> impl IntoView {
     let illustration = RwSignal::<Option<AttachmentWithoutBlob>>::new(None);
     
     let ewa_resource = Resource::new(move || (), move |_| async move {
-        get_all_events_with_attachments().await.unwrap_or_default()
+        get_all_events_with_attachments().await.or_toast_and_default("Failed to load events")
     });
     
     let groups_signal = RwSignal::new(vec![]);
     let groups_resource = Resource::new(move || (), move |_| async move {
-        get_all_user_groups().await.unwrap_or_default()
+        get_all_user_groups().await.or_toast_and_default("Failed to load user groups")
     });
 
-    let UseEventSourceReturn { message, .. } =
-        use_event_source_with_options::<String, FromToStringCodec>(
-            "/admin/events".to_string(),
-            UseEventSourceOptions::default().immediate(true)
-        );
-
-    Effect::new(move |_| {
-        if let Some(msg) = message.get() {
-            match serde_json::from_str::<ServerEventPayload>(&msg.data) {
-                Ok(ServerEventPayload::EventEdited(new_ewa)) => {
-                    if editing_ids.get_untracked().contains(&new_ewa.event.id) {
-                        pending_ewa_updates.update(|pending| {
-                            pending.retain(|p| p.event.id != new_ewa.event.id);
-                            pending.push(new_ewa);
-                        });
-                    } else {
-                        ewa_signal.update(|events| {
-                            if let Some(existing) = events.iter_mut().find(|e| e.event.id == new_ewa.event.id) {
-                                *existing = new_ewa;
-                            }
-                        });
+    use_server_events("/admin/events", move |payload| match payload {
+        ServerEventPayload::EventEdited(new_ewa) => {
+            if editing_ids.get_untracked().contains(&new_ewa.event.id) {
+                pending_ewa_updates.update(|pending| {
+                    pending.retain(|p| p.event.id != new_ewa.event.id);
+                    pending.push(new_ewa);
+                });
+            } else {
+                ewa_signal.update(|events| {
+                    if let Some(existing) = events.iter_mut().find(|e| e.event.id == new_ewa.event.id) {
+                        *existing = new_ewa;
                     }
-                },
-                Ok(ServerEventPayload::EventDeleted(id)) => {
-                    ewa_signal.update(|ewa| ewa.retain(|ewa| ewa.event.id != id));
-                },
-                Ok(ServerEventPayload::NewEventCreated(new_ewa)) => {
-                    ewa_signal.update(|ewa| ewa.push(new_ewa));
-                }, 
-                Ok(_) => {},
-                Err(e) => tracing::warn!("failed to parse ServerEventPayload: {}", e)
+                });
             }
-        }
+        },
+        ServerEventPayload::EventDeleted(id) => {
+            ewa_signal.update(|ewa| ewa.retain(|ewa| ewa.event.id != id));
+        },
+        ServerEventPayload::NewEventCreated(new_ewa) => {
+            ewa_signal.update(|ewa| ewa.push(new_ewa));
+        },
+        _ => {},
     });
 
     // Flush pending SSE updates for events no longer being edited

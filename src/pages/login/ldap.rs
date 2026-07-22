@@ -1,4 +1,4 @@
-use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, error_template::AppError, server::{api::{get_user, is_ldap_enabled, login_user}, structs::Credentials}};
+use crate::{app::RefreshUser, components::{navbar::NavBar, toast::{ToastMessageType, push_new_toast}, utils::{ComponentSize, HidePasswordButton, Spinner}}, error_template::AppError, server::{api::{get_user, is_ldap_enabled, login_user}, structs::Credentials}, utils::OrToast};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 
@@ -41,7 +41,7 @@ pub fn Login() -> impl IntoView {
     );
 
     let ldap_enabled_resource = Resource::new(move || (), move |_| async move {
-        is_ldap_enabled().await.unwrap_or_default()
+        is_ldap_enabled().await.or_toast_and_default("Failed to check LDAP status")
     });
 
     Effect::new(move || {

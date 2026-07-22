@@ -23,6 +23,7 @@ use std::time::Duration;
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         use crate::server::hash_string;
+        use crate::error_template::LogErr;
         use sqlx::MySqlExecutor;
         use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
         use tokio::sync::OnceCell;
@@ -47,54 +48,69 @@ cfg_if! {
             Ok(())
         }
 
+        pub trait DbResultExt<T> {
+            /// Maps sqlx::Error::RowNotFound to the given error. Other errors in sqlx::Error go through From.
+            fn or_not_found(self, err: AppError) -> Result<T, AppError>;
+
+            /// Ok(true) on unique-constraint violation, Ok(false) on success. Other errors go through From.
+            fn is_unique_violation(self) -> Result<bool, AppError>;
+
+            /// Ok(Some(v)) on success, Ok(None) on unique-constraint violation. Other errors go through From.
+            fn none_on_unique_violation(self) -> Result<Option<T>, AppError>;
+        }
+
+        impl<T> DbResultExt<T> for Result<T, sqlx::Error> {
+            fn or_not_found(self, err: AppError) -> Result<T, AppError> {
+                self.map_err(|e| match e {
+                    sqlx::Error::RowNotFound => err,
+                    e => e.into(),
+                })
+            }
+
+            fn is_unique_violation(self) -> Result<bool, AppError> {
+                Ok(self.none_on_unique_violation()?.is_none())
+            }
+
+            fn none_on_unique_violation(self) -> Result<Option<T>, AppError> {
+                match self {
+                    Ok(v) => Ok(Some(v)),
+                    Err(e) if e.as_database_error().is_some_and(|db| db.is_unique_violation()) => Ok(None),
+                    Err(e) => Err(e.into()),
+                }
+            }
+        }
+
         pub async fn add_admin() -> Result<(), AppError> {
             let username = &constants::config::ADMIN_USERNAME.expose_secret();
             let email = &constants::config::ADMIN_EMAIL.expose_secret();
             let password = &constants::config::ADMIN_PASSWORD.expose_secret();
             let pw_hash = hash_string(&password).await?;
 
-            match DbUser::get(&UserIdentifier::Email(email.to_string()), get_db_ref()).await {
-                Ok(Some(_)) => return Ok(()),
-                Ok(None) => {},
-                Err(e) => return Err(e.into())
+            if DbUser::get(&UserIdentifier::Email(email.to_string()), get_db_ref()).await?.is_some() {
+                return Ok(());
             }
 
-            match DbUser::add_admin(username, email, &pw_hash, get_db_ref()).await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.into())
-            }
+            DbUser::add_admin(username, email, &pw_hash, get_db_ref()).await?;
+
+            Ok(())
         }
 
         pub async fn add_empty_ldap_row() -> Result<(), AppError> {
-            match LdapArgs::get(get_db_ref()).await {
-                Ok(Some(_)) => return Ok(()),
-                Ok(None) => {},
-                Err(e) => return Err(e.into())
+            if LdapArgs::get(get_db_ref()).await?.is_some() {
+                return Ok(());
             }
 
-            match LdapArgs::insert(&"".to_string(), &"".to_string(), &"".to_string(), &"".to_string(), get_db_ref()).await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.into())
-            }
+            LdapArgs::insert(&"".to_string(), &"".to_string(), &"".to_string(), &"".to_string(), get_db_ref()).await?;
+            Ok(())
         }
 
         pub async fn add_empty_proxmox_row() -> Result<(), AppError> {
-            match ProxmoxArgs::get(get_db_ref()).await {
-                Ok(Some(_)) => return Ok(()),
-                Ok(None) => {},
-                Err(e) => return Err(e.into())
+            if ProxmoxArgs::get(get_db_ref()).await?.is_some() {
+                return Ok(());
             }
 
-            match ProxmoxArgs::insert(&"".to_string(), &"/api2/json".to_string(), &"templates".to_string(), &"".to_string(), &None, &None, &None, &ProxmoxAuthType::ApiToken, get_db_ref()).await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.into())
-            }
-        }
-
-        pub fn is_unique_violation(e: &sqlx::Error) -> bool {
-            e.as_database_error()
-                .map(|db| db.is_unique_violation())
-                .unwrap_or(false)
+            ProxmoxArgs::insert(&"".to_string(), &"/api2/json".to_string(), &"templates".to_string(), &"".to_string(), &None, &None, &None, &ProxmoxAuthType::ApiToken, get_db_ref()).await?;
+            Ok(())
         }
 
         async fn connect() -> Result<MySqlPool, sqlx::Error> {
@@ -122,7 +138,7 @@ pub mod structs {
     use leptos::prelude::ArcRwSignal;
     use serde::{Deserialize, Serialize};
     use time::OffsetDateTime;
-use zeroize::{Zeroize, Zeroizing};
+    use zeroize::Zeroizing;
 
     pub type DbUser = User;
     pub type DbUserWithoutPII = UserWithoutPII;
@@ -238,7 +254,7 @@ use zeroize::{Zeroize, Zeroizing};
     #[derive(Debug, Default, Clone, Deserialize, Serialize)]
     pub struct LdapArgs {
         pub url: String,
-        pub bind_dn: String,
+        pub bind_dn: Zeroizing<String>,
         pub bind_pw: Zeroizing<String>,
         pub base_dn: String,
         pub enabled: SqlBool
@@ -301,7 +317,8 @@ use zeroize::{Zeroize, Zeroizing};
     }
 
     // I should really find a better name for this, it drives me absolutely crazy
-    /// Basically the same struct as `Hint` but without the `hint` field in it
+    /// Basically the same struct as `Hint` but without the `hint` field in it.
+    /// A metadata-only struct.
     #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Eq)]
     pub struct HintWithoutHint {
         pub id: String,
@@ -317,23 +334,6 @@ use zeroize::{Zeroize, Zeroizing};
                 challenge_id: self.challenge_id,
                 points_penalty: self.points_penalty
             }
-        }
-    }
-
-    impl Zeroize for LdapArgs {
-        fn zeroize(&mut self) {
-            self.base_dn.zeroize();
-            self.bind_dn.zeroize();
-            self.bind_pw.zeroize();
-        }
-    }
-
-    impl Zeroize for ProxmoxArgs {
-        fn zeroize(&mut self) {
-            self.api_token.zeroize();
-            self.password.zeroize();
-            self.username.zeroize();
-            self.api_path.zeroize();
         }
     }
 
@@ -479,7 +479,7 @@ cfg_if! {
         impl DbUser {
             pub async fn add_admin(username: &str, email: &str, pw_hash: &str, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO users
                     (id, username, email, pw_hash, created_at, last_active_at, role, points, `groups`, auth_type)
@@ -498,18 +498,12 @@ cfg_if! {
                     "normal"
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn edit_avatar(user_id: &str, file_name: &str, file_blob: &Vec<u8>, mime_type: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO attachments
                     (id, user_id, file_name, file_blob, file_type, mime_type)
@@ -524,17 +518,11 @@ cfg_if! {
                     mime_type
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn delete_avatar(user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE FROM attachments
                     WHERE user_id = ? AND file_type = \"avatar\"
@@ -542,17 +530,11 @@ cfg_if! {
                     user_id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn deduct_points(&self, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET points = points - ?
@@ -562,17 +544,11 @@ cfg_if! {
                     self.id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_password(id: &str, pw_hash: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET pw_hash = ?
@@ -582,17 +558,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_username(id: &str, username: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET username = ?
@@ -602,17 +572,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_email(id: &str, email: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET email = ?
@@ -622,17 +586,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_role(id: &str, role: &UserRole, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET role = ?
@@ -642,17 +600,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_points(id: &str, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET points = ?
@@ -662,17 +614,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_groups(id: &str, group: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET `groups` = ?
@@ -682,17 +628,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_last_active(id: &str, last_active_at: &DateTime<Local>, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET last_active_at = ?
@@ -702,19 +642,13 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn get(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -724,16 +658,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    log::error!("Failed to get user (ID: {id}): {e}");
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Email(email) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -743,17 +671,11 @@ cfg_if! {
                             email
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Username(username) => {
                         //let pattern = format!("%{username}%");
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -763,19 +685,13 @@ cfg_if! {
                             username
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
 
             pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -783,51 +699,30 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(users) => Ok(users),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_all_groups(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
-                match sqlx::query!(
+                let rows = sqlx::query!(
                     "
                     SELECT DISTINCT `groups`
-                    FROM users 
+                    FROM users
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(rows) => {
-                            let groups: Vec<String> = rows.into_iter()
-                                .flat_map(|row| {
-                                    row.groups
-                                        .split(",")
-                                        .map(str::trim)
-                                        .filter(|g| !g.is_empty())
-                                        .map(String::from)
-                                        .collect::<Vec<String>>()
-                                })
-                                .collect::<BTreeSet<_>>()
-                                .into_iter()
-                                .collect();
+                    .await.log_err()?;
 
-                            Ok(groups)
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                Ok(rows.into_iter()
+                    .flat_map(|row| crate::utils::parse_groups(&row.groups))
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect())
             }
 
             pub async fn get_avatar(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<AttachmentWithoutBlob>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             AttachmentWithoutBlob,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -837,16 +732,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(avatar) => Ok(avatar),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Email(email) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             AttachmentWithoutBlob,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -856,16 +745,10 @@ cfg_if! {
                             email
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(avatar) => Ok(avatar),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Username(username) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             AttachmentWithoutBlob,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -875,13 +758,7 @@ cfg_if! {
                             username
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(avatar) => Ok(avatar),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
@@ -889,7 +766,7 @@ cfg_if! {
             pub async fn get_avatar_id(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<String>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments
@@ -898,21 +775,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     UserIdentifier::Email(email) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments
@@ -921,21 +787,10 @@ cfg_if! {
                             email
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     UserIdentifier::Username(username) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments
@@ -944,24 +799,13 @@ cfg_if! {
                             username
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                 }
             }
 
             pub async fn get_all_avatar_ids(executor: impl MySqlExecutor<'_>) -> Result<Vec<UserAvatar>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     UserAvatar,
                     "
                     SELECT id AS attachment_id, user_id, file_name
@@ -970,27 +814,13 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(rows) => {
-                            let all_avatar_ids = rows.iter().map(|a| UserAvatar { 
-                                user_id: a.user_id.clone(), 
-                                attachment_id: a.attachment_id.clone(),
-                                file_name: a.file_name.clone()
-                            }).collect::<Vec<UserAvatar>>();
-
-                            Ok(all_avatar_ids)
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_ldap(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -1000,16 +830,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Email(email) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -1019,17 +843,11 @@ cfg_if! {
                             email
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Username(username) => {
                         //let pattern = format!("%{username}%");
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, username, email, pw_hash, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -1039,13 +857,7 @@ cfg_if! {
                             username
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
@@ -1053,7 +865,7 @@ cfg_if! {
             pub async fn get_password_hash(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT pw_hash
                             FROM users 
@@ -1062,16 +874,10 @@ cfg_if! {
                             id
                         )
                             .fetch_one(executor)
-                            .await {
-                                Ok(row) => Ok(row.pw_hash),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.pw_hash)
                     }
                     UserIdentifier::Email(email) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT pw_hash
                             FROM users 
@@ -1080,17 +886,11 @@ cfg_if! {
                             email
                         )
                             .fetch_one(executor)
-                            .await {
-                                Ok(row) => Ok(row.pw_hash),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.pw_hash)
                     }
                     UserIdentifier::Username(username) => {
                         //let pattern = format!("%{username}%");
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT pw_hash
                             FROM users 
@@ -1099,13 +899,7 @@ cfg_if! {
                             username
                         )
                             .fetch_one(executor)
-                            .await {
-                                Ok(row) => Ok(row.pw_hash),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.pw_hash)
                     }
                 }
             }
@@ -1125,7 +919,7 @@ cfg_if! {
             }
 
             pub async fn is_user_available(email: &str, executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT email
                     FROM users
@@ -1134,23 +928,12 @@ cfg_if! {
                     email
                 )
                     .fetch_optional(executor)
-                    .await {
-                        Ok(row) => {
-                            match row {
-                                Some(_) => Ok(true),
-                                None => Ok(false)
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|row| row.is_some())
             }
 
-            pub async fn add(&self, executor: impl MySqlExecutor<'_>) -> anyhow::Result<String> {
+            pub async fn add(&self, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `groups`, auth_type) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1167,18 +950,12 @@ cfg_if! {
                     "normal"
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn add_ldap(&self, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO users (id, username, email, pw_hash, created_at, last_active_at, role, points, `groups`, auth_type) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1195,17 +972,11 @@ cfg_if! {
                     "ldap"
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE FROM users
                     WHERE id = ?
@@ -1213,23 +984,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(result) => {
-                            if result.rows_affected() > 0 {
-                                Ok(())
-                            } else {
-                                Err(sqlx::Error::RowNotFound)
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
             }
 
             pub async fn add_points(id: &str, points: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE users
                     SET points = points + ?
@@ -1239,13 +998,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
         }
 
@@ -1253,7 +1006,7 @@ cfg_if! {
             pub async fn get(identifier: &UserIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     UserIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -1263,16 +1016,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Email(email) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -1282,17 +1029,11 @@ cfg_if! {
                             email
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     UserIdentifier::Username(username) => {
                         //let pattern = format!("%{username}%");
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT username, created_at AS `created_at!: DateTime<Local>`, last_active_at AS `last_active_at!: DateTime<Local>`, role, points, `groups`, auth_type
@@ -1302,13 +1043,7 @@ cfg_if! {
                             username
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(user) => Ok(user),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
@@ -1328,7 +1063,7 @@ cfg_if! {
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO challenges
                     (id, event_id, name, description, category, difficulty, points, flag_hash, visible_to_groups, vm_ids)
@@ -1347,17 +1082,11 @@ cfg_if! {
                     vm_ids
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE
                     FROM challenges 
@@ -1366,19 +1095,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(result) => {
-                            if result.rows_affected() > 0 {
-                                Ok(())
-                            } else {
-                                Err(sqlx::Error::RowNotFound)
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
             }
 
             pub async fn edit(
@@ -1395,7 +1112,7 @@ cfg_if! {
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
                 if flag_hash.is_empty() {
-                    match sqlx::query!(
+                    sqlx::query!(
                         "
                         UPDATE challenges
                         SET
@@ -1413,15 +1130,9 @@ cfg_if! {
                         id
                     )
                         .execute(executor)
-                        .await {
-                            Ok(_) => Ok(()),
-                            Err(e) => {
-                                tracing::error!(error = ?e);
-                                Err(e)?
-                            }
-                        }
+                        .await.log_err().map(|_| ())
                 } else {
-                    match sqlx::query!(
+                    sqlx::query!(
                         "
                         UPDATE challenges
                         SET
@@ -1440,18 +1151,12 @@ cfg_if! {
                         id
                     )
                         .execute(executor)
-                        .await {
-                            Ok(_) => Ok(()),
-                            Err(e) => {
-                                tracing::error!(error = ?e);
-                                Err(e)?
-                            }
-                        }
+                        .await.log_err().map(|_| ())
                 }
             }
 
             pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids
@@ -1461,17 +1166,11 @@ cfg_if! {
                     id
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(challenge) => Ok(challenge),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, event_id, name, description, category, difficulty, points, visible_to_groups, vm_ids
@@ -1479,43 +1178,29 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(challenges) => Ok(challenges),
-                        Err(e) => {
-                            //log::error!("Failed to get challenges (ID: {id}): {e}");
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_all_categories(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
-                match sqlx::query!(
+                let rows = sqlx::query!(
                     "
                     SELECT category
-                    FROM challenges 
+                    FROM challenges
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(rows) => {
-                            let categories: Vec<String> = rows.into_iter()
-                                .filter_map(|row| row.category)
-                                .filter(|c| !c.is_empty())
-                                .collect::<BTreeSet<_>>()
-                                .into_iter()
-                                .collect();
-                        
-                            Ok(categories)
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()?;
+
+                Ok(rows.into_iter()
+                    .filter_map(|row| row.category)
+                    .filter(|c| !c.is_empty())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect())
             }
 
             pub async fn get_attachments(&self, executor: impl MySqlExecutor<'_>) -> Result<Vec<Attachment>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Attachment,
                     "
                     SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -1525,17 +1210,11 @@ cfg_if! {
                     self.id
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(challenges) => Ok(challenges),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_flag_hash(id: &str, executor: impl MySqlExecutor<'_>) -> Result<String, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT flag_hash
                     FROM challenges 
@@ -1544,13 +1223,7 @@ cfg_if! {
                     id
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(row) => Ok(row.flag_hash),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|row| row.flag_hash)
             }
         }
 
@@ -1566,7 +1239,7 @@ cfg_if! {
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO attachments
                     (id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type)
@@ -1582,19 +1255,13 @@ cfg_if! {
                     mime_type
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -1603,22 +1270,10 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -1627,22 +1282,10 @@ cfg_if! {
                             challenge_id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -1651,22 +1294,10 @@ cfg_if! {
                             event_id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -1675,22 +1306,10 @@ cfg_if! {
                             file_name
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -1700,19 +1319,7 @@ cfg_if! {
                             file_name
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                 }
             }
@@ -1722,7 +1329,7 @@ cfg_if! {
                 event_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET event_id = ?
@@ -1732,13 +1339,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_challenge(
@@ -1746,7 +1347,7 @@ cfg_if! {
                 challenge_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET challenge_id = ?
@@ -1756,13 +1357,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_file_name(
@@ -1770,7 +1365,7 @@ cfg_if! {
                 file_name: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET file_name = ?
@@ -1780,23 +1375,17 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_illustration(
                 id: &str, 
                 target_identifier: &AttachmentIdentifier, 
                 executor: impl MySqlExecutor<'_>
-            ) -> Result<Option<()>, sqlx::Error> {
+            ) -> Result<(), sqlx::Error> {
                 match target_identifier {
                     AttachmentIdentifier::Id(target_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             UPDATE attachments 
                             SET id = ?
@@ -1806,16 +1395,10 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(_) => Ok(Some(())),
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
-                                }
-                            }
+                            .await.log_err().map(|_| ())
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             UPDATE attachments 
                             SET challenge_id = ?
@@ -1825,16 +1408,10 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(_) => Ok(Some(())),
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
-                                }
-                            }
+                            .await.log_err().map(|_| ())
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             UPDATE attachments 
                             SET event_id = ?
@@ -1844,16 +1421,10 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(_) => Ok(Some(())),
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
-                                }
-                            }
+                            .await.log_err().map(|_| ())
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             UPDATE attachments 
                             SET file_name = ?
@@ -1863,16 +1434,10 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(_) => Ok(Some(())),
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
-                                }
-                            }
+                            .await.log_err().map(|_| ())
                     }
                     AttachmentIdentifier::IdFileName((target_id, file_name)) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             UPDATE attachments 
                             SET id = ?, file_name = ?
@@ -1883,13 +1448,7 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(_) => Ok(Some(())),
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Ok(None)
-                                }
-                            }
+                            .await.log_err().map(|_| ())
                     }
                 }
             }
@@ -1897,7 +1456,7 @@ cfg_if! {
             pub async fn get_all(identifier: AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -1907,16 +1466,10 @@ cfg_if! {
                             id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -1926,16 +1479,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -1945,16 +1492,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -1964,16 +1505,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -1984,40 +1519,26 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
 
             pub async fn get_all_filenames(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT file_name
                     FROM attachments 
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(rows) => {
-                            Ok(rows.into_iter().map(|row| row.file_name).collect())
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
             }
 
             pub async fn get_filenames(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2026,18 +1547,10 @@ cfg_if! {
                             id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2046,18 +1559,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2066,18 +1571,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2086,18 +1583,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2107,21 +1596,13 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                 }
             }
 
             pub async fn get_certificate(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -2130,19 +1611,13 @@ cfg_if! {
                     "
                 )
                     .fetch_optional(executor)
-                    .await {
-                        Ok(certificate) => Ok(certificate),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get(identifier: AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -2152,16 +1627,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -2171,16 +1640,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -2190,16 +1653,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -2209,16 +1666,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type, file_size
@@ -2229,13 +1680,7 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
@@ -2253,7 +1698,7 @@ cfg_if! {
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO attachments
                     (id, challenge_id, event_id, user_id, file_name, file_blob, file_type, mime_type)
@@ -2269,19 +1714,13 @@ cfg_if! {
                     mime_type
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn delete(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -2290,22 +1729,10 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -2314,22 +1741,10 @@ cfg_if! {
                             challenge_id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -2338,22 +1753,10 @@ cfg_if! {
                             event_id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -2362,22 +1765,10 @@ cfg_if! {
                             file_name
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE
                             FROM attachments 
@@ -2387,25 +1778,13 @@ cfg_if! {
                             file_name
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!("db query error (Attachment::delete): {}", e);
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                 }
             }
 
             pub async fn edit_avatar(id: &str, user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET user_id = ?
@@ -2415,13 +1794,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
             
             pub async fn edit_challenge(
@@ -2429,7 +1802,7 @@ cfg_if! {
                 challenge_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET challenge_id = ?
@@ -2439,13 +1812,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_event(
@@ -2453,7 +1820,7 @@ cfg_if! {
                 event_id: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET event_id = ?
@@ -2463,13 +1830,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit_file_name(
@@ -2477,7 +1838,7 @@ cfg_if! {
                 file_name: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET file_name = ?
@@ -2487,19 +1848,13 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn get_all(identifier: &Option<AttachmentIdentifier>, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
                 match identifier {
                     Some(AttachmentIdentifier::Id(id)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2509,16 +1864,10 @@ cfg_if! {
                             id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     Some(AttachmentIdentifier::ChallengeId(challenge_id)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2528,16 +1877,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     Some(AttachmentIdentifier::EventId(event_id)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2547,16 +1890,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     Some(AttachmentIdentifier::FileName(file_name)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2566,16 +1903,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     },
                     Some(AttachmentIdentifier::IdFileName((id, file_name))) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2586,16 +1917,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     None => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2603,38 +1928,24 @@ cfg_if! {
                             "
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(attachments) => Ok(attachments),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
 
             pub async fn get_all_filenames(executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT file_name
                     FROM attachments 
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(rows) => {
-                            Ok(rows.into_iter().map(|row| row.file_name).collect())
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
             }
 
             pub async fn get_all_illustrations(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2643,17 +1954,11 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(illustrations) => Ok(illustrations),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_certificate(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2662,19 +1967,13 @@ cfg_if! {
                     "
                 )
                     .fetch_optional(executor)
-                    .await {
-                        Ok(certificate) => Ok(certificate),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_filenames(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2683,18 +1982,10 @@ cfg_if! {
                             id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2703,18 +1994,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2723,18 +2006,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2743,18 +2018,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT file_name
                             FROM attachments 
@@ -2764,15 +2031,7 @@ cfg_if! {
                             file_name
                         )
                             .fetch_all(executor)
-                            .await {
-                                Ok(rows) => {
-                                    Ok(rows.into_iter().map(|row| row.file_name).collect())
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|rows| rows.into_iter().map(|row| row.file_name).collect())
                     }
                 }
             }
@@ -2780,7 +2039,7 @@ cfg_if! {
             pub async fn get(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2790,16 +2049,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2809,16 +2062,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2828,16 +2075,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2847,16 +2088,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -2867,13 +2102,7 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(attachment) => Ok(attachment),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
@@ -2881,7 +2110,7 @@ cfg_if! {
             pub async fn get_id(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<String>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -2890,21 +2119,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -2913,21 +2131,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -2936,21 +2143,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -2959,21 +2155,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -2983,18 +2168,7 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                 }
             }
@@ -3002,7 +2176,7 @@ cfg_if! {
             pub async fn get_illustration(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -3012,16 +2186,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(illustration) => Ok(illustration),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -3031,16 +2199,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(illustration) => Ok(illustration),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -3050,16 +2212,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(illustration) => Ok(illustration),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -3069,16 +2225,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(illustration) => Ok(illustration),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query_as!(
+                        sqlx::query_as!(
                             Self,
                             "
                             SELECT id, challenge_id, event_id, user_id, file_name, file_type, mime_type, file_size
@@ -3089,13 +2239,7 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(illustration) => Ok(illustration),
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err()
                     }
                 }
             }
@@ -3103,7 +2247,7 @@ cfg_if! {
             pub async fn get_illustration_id(identifier: &AttachmentIdentifier, executor: impl MySqlExecutor<'_>) -> Result<Option<String>, sqlx::Error> {
                 match identifier {
                     AttachmentIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -3112,21 +2256,10 @@ cfg_if! {
                             id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -3135,21 +2268,10 @@ cfg_if! {
                             challenge_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -3158,21 +2280,10 @@ cfg_if! {
                             event_id
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::FileName(file_name) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -3181,21 +2292,10 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                     AttachmentIdentifier::IdFileName((id, file_name)) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             SELECT id
                             FROM attachments 
@@ -3205,18 +2305,7 @@ cfg_if! {
                             file_name
                         )
                             .fetch_optional(executor)
-                            .await {
-                                Ok(row) => {
-                                    match row {
-                                        Some(row) => Ok(Some(row.id)),
-                                        None => Ok(None)
-                                    }
-                                },
-                                Err(e) => {
-                                    tracing::error!(error = ?e);
-                                    Err(e)?
-                                }
-                            }
+                            .await.log_err().map(|row| row.map(|row| row.id))
                     }
                 }
             }
@@ -3232,7 +2321,7 @@ cfg_if! {
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO events
                     (id, name, description, start_at, end_at, visible_to_groups)
@@ -3247,17 +2336,11 @@ cfg_if! {
                     visible_to_groups
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE
                     FROM events 
@@ -3266,18 +2349,7 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(result) => {
-                            if result.rows_affected() > 0 {
-                                Ok(())
-                            } else {
-                                Err(sqlx::Error::RowNotFound)
-                            }
-                        },
-                        Err(e) => {
-                            Err(e)
-                        }
-                    }
+                    .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
             }
 
             pub async fn edit(
@@ -3289,7 +2361,7 @@ cfg_if! {
                 visible_to_groups: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE events
                     SET name = ?, description = ?, start_at = ?, end_at = ?, visible_to_groups = ?
@@ -3303,17 +2375,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`, visible_to_groups
@@ -3323,17 +2389,11 @@ cfg_if! {
                     id
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(event) => Ok(event),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, name, description, start_at AS `start_at!: DateTime<Local>`, end_at AS `end_at!: DateTime<Local>`, visible_to_groups
@@ -3341,17 +2401,11 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(events) => Ok(events),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
             
             pub async fn get_metadata(id: &str, executor: impl MySqlExecutor<'_>) -> Result<EventMetadata, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     EventMetadata,
                     "
                     SELECT events.name,
@@ -3365,14 +2419,11 @@ cfg_if! {
                     id
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(event_metadata) => Ok(event_metadata),
-                        Err(e) => Err(e)
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_total_possible_points(id: &str, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT CAST(COALESCE(SUM(points), 0) AS UNSIGNED) AS total_possible_points
                     FROM challenges
@@ -3381,10 +2432,7 @@ cfg_if! {
                     id
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(row) => Ok(row.total_possible_points as u32),
-                        Err(e) => Err(e)
-                    }
+                    .await.log_err().map(|row| row.total_possible_points as u32)
             }
         }
 
@@ -3398,7 +2446,7 @@ cfg_if! {
                 executor: impl MySqlExecutor<'_>
             ) -> Result<String, sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO submissions
                     (id, challenge_id, event_id, user_id, points, solved_at)
@@ -3412,17 +2460,11 @@ cfg_if! {
                     solved_at
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(id.to_string()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| id.to_string())
             }
 
             pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, challenge_id, event_id, user_id, points, solved_at
@@ -3430,19 +2472,13 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(rows) => Ok(rows),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn delete(identifier: &SubmissionIdentifier, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 match identifier {
                     SubmissionIdentifier::Id(id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE FROM submissions
                             WHERE id = ?
@@ -3450,21 +2486,10 @@ cfg_if! {
                             id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     SubmissionIdentifier::ChallengeId(challenge_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE FROM submissions
                             WHERE challenge_id = ?
@@ -3472,21 +2497,10 @@ cfg_if! {
                             challenge_id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     SubmissionIdentifier::EventId(event_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE FROM submissions
                             WHERE event_id = ?
@@ -3494,21 +2508,10 @@ cfg_if! {
                             event_id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                     SubmissionIdentifier::UserId(user_id) => {
-                        match sqlx::query!(
+                        sqlx::query!(
                             "
                             DELETE FROM submissions
                             WHERE user_id = ?
@@ -3516,24 +2519,13 @@ cfg_if! {
                             user_id
                         )
                             .execute(executor)
-                            .await {
-                                Ok(result) => {
-                                    if result.rows_affected() > 0 {
-                                        Ok(())
-                                    } else {
-                                        Err(sqlx::Error::RowNotFound)
-                                    }
-                                },
-                                Err(e) => {
-                                    Err(e)
-                                }
-                            }
+                            .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
                     }
                 }
             }
 
             pub async fn get_user_points(user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<u32, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT CAST(COALESCE(SUM(points), 0) AS UNSIGNED) as points
                     FROM submissions
@@ -3542,17 +2534,11 @@ cfg_if! {
                     user_id
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(row) => Ok(row.points as u32),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|row| row.points as u32)
             }
 
             pub async fn get_user_solved_challenges(user_id: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<String>, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT challenge_id
                     FROM submissions
@@ -3561,19 +2547,8 @@ cfg_if! {
                     user_id
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(rows) => {
-                            let mut solved_challenge_ids = Vec::<String>::new();
-                            for record in rows {
-                                solved_challenge_ids.push(record.challenge_id)
-                            }
-                            Ok(solved_challenge_ids)
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
+                    .map(|rows| rows.into_iter().map(|record| record.challenge_id).collect())
             }
         }
     
@@ -3585,7 +2560,7 @@ cfg_if! {
                 base_dn: &str, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO ldap (url, bind_dn, bind_pw, base_dn, enabled)
                     VALUES (?, ?, ?, ?, ?)
@@ -3597,13 +2572,7 @@ cfg_if! {
                     0
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn update(
@@ -3614,7 +2583,7 @@ cfg_if! {
                 enabled: &bool,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE ldap
                     SET url = ?, bind_dn = ?, bind_pw = ?, base_dn = ?, enabled = ?
@@ -3626,13 +2595,7 @@ cfg_if! {
                     enabled
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn update_certificate(
@@ -3641,7 +2604,7 @@ cfg_if! {
                 mime_type: &Option<String>,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE attachments
                     SET file_blob = ?, file_name = ?, mime_type = ?
@@ -3652,72 +2615,43 @@ cfg_if! {
                     mime_type
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn enable(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE ldap
                     SET enabled = 1
                     "
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn delete(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE FROM ldap
                     "
                 )
                     .execute(executor)
-                    .await {
-                        Ok(result) => {
-                            if result.rows_affected() > 0 {
-                                Ok(())
-                            } else {
-                                Err(sqlx::Error::RowNotFound)
-                            }
-                        },
-                        Err(e) => {
-                            Err(e)
-                        }
-                    }
+                    .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
             }
 
             pub async fn disable(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE ldap
                     SET enabled = 0
                     "
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn get(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT url, bind_dn, bind_pw, base_dn, enabled
@@ -3725,54 +2659,18 @@ cfg_if! {
                     "
                 )
                     .fetch_optional(executor)
-                    .await {
-                        Ok(ldap_args) => Ok(ldap_args),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
-            }
-
-            pub async fn get_optional(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
-                match sqlx::query_as!(
-                    Self,
-                    "
-                    SELECT url, bind_dn, bind_pw, base_dn, enabled
-                    FROM ldap
-                    "
-                )
-                    .fetch_optional(executor)
-                    .await {
-                        Ok(ldap_args) => Ok(ldap_args),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_status(executor: impl MySqlExecutor<'_>) -> Result<bool, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT enabled
                     FROM ldap
                     "
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(row) => {
-                            match row.enabled {
-                                0 => Ok(false),
-                                1 => Ok(true),
-                                _ => Ok(false)
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|row| row.enabled == 1)
             }
         }
 
@@ -3788,7 +2686,7 @@ cfg_if! {
                 auth_type: &ProxmoxAuthType, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO proxmox 
                     (base_url, api_path, templates_pool_id, node, username, password, api_token, auth_type)
@@ -3805,13 +2703,7 @@ cfg_if! {
                     auth_type.to_string()
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn update(
@@ -3825,7 +2717,7 @@ cfg_if! {
                 auth_type: &ProxmoxAuthType,
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE proxmox
                     SET base_url = ?, api_path = ?, templates_pool_id = ?, node = ?, username = ?, password = ?, api_token = ?, auth_type = ?
@@ -3840,20 +2732,14 @@ cfg_if! {
                     auth_type.to_string()
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn update_auth_type(
                 auth_type: &ProxmoxAuthType, 
                 executor: impl MySqlExecutor<'_>
             ) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE proxmox
                     SET auth_type = ?
@@ -3861,38 +2747,21 @@ cfg_if! {
                     auth_type.to_string()
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn delete(executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE FROM proxmox
                     "
                 )
                     .execute(executor)
-                    .await {
-                        Ok(result) => {
-                            if result.rows_affected() > 0 {
-                                Ok(())
-                            } else {
-                                Err(sqlx::Error::RowNotFound)
-                            }
-                        },
-                        Err(e) => {
-                            Err(e)
-                        }
-                    }
+                    .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
             }
 
             pub async fn get(executor: impl MySqlExecutor<'_>) -> Result<Option<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT base_url, api_path, templates_pool_id, node, username, password, api_token, auth_type
@@ -3900,37 +2769,25 @@ cfg_if! {
                     "
                 )
                     .fetch_optional(executor)
-                    .await {
-                        Ok(ldap_args) => Ok(ldap_args),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_auth_type(executor: impl MySqlExecutor<'_>) -> Result<ProxmoxAuthType, sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     SELECT auth_type
                     FROM proxmox
                     "
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(row) => Ok(row.auth_type.into()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|row| row.auth_type.into())
             }
         }
 
         impl DbHint {
             pub async fn add(hint: &str, challenge_id: &str, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
                 let id = uuid::Uuid::new_v4();
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO hints (id, hint, challenge_id, points_penalty)
                     VALUES (?, ?, ?, ?)
@@ -3941,17 +2798,11 @@ cfg_if! {
                     points_penalty
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn delete(id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE FROM hints
                     WHERE id = ?
@@ -3959,22 +2810,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(result) => {
-                            if result.rows_affected() > 0 {
-                                Ok(())
-                            } else {
-                                Err(sqlx::Error::RowNotFound)
-                            }
-                        },
-                        Err(e) => {
-                            Err(e)
-                        }
-                    }
+                    .await.log_err().and_then(|result| if result.rows_affected() > 0 { Ok(()) } else { Err(sqlx::Error::RowNotFound) })
             }
 
             pub async fn delete_all_from_challenge(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE FROM hints
                     WHERE challenge_id = ?
@@ -3982,17 +2822,11 @@ cfg_if! {
                     challenge_id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn edit(id: &str, hint: &str, challenge_id: &str, points_penalty: &u32, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     UPDATE hints
                     SET hint = ?, challenge_id = ?, points_penalty = ?
@@ -4004,17 +2838,11 @@ cfg_if! {
                     id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn get(id: &str, executor: impl MySqlExecutor<'_>) -> Result<Self, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, hint, challenge_id, points_penalty
@@ -4024,17 +2852,11 @@ cfg_if! {
                     id
                 )
                     .fetch_one(executor)
-                    .await {
-                        Ok(hint) => Ok(hint),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_all(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, hint, challenge_id, points_penalty
@@ -4042,17 +2864,11 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(hints) => Ok(hints),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_all_from_challenge(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, hint, challenge_id, points_penalty
@@ -4062,19 +2878,13 @@ cfg_if! {
                     challenge_id
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(hints) => Ok(hints),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
         }
 
         impl DbHintWithoutHint {
             pub async fn get_all_hints(executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, challenge_id, points_penalty
@@ -4082,17 +2892,11 @@ cfg_if! {
                     "
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(hints) => Ok(hints),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn get_challenge_hints(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, challenge_id, points_penalty
@@ -4102,19 +2906,13 @@ cfg_if! {
                     challenge_id
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(hints) => Ok(hints),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
         }
 
         impl HintsUsed {
             pub async fn add(challenge_id: &str, user_id: &str, hint_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     INSERT INTO hints_used (challenge_id, user_id, hint_id)
                     VALUES (?, ?, ?)
@@ -4124,17 +2922,11 @@ cfg_if! {
                     hint_id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
 
             pub async fn get(user: &DbUser, executor: impl MySqlExecutor<'_>) -> Result<Vec<Self>, sqlx::Error> {
-                match sqlx::query_as!(
+                sqlx::query_as!(
                     Self,
                     "
                     SELECT id, challenge_id, user_id, hint_id
@@ -4144,17 +2936,11 @@ cfg_if! {
                     user.id
                 )
                     .fetch_all(executor)
-                    .await {
-                        Ok(hints_used) => Ok(hints_used),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err()
             }
 
             pub async fn delete_all_from_challenge(challenge_id: &str, executor: impl MySqlExecutor<'_>) -> Result<(), sqlx::Error> {
-                match sqlx::query!(
+                sqlx::query!(
                     "
                     DELETE FROM hints_used
                     WHERE challenge_id = ?
@@ -4162,13 +2948,7 @@ cfg_if! {
                     challenge_id
                 )
                     .execute(executor)
-                    .await {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            tracing::error!(error = ?e);
-                            Err(e)?
-                        }
-                    }
+                    .await.log_err().map(|_| ())
             }
         }
     }

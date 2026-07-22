@@ -130,6 +130,7 @@ pub fn Toast(
         if entered.get() {
             format!("{base} translate-x-0")
         } else {
+            // To-Do: make dynamic depending on device resolution
             format!("{base} translate-x-72")
         }
     });

@@ -360,13 +360,10 @@ pub fn Challenge(
                                         each=move || templates.get()
                                         key=|template: &ProxmoxVMTemplate| template.id
                                         children=move |template| {
-                                            let selected = proxmox_vm_id_edit
-                                                .get()
-                                                .unwrap_or_default()
-                                                .split(",")
-                                                .map(String::from)
-                                                .collect::<Vec<String>>()
-                                                .contains(&template.id.to_string());
+                                            let selected = csv_contains(
+                                                &proxmox_vm_id_edit.get().unwrap_or_default(),
+                                                &template.id.to_string()
+                                            );
 
                                             view! {
                                                 <option 
@@ -442,26 +439,20 @@ pub fn Challenge(
                                                 >
                                                     <Icon icon=i::LuPlus />
                                                 </button>
-                                                {
-                                                    if index.get() != 0 {
-                                                        view! {
-                                                            <button 
-                                                                class="cursor-pointer"
-                                                                on:click=move |_| {
-                                                                    let remove_at = index.get_untracked();
+                                                <Show when=move || index.get() != 0>
+                                                    <button 
+                                                        class="cursor-pointer"
+                                                        on:click=move |_| {
+                                                            let remove_at = index.get_untracked();
 
-                                                                    hints_edit.update(|vec| {
-                                                                        vec.remove(remove_at);
-                                                                    });
-                                                                } 
-                                                            >
-                                                                <Icon icon=i::LuX />
-                                                            </button>
-                                                        }.into_any()
-                                                    } else {
-                                                        "".into_any()
-                                                    }
-                                                }
+                                                            hints_edit.update(|vec| {
+                                                                vec.remove(remove_at);
+                                                            });
+                                                        } 
+                                                    >
+                                                        <Icon icon=i::LuX />
+                                                    </button>
+                                                </Show>
                                             </div>
                                         }
                                     }}
